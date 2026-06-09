@@ -1,0 +1,3939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MusicMap v1.1</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@300;400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a1a2e;--surface:#16213e;--surface2:#1e2d45;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);
+  --text:#e8e8e8;--muted:#8899aa;--yellow:#FFD700;--red:#f87171;--green:#4ade80;
+  --pixel:'Press Start 2P',monospace;--sans:'DM Sans',sans-serif;
+  --accent:#7c3aed;--accent2:#c4b5fd;
+}
+body{background:var(--bg)}
+#geovibes-app{color:var(--text);font-family:var(--sans);width:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column;align-items:center;overflow:hidden;position:relative;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+#geovibes-app::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:9999}
+
+/* biome themes */
+.biome-beach{--accent:#00b4d8;--accent2:#90e0ef;--bggrad:linear-gradient(135deg,#0077b6,#00b4d8 60%,#ade8f4)}
+.biome-city{--accent:#7c3aed;--accent2:#c4b5fd;--bggrad:linear-gradient(135deg,#1e1b4b,#3730a3 60%,#6d28d9)}
+.biome-forest{--accent:#16a34a;--accent2:#86efac;--bggrad:linear-gradient(135deg,#052e16,#166534 60%,#16a34a)}
+.biome-mountain{--accent:#9f1239;--accent2:#fda4af;--bggrad:linear-gradient(135deg,#1c1917,#78350f 50%,#92400e)}
+.biome-desert{--accent:#d97706;--accent2:#fde68a;--bggrad:linear-gradient(135deg,#451a03,#92400e 50%,#d97706)}
+.biome-town{--accent:#0891b2;--accent2:#a5f3fc;--bggrad:linear-gradient(135deg,#083344,#0e7490 60%,#06b6d4)}
+.biome-ocean{--accent:#0284c7;--accent2:#bae6fd;--bggrad:linear-gradient(135deg,#0c4a6e,#0369a1 60%,#38bdf8)}
+.biome-shopping{--accent:#db2777;--accent2:#fbcfe8;--bggrad:linear-gradient(135deg,#500724,#9d174d 60%,#db2777)}
+.biome-port{--accent:#0d9488;--accent2:#99f6e4;--bggrad:linear-gradient(135deg,#042f2e,#0f766e 60%,#14b8a6)}
+.biome-home{--accent:#f59e0b;--accent2:#fde68a;--bggrad:linear-gradient(135deg,#3b1a00,#92400e 50%,#f59e0b)}
+.biome-work{--accent:#6366f1;--accent2:#c7d2fe;--bggrad:linear-gradient(135deg,#1e1b4b,#4338ca 60%,#818cf8)}
+.biome-school{--accent:#10b981;--accent2:#a7f3d0;--bggrad:linear-gradient(135deg,#022c22,#065f46 60%,#34d399)}
+.biome-gym{--accent:#ef4444;--accent2:#fca5a5;--bggrad:linear-gradient(135deg,#450a0a,#991b1b 60%,#ef4444)}
+.biome-custom{--accent:#8b5cf6;--accent2:#ddd6fe;--bggrad:linear-gradient(135deg,#2e1065,#5b21b6 60%,#8b5cf6)}
+
+/* hero */
+
+#heroBanner::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
+.pack-eyebrow{font-family:var(--pixel);font-size:7px;letter-spacing:2px;margin-bottom:4px;opacity:.85;position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--accent2,#aaa);text-align:center}
+.pack-eyebrow-title{font-family:var(--pixel);font-size:clamp(14px,4vw,20px);color:#fff;letter-spacing:2px;text-shadow:2px 2px 0 rgba(0,0,0,.5);line-height:1.2}
+.pack-eyebrow-tagline{font-size:10px;color:rgba(255,255,255,.55);font-family:var(--sans);letter-spacing:.5px;font-style:italic;font-weight:300}
+.pack-eyebrow-name{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:100px;border:1.5px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .2s;margin-top:0}
+.pack-eyebrow:hover .pack-eyebrow-name{background:rgba(0,0,0,.55);border-color:rgba(255,255,255,.65);transform:scale(1.03)}
+.pack-eyebrow-name span[id=packEyebrowName]{font-size:8px;letter-spacing:1px;font-family:var(--pixel);color:#fff}
+.pack-eyebrow:hover{opacity:1}
+/* biome-name-hero merged into hero-biome-name */
+/* biome-emoji-hero merged into hero-biome-emoji */
+@keyframes floatE{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.location-pill{font-size:11px;padding:3px 12px;border-radius:100px;background:rgba(0,0,0,.35);color:rgba(255,255,255,.7);position:relative;z-index:1;transition:opacity .3s}
+.location-pill:empty{display:none}
+#biomeNameSub:empty{display:none}
+/* shared hero button style */
+.hero-btn{position:relative;z-index:1;display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:100px;border:1.5px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.35);color:#fff;font-family:var(--pixel);font-size:8px;letter-spacing:1px;cursor:pointer;transition:all .2s;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);white-space:nowrap}
+.hero-btn:hover{background:rgba(0,0,0,0.55);border-color:rgba(255,255,255,0.65);transform:scale(1.03)}
+.hero-btn:active{transform:scale(.97)}
+.hero-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+#heroDetectBtn{/* inherits .hero-btn */}
+#heroDetectBtn.tracking{background:rgba(74,222,128,.2);border-color:rgba(74,222,128,.6)}
+#heroStatusBar{font-size:10px;color:rgba(255,255,255,0.6);text-align:center;min-height:14px;position:relative;z-index:1;margin-top:5px}
+#heroBanner{width:100%;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 22px;position:relative;background:var(--bggrad,linear-gradient(135deg,#1a1a2e,#16213e));transition:background 1s;text-align:center}
+
+#mainContent{width:100%;max-width:520px;padding:0 16px 80px;margin-top:0}
+
+/* now playing */
+/* nowPlayingCard removed — now inside heroBanner */
+#ytContainer{display:none;width:100%;border-radius:10px;overflow:hidden;background:#000;margin-bottom:11px}
+
+/* hero player section */
+.hero-player{width:100%;max-width:520px;padding:0 16px 16px;position:relative;z-index:1}
+.hero-np-track{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;margin-bottom:1px}
+.hero-np-game{font-size:10px;color:rgba(255,255,255,.55);text-align:center;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero-controls{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px}
+.hero-ctrl-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;color:#fff;font-size:15px;flex-shrink:0;backdrop-filter:blur(4px)}
+.hero-ctrl-btn:hover{background:rgba(255,255,255,.22);transform:scale(1.05)}
+.hero-ctrl-btn:active{transform:scale(.95)}
+.hero-ctrl-btn.primary{width:48px;height:48px;background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.4);font-size:19px}
+.hero-ctrl-right{display:flex;gap:5px;margin-left:8px}
+.hero-pill-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:5px 9px;cursor:pointer;color:rgba(255,255,255,.8);font-size:11px;transition:all .15s;white-space:nowrap;backdrop-filter:blur(4px)}
+.hero-pill-btn:hover{background:rgba(255,255,255,.2);color:#fff}
+.hero-progress{display:flex;align-items:center;gap:8px}
+.hero-progress-bg{flex:1;height:3px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
+.hero-progress-fill{height:100%;background:rgba(255,255,255,.8);border-radius:2px;width:0%;transition:width .5s linear}
+.hero-progress-time{font-size:10px;color:rgba(255,255,255,.55);min-width:30px}
+.hero-divider{width:100%;height:1px;background:rgba(255,255,255,.1);margin:12px 0 10px;max-width:520px;position:relative;z-index:1}
+.hero-biome-row{display:flex;flex-direction:column;align-items:center;width:100%;max-width:520px;padding:0 16px;position:relative;z-index:1;margin-bottom:8px;gap:4px}
+.hero-biome-emoji{font-size:34px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.4));animation:floatE 3s ease-in-out infinite}
+.hero-biome-info{text-align:center;width:100%}
+.hero-biome-name{font-family:var(--pixel);font-size:clamp(10px,2.8vw,15px);color:#fff;text-shadow:3px 3px 0 rgba(0,0,0,.5);line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.hero-biome-sub{font-size:9px;color:rgba(255,255,255,.45);font-family:var(--pixel);letter-spacing:.5px;text-align:center}
+.hero-biome-right{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+
+
+/* biome toast */
+#biomeToast{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-110%);z-index:9000;width:100%;max-width:420px;padding:0 16px;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none}
+#biomeToast.show{transform:translateX(-50%) translateY(0)}
+#biomeToastInner{background:rgba(10,10,24,0.92);border:1px solid rgba(255,255,255,0.12);border-radius:0 0 18px 18px;padding:14px 20px 16px;display:flex;align-items:center;gap:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+#toastEmoji{font-size:32px;flex-shrink:0;animation:toastBounce 0.5s ease 0.3s both}
+@keyframes toastBounce{0%{transform:scale(0.5)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+#toastBody{flex:1;min-width:0}
+#toastEntering{font-size:9px;font-family:var(--pixel);letter-spacing:2px;color:var(--accent2,#aaa);opacity:0.7;margin-bottom:4px}
+#toastBiomeName{font-family:var(--pixel);font-size:13px;color:#fff;text-shadow:0 0 20px var(--accent,#7c3aed);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#toastTrackName{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#toastAccentBar{height:2px;border-radius:1px;background:var(--accent,#7c3aed);margin-top:10px;width:100%;transform-origin:left;animation:toastBar 3.5s linear forwards}
+@keyframes toastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.player-controls{display:flex;align-items:center;gap:7px}
+.ctrl-btn{background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;color:#fff;flex-shrink:0;font-size:16px}
+.ctrl-btn:hover{background:rgba(255,255,255,.16);transform:scale(1.05)}
+.ctrl-btn:active{transform:scale(.95)}
+.ctrl-btn.primary{width:48px;height:48px;background:var(--accent,#3B4CCA);border-color:transparent;font-size:19px}
+.ctrl-btn.primary:hover{filter:brightness(1.15)}
+.ctrl-right{margin-left:auto;display:flex;gap:4px}
+.pill-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:11px;transition:all .15s;white-space:nowrap}
+.pill-btn:hover{color:#fff;border-color:var(--border2)}
+.progress-wrap{margin-top:10px;display:flex;align-items:center;gap:8px}
+.progress-bar-bg{flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+.progress-bar-fill{height:100%;background:var(--accent,#3B4CCA);border-radius:2px;width:0%;transition:width 1s linear}
+.progress-time{font-size:11px;color:var(--muted);min-width:30px}
+
+/* tabs */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-top:16px;overflow-x:auto;gap:0}
+.tab-btn{font-family:var(--pixel);font-size:7px;padding:9px 11px;border:none;background:none;color:var(--muted);cursor:pointer;letter-spacing:1px;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.tab-btn .tab-emoji{font-size:18px;line-height:1;font-family:sans-serif}
+.tab-btn:hover{color:#fff}
+.tab-btn.active{color:var(--accent,#7c3aed);border-bottom-color:var(--accent,#7c3aed)}
+.tab-pane{display:none;padding-top:14px}
+.tab-pane.active{display:block}
+
+.section{margin-top:18px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.section-title{font-family:var(--pixel);font-size:8px;color:var(--muted);letter-spacing:1.5px}
+
+/* location grid */
+.loc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.loc-btn{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:9px 5px;cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+.loc-btn:hover{border-color:var(--border2);background:rgba(255,255,255,.05)}
+.loc-btn.active{border-color:var(--accent,#3B4CCA);background:rgba(255,255,255,.05)}
+.loc-btn.custom-loc{border-style:dashed}
+.loc-btn.add-loc{border-style:dashed;color:var(--muted)}
+.loc-btn-emoji{font-size:17px}
+.loc-btn-name{font-size:10px;color:var(--muted);line-height:1.2;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;text-align:center}
+.loc-btn.active .loc-btn-name{color:var(--accent2,#fff)}
+.loc-btn-subtext{font-size:8px;color:var(--muted);opacity:.55;line-height:1;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;text-align:center}
+.loc-edit-btn{position:absolute;top:3px;right:3px;background:none;border:none;font-size:10px;color:var(--muted);cursor:pointer;padding:1px 3px;border-radius:4px;opacity:0;transition:opacity .15s}
+.loc-btn:hover .loc-edit-btn{opacity:1}
+.loc-btn.active .loc-edit-btn{opacity:.7}
+.loc-proximity{position:absolute;top:3px;left:3px;width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* track list */
+.track-list{display:flex;flex-direction:column;gap:5px}
+.track-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:var(--surface);border:1px solid var(--border);transition:all .15s}
+.track-item.clickable{cursor:pointer}
+.track-item.clickable:hover{border-color:var(--border2)}
+.track-item.playing{border-color:var(--accent,#3B4CCA);background:rgba(255,255,255,.04)}
+.track-num{font-family:var(--pixel);font-size:7px;color:var(--muted);width:15px;text-align:center;flex-shrink:0}
+.track-item.playing .track-num{color:var(--accent,#fff)}
+.track-info{flex:1;min-width:0}
+.track-title{font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-game{font-size:11px;color:var(--muted)}
+.track-actions{display:flex;gap:2px;flex-shrink:0}
+.t-btn{background:none;border:1px solid transparent;border-radius:6px;padding:3px 5px;cursor:pointer;font-size:12px;color:var(--muted);transition:all .15s;line-height:1}
+.t-btn:hover{border-color:var(--border);background:rgba(255,255,255,.06);color:#fff}
+.t-btn.on{color:var(--yellow)}
+.t-btn.danger:hover{color:var(--red)}
+.add-track-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:9px;border-radius:9px;border:1px dashed var(--border2);background:none;color:var(--muted);cursor:pointer;font-size:13px;transition:all .2s;margin-top:5px}
+.add-track-btn:hover{color:#fff;border-color:var(--accent)}
+.empty-state{text-align:center;padding:22px 14px;color:var(--muted);font-size:13px;line-height:1.6}
+.pin-status{font-size:11px;color:var(--muted);font-style:italic}
+
+/* packs panel */
+.pack-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;gap:10px}
+.pack-card:hover{border-color:var(--border2)}
+.pack-card.active{border-color:var(--accent)}
+.pack-card-top{display:flex;align-items:center;gap:12px}
+.pack-icon{font-size:28px;flex-shrink:0}
+.pack-info{flex:1;min-width:0}
+.pack-name{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:.5px;margin-bottom:4px}
+.pack-meta{font-size:11px;color:var(--muted)}
+.pack-actions{display:flex;gap:6px;border-top:1px solid var(--border);padding-top:10px}
+.pack-action-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .15s}
+.pack-action-btn:hover{color:#fff;border-color:var(--border2)}
+.pack-action-btn.danger:hover{color:var(--red)}
+
+/* video list in pack edit */
+.video-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:var(--surface2);border:1px solid var(--border);margin-bottom:6px}
+.video-row-info{flex:1;min-width:0}
+.video-row-id{font-size:12px;color:#fff;font-family:monospace}
+.video-row-count{font-size:11px;color:var(--muted)}
+.video-row-actions{display:flex;gap:4px;flex-shrink:0}
+/* timestamp importer */
+.ts-import-area{width:100%;min-height:100px;background:rgba(0,0,0,.3);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;color:#fff;font-size:12px;font-family:'Courier New',monospace;resize:vertical;outline:none;line-height:1.5}
+/* guide box */
+.guide-box{background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.25);border-radius:11px;padding:14px 16px;margin-bottom:14px}
+.guide-box-title{font-family:var(--pixel);font-size:8px;color:var(--accent2);letter-spacing:1px;margin-bottom:8px}
+.guide-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;font-size:12px;color:rgba(255,255,255,.75);line-height:1.5}
+.guide-step:last-child{margin-bottom:0}
+.guide-num{font-family:var(--pixel);font-size:8px;color:var(--accent);background:rgba(124,58,237,.2);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+/* inline video sections */
+.pe-video-section{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.pe-video-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pe-video-id{font-size:12px;color:#fff;font-family:monospace;font-weight:500}
+.pe-video-track-count{font-size:11px;color:var(--muted)}
+/* url input status */
+.url-status{font-size:11px;margin-top:5px;min-height:16px;transition:color .2s}
+.url-status.ok{color:var(--green)}
+.url-status.err{color:var(--red)}
+.ts-import-area:focus{border-color:var(--accent)}
+.ts-import-area::placeholder{color:var(--muted);font-family:var(--sans)}
+.ts-parse-result{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:9px;padding:10px 13px;margin-top:8px;display:none}
+.ts-parse-result.visible{display:block}
+.ts-parse-count{font-size:12px;color:var(--green);margin-bottom:6px;font-family:var(--pixel);font-size:8px;letter-spacing:.5px}
+.ts-track-preview{font-size:11px;color:var(--muted);line-height:1.8;max-height:120px;overflow-y:auto}
+
+/* modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:flex-end;justify-content:center;padding:0}
+.modal-overlay.open{display:flex}
+.modal-overlay.center{align-items:center;padding:16px}
+.modal-sheet{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-bottom:none}
+.modal-box{background:var(--surface);border-radius:16px;width:100%;max-width:440px;padding:22px;border:1px solid var(--border);max-height:90vh;overflow-y:auto}
+.modal-header{padding:15px 17px 11px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:1px}
+.modal-close{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:2px 6px}
+.modal-close:hover{color:#fff}
+.modal-search{padding:9px 15px;flex-shrink:0}
+.modal-search input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 12px;color:#fff;font-size:13px;font-family:var(--sans);outline:none}
+.modal-search input:focus{border-color:var(--accent)}
+.modal-search input::placeholder{color:var(--muted)}
+.modal-list{overflow-y:auto;padding:0 13px 14px;flex:1}
+.modal-group-label{font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1.5px;padding:9px 2px 5px;position:sticky;top:0;background:var(--surface);z-index:1}
+.modal-track-item{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;transition:all .15s;border:1px solid transparent}
+.modal-track-item:hover{background:rgba(255,255,255,.05);border-color:var(--border)}
+.modal-track-item.already-added{opacity:.4;cursor:default;pointer-events:none}
+.modal-track-add{font-size:15px;color:var(--accent2);flex-shrink:0}
+
+/* forms */
+.form-row{margin-bottom:13px}
+.form-label{font-size:11px;color:var(--muted);margin-bottom:5px;display:block;letter-spacing:.5px;text-transform:uppercase}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 12px;color:#fff;font-size:13px;font-family:var(--sans);outline:none}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--muted)}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.emoji-picker{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.emoji-opt{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:15px;transition:all .15s}
+.emoji-opt:hover,.emoji-opt.sel{border-color:var(--accent);background:rgba(255,255,255,.07)}
+.form-actions{display:flex;gap:7px;margin-top:16px}
+.btn-primary{flex:1;padding:10px;border-radius:9px;border:none;background:var(--accent);color:#fff;font-family:var(--pixel);font-size:8px;cursor:pointer;transition:all .2s;letter-spacing:.5px}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-secondary{padding:10px 14px;border-radius:9px;border:1px solid var(--border2);background:none;color:var(--muted);font-family:var(--pixel);font-size:8px;cursor:pointer;transition:all .2s}
+.btn-secondary:hover{color:#fff}
+.btn-danger{padding:10px 12px;border-radius:9px;border:1px solid rgba(248,113,113,.3);background:none;color:var(--red);font-family:var(--pixel);font-size:8px;cursor:pointer}
+.btn-danger:hover{background:rgba(248,113,113,.1)}
+
+/* share */
+.share-box{background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-top:10px}
+.share-code-display{width:100%;background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:9px;padding:11px 13px;color:#fff;font-size:13px;font-family:'Courier New',monospace;word-break:break-all;margin-bottom:10px;line-height:1.6;letter-spacing:.5px;text-align:center;user-select:all;cursor:text}
+.share-code-label{font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+.copy-flash{font-size:11px;color:var(--green);text-align:center;height:16px;transition:opacity .3s;margin-top:6px}
+/* import box */
+.import-box{background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-top:10px}
+.import-input{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--border2);border-radius:9px;padding:10px 13px;color:#fff;font-size:13px;font-family:'Courier New',monospace;outline:none;margin-bottom:10px;letter-spacing:.3px}
+.import-input:focus{border-color:var(--accent)}
+.import-input::placeholder{color:var(--muted);font-family:var(--sans);font-size:12px;letter-spacing:0}
+.import-preview{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:9px;padding:10px 13px;margin-bottom:10px;display:none}
+.import-preview.visible{display:block}
+.import-preview-name{font-size:14px;font-weight:600;color:#fff;margin-bottom:2px}
+.import-preview-meta{font-size:11px;color:var(--muted)}
+
+/* map */
+/* leaflet map */
+#leafletMap{width:100%;height:360px;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#0c2d48;cursor:crosshair}
+.map-legend{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px}
+.legend-item{display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--surface);border-radius:7px;border:1px solid var(--border);font-size:11px;color:var(--muted)}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.map-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:7px;line-height:1.5}
+/* custom leaflet marker */
+.mm-marker{display:flex;align-items:center;justify-content:center;font-size:20px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));cursor:pointer}
+.mm-user-marker{width:22px;height:22px;border-radius:50%;background:#FFD700;border:3px solid #fff;box-shadow:0 0 0 3px rgba(255,215,0,.35),0 3px 8px rgba(0,0,0,.4)}
+
+/* privacy share modal */
+#privacyModalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;display:none;align-items:center;justify-content:center;padding:16px}
+#privacyModalOverlay.open{display:flex}
+#privacyModal{background:var(--surface);border-radius:16px;width:100%;max-width:460px;border:1px solid var(--border);display:flex;flex-direction:column;max-height:90vh;overflow:hidden}
+.priv-header{padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.priv-title{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:1px;margin-bottom:8px}
+.priv-warning-banner{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);border-radius:9px;padding:10px 13px;font-size:12px;color:#fbbf24;line-height:1.55}
+.priv-body{overflow-y:auto;padding:14px 20px;flex:1}
+.priv-section-label{font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1.5px;margin-bottom:10px}
+.priv-loc-row{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);margin-bottom:7px}
+.priv-loc-emoji{font-size:20px;flex-shrink:0}
+.priv-loc-info{flex:1;min-width:0}
+.priv-loc-name{font-size:13px;font-weight:500;color:#fff}
+.priv-loc-coords{font-size:11px;color:var(--muted);font-family:monospace}
+.priv-warn-icon{font-size:14px;flex-shrink:0}
+.priv-toggle{position:relative;width:38px;height:22px;flex-shrink:0}
+.priv-toggle input{opacity:0;width:0;height:0;position:absolute}
+.priv-toggle-track{position:absolute;inset:0;border-radius:11px;background:rgba(255,255,255,.15);transition:background .2s;cursor:pointer}
+.priv-toggle input:checked+.priv-toggle-track{background:#ef4444}
+.priv-toggle-thumb{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;pointer-events:none}
+.priv-toggle input:checked~.priv-toggle-thumb{transform:translateX(16px)}
+.priv-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+
+/* location toggle */
+#heroDetectBtn.tracking #heroDetectIcon{animation:trackPulse 2s ease-in-out infinite}
+@keyframes trackPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.track-badge{display:inline-block;font-size:8px;padding:2px 6px;border-radius:100px;background:rgba(74,222,128,.25);color:var(--green);font-family:var(--pixel);letter-spacing:.5px;margin-left:4px;vertical-align:middle}
+
+/* settings */
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--surface);border-radius:9px;border:1px solid var(--border);margin-bottom:5px;cursor:pointer}
+.settings-row:hover{border-color:var(--border2)}
+.settings-row-label{font-size:13px;color:#fff}
+.settings-row-sub{font-size:11px;color:var(--muted)}
+
+/* detect */
+
+.make-import-btn{width:100%;padding:13px 16px;border-radius:12px;border:1.5px dashed var(--accent);background:rgba(124,58,237,.08);color:var(--accent2);font-family:var(--pixel);font-size:8px;letter-spacing:.5px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px}
+.make-import-btn:hover{background:rgba(124,58,237,.18);border-style:solid;transform:scale(1.01)}
+
+/* make-import modal tabs */
+.mi-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;flex-shrink:0}
+.mi-tab{flex:1;padding:10px 8px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:var(--pixel);font-size:7px;letter-spacing:.5px;cursor:pointer;transition:all .2s;margin-bottom:-1px}
+.mi-tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
+.mi-pane{display:none}
+.mi-pane.active{display:block}
+
+/* playlist resolve status */
+.url-resolve-row{display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px}
+.url-resolve-info{flex:1;min-width:0}
+.url-resolve-title{font-size:13px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.url-resolve-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.url-resolve-badge{font-size:10px;padding:2px 7px;border-radius:100px;background:rgba(74,222,128,.15);color:var(--green);white-space:nowrap;flex-shrink:0;margin-top:2px}
+.url-resolve-badge.loading{background:rgba(255,255,255,.08);color:var(--muted)}
+.url-resolve-badge.err{background:rgba(248,113,113,.15);color:var(--red)}
+
+.spin{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+
+/* pin list in location edit */
+.pin-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.pin-row{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:9px;background:var(--surface2);border:1px solid var(--border)}
+.pin-row-coords{flex:1;font-size:12px;color:#fff;font-family:monospace;line-height:1.4}
+.pin-row-radius{font-size:11px;color:var(--muted)}
+.pin-row-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 5px;border-radius:5px;flex-shrink:0}
+.pin-row-del:hover{color:var(--red)}
+.pin-add-btns{display:flex;gap:7px;margin-bottom:4px}
+
+/* map picker modal */
+#mapPickerOverlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:700;display:none;flex-direction:column}
+#mapPickerOverlay.open{display:flex}
+#mapPickerHeader{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:1}
+#mapPickerTitle{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:1px}
+#mapPickerMap{flex:1;width:100%}
+#mapPickerFooter{padding:14px 18px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+.map-picker-instruction{font-size:12px;color:var(--muted);margin-bottom:10px;text-align:center}
+.map-picker-pending{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:none}
+.map-picker-pending.visible{display:block}
+.map-picker-coords{font-size:12px;color:#fff;font-family:monospace;margin-bottom:8px}
+.map-picker-radius-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.map-picker-radius-row label{font-size:11px;color:var(--muted);white-space:nowrap;font-family:var(--pixel);font-size:7px;letter-spacing:.5px}
+.map-picker-radius-row input[type=range]{flex:1;accent-color:var(--accent)}
+.map-picker-radius-val{font-size:12px;color:#fff;min-width:50px;text-align:right}
+#mapPickerConfirmBtn{width:100%;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-family:var(--pixel);font-size:8px;cursor:pointer;letter-spacing:.5px}
+#mapPickerConfirmBtn:disabled{opacity:.4;cursor:not-allowed}
+@keyframes spin{to{transform:rotate(360deg)}}
+.playing-bars{display:flex;align-items:flex-end;gap:2px;height:13px}
+.playing-bars span{display:block;width:3px;background:var(--accent,#3B4CCA);border-radius:1px;animation:bar .8s ease-in-out infinite}
+.playing-bars span:nth-child(2){animation-delay:.2s}
+.playing-bars span:nth-child(3){animation-delay:.4s}
+@keyframes bar{0%,100%{height:3px}50%{height:12px}}
+</style>
+</head>
+<body>
+
+<div id="geovibes-app">
+<!-- BIOME ENTRY TOAST -->
+<div id="biomeToast">
+  <div id="biomeToastInner">
+    <div id="toastEmoji">🌊</div>
+    <div id="toastBody">
+      <div id="toastEntering">ENTERING BIOME</div>
+      <div id="toastBiomeName">Coastal Route</div>
+      <div id="toastTrackName"></div>
+      <div id="toastAccentBar"></div>
+    </div>
+  </div>
+</div>
+<div id="heroBanner" class="biome-beach">
+  <!-- TOP: title -->
+  <div class="pack-eyebrow" id="packEyebrow" style="cursor:default">
+    <span class="pack-eyebrow-title">MusicMap</span>
+    <span class="pack-eyebrow-tagline">Wander your world in Music! Vibe, Customize and Share</span>
+  </div>
+  <!-- SIDE-BY-SIDE BUTTONS -->
+  <div style="display:flex;gap:9px;align-items:stretch;justify-content:center;margin-bottom:14px;flex-wrap:wrap;padding:0 16px;width:100%;max-width:520px;position:relative;z-index:1;box-sizing:border-box">
+    <button id="heroDetectBtn" class="hero-btn" onclick="toggleTracking()">
+      <span id="heroDetectIcon">📍</span>
+      <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">
+        <span id="heroDetectLabel" style="letter-spacing:1px">LISTEN TO WORLD</span>
+        <span id="heroDetectSub" style="font-size:6px;opacity:0.65;letter-spacing:.5px;font-family:var(--pixel)">DETECT MY LOCATION</span>
+      </span>
+    </button>
+    <div class="hero-btn pack-eyebrow-name" onclick="goToPacks()" role="button" tabindex="0">
+      <span id="packEyebrowIcon" style="font-size:18px;line-height:1">🌿</span>
+      <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">
+        <span id="packEyebrowName" style="font-size:8px;letter-spacing:1px">HOENN PACK</span>
+        <span style="font-size:6px;opacity:0.65;letter-spacing:.5px;font-family:var(--pixel)">CHANGE PACK</span>
+      </span>
+      <span style="font-size:14px;opacity:.6">▾</span>
+    </div>
+  </div>
+  <!-- BIOME ROW -->
+  <div class="hero-biome-row">
+    <span class="hero-biome-emoji" id="biomeEmoji">🌊</span>
+    <div class="hero-biome-info">
+      <div class="hero-biome-name" id="biomeName">Coastal Route</div>
+      <div class="hero-biome-sub" id="biomeNameSub"></div>
+    </div>
+    <div class="hero-biome-right">
+      <div class="location-pill" id="locationPill"></div>
+      <span id="nearBadge" style="display:none;font-size:8px;padding:2px 7px;border-radius:100px;background:rgba(74,222,128,.15);color:var(--green);font-family:var(--pixel);letter-spacing:.5px">📍 NEARBY</span>
+      <div id="heroStatusBar" style="font-size:9px;color:rgba(255,255,255,.6);text-align:center;line-height:1.3"></div>
+    </div>
+  </div>
+  <!-- DIVIDER -->
+  <div class="hero-divider"></div>
+  <!-- NOW PLAYING (integrated) -->
+  <div class="hero-player" style="background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+    <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen style="width:100%;height:165px;border:none;display:block;border-radius:8px;margin-bottom:10px"></iframe></div>
+    <div class="hero-np-track" id="npTrack">Route 104</div>
+    <div class="hero-np-game" id="npGame">Pokémon Ruby &amp; Sapphire</div>
+    <div class="hero-controls">
+      <button class="hero-ctrl-btn" onclick="prevTrack()">⏮</button>
+      <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()">▶</button>
+      <button class="hero-ctrl-btn" onclick="nextTrack()">⏭</button>
+      <div class="hero-ctrl-right">
+        <div class="playing-bars" id="playingBars" style="display:none;margin-right:2px"><span></span><span></span><span></span></div>
+        <button class="hero-pill-btn" id="videoToggleBtn" onclick="toggleVideo()">📺</button>
+        <button class="hero-pill-btn" id="npYtBtn">🔗 YT</button>
+      </div>
+    </div>
+    <div class="hero-progress">
+      <span class="hero-progress-time" id="progressTime">0:00</span>
+      <div class="hero-progress-bg"><div class="hero-progress-fill" id="progressFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="mainContent">
+
+  <div class="tab-bar">
+    <button class="tab-btn" onclick="switchTab('player')"><span class="tab-emoji">🌴</span>Biomes</button>
+    <button class="tab-btn active" onclick="switchTab('packs')"><span class="tab-emoji">📦</span>Packs</button>
+    <button class="tab-btn" onclick="switchTab('map')"><span class="tab-emoji">🗺</span>Map</button>
+    <button class="tab-btn" onclick="switchTab('settings')"><span class="tab-emoji">⚙</span>Settings</button>
+  </div>
+
+  <!-- PLAYER TAB -->
+  <div id="tab-player" class="tab-pane">
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">LOCATIONS</div>
+      </div>
+      <div class="loc-grid" id="locGrid"></div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title" id="trackListLabel">TRACKS</div>
+        <div class="pin-status" id="pinStatus"></div>
+      </div>
+      <div class="track-list" id="trackList"></div>
+      <button class="add-track-btn" onclick="openTrackPicker()">＋ Add tracks</button>
+    </div>
+
+  </div>
+
+  <!-- PACKS TAB -->
+  <div id="tab-packs" class="tab-pane active">
+    <div class="section">
+      <button class="make-import-btn" onclick="openMakeImportModal()">
+        <span style="font-size:18px">＋</span>
+        <span>Make or Import Pack</span>
+      </button>
+      <div id="packsList" style="margin-top:4px"></div>
+    </div>
+  </div><!-- /tab-packs -->
+
+  <!-- MAP TAB -->
+  <div id="tab-map" class="tab-pane">
+    <div id="leafletMap"></div>
+    <div class="map-hint">📍 Click anywhere on the map to drop a custom location pin · Scroll or pinch to zoom</div>
+    <div class="map-legend" id="mapLegend">
+      <div class="legend-item"><div class="legend-dot" style="background:#00b4d8"></div>🌊 Beach</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>🏙️ City</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#16a34a"></div>🌲 Forest</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#9f1239"></div>🌋 Mountain</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>🏜️ Desert</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#0891b2"></div>🏘️ Town</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#0284c7"></div>🐋 Ocean</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#db2777"></div>🛍️ Shopping</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#0d9488"></div>⚓ Port</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FFD700"></div>★ Custom pin</div>
+    </div>
+  </div>
+
+    <!-- SETTINGS TAB -->
+  <div id="tab-settings" class="tab-pane">
+    <div class="section">
+      <div class="section-header"><div class="section-title">REMOVED TRACKS</div></div>
+      <div class="track-list" id="hiddenTrackList"></div>
+    </div>
+    <div class="section" style="margin-top:20px">
+      <div class="section-header"><div class="section-title">DATA</div></div>
+      <div class="settings-row" onclick="exportData()"><div><div class="settings-row-label">📤 Export preferences</div><div class="settings-row-sub">Download JSON</div></div></div>
+      <div class="settings-row" onclick="clearAllData()"><div><div class="settings-row-label" style="color:var(--red)">🗑 Clear all data</div><div class="settings-row-sub">Resets everything</div></div></div>
+      <div style="margin-top:9px;font-size:11px;color:var(--muted);line-height:1.7" id="cacheStatus"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TRACK PICKER MODAL -->
+<div id="trackPickerOverlay" class="modal-overlay" onclick="closeTrackPicker(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <div class="modal-title" id="pickerTitle">ADD TRACKS</div>
+      <button class="modal-close" onclick="closeTrackPickerDirect()">✕</button>
+    </div>
+    <div class="modal-search"><input type="text" id="pickerSearch" placeholder="Search tracks…" oninput="filterPicker()"/></div>
+    <div class="modal-list" id="pickerList"></div>
+  </div>
+</div>
+
+<!-- LOCATION EDIT MODAL -->
+<div id="locEditOverlay" class="modal-overlay center" onclick="closeLocEdit(event)">
+  <div class="modal-box" id="locEditBox">
+    <div class="modal-title" id="locEditTitle" style="margin-bottom:16px">EDIT LOCATION</div>
+    <div class="form-row">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="leNameInput" placeholder="e.g. Home, Coffee Shop…" maxlength="24"/>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Icon</label>
+      <div class="emoji-picker" id="leEmojiPicker"></div>
+    </div>
+    <div id="leCoordSection">
+      <div class="form-row">
+        <label class="form-label">Location Pins</label>
+        <div class="pin-list" id="lePinList"></div>
+        <div class="pin-add-btns">
+          <button class="pill-btn" style="flex:1;padding:8px;text-align:center" onclick="openMapPicker()">🗺 Add from map</button>
+          <button class="pill-btn" style="flex:1;padding:8px;text-align:center" onclick="addCurrentLocationPin()">📍 Use my location</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Add one or more pins. Music plays when you enter any pin's radius.</div>
+      </div>
+    </div>
+    <div style="margin-bottom:10px" id="leTracksBtnRow">
+      <button class="pill-btn" style="width:100%;padding:10px;font-size:12px;border-radius:10px" onclick="openTrackPickerFromLocEdit()">🎵 Edit tracks for this location</button>
+    </div>
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="closeLocEdit()">Cancel</button>
+      <button id="leDeleteBtn" class="btn-danger" style="display:none" onclick="deleteCustomLoc()">Delete</button>
+      <button class="btn-primary" onclick="saveLocEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PACK MODAL -->
+<!-- addPackOverlay replaced by packEditOverlay -->
+
+
+<script>
+// ═══════════════════════════════════════════
+// BUILT-IN PACKS
+// ═══════════════════════════════════════════
+
+const BUILTIN_PACKS = [
+  {
+    id: 'hoenn',
+    name: 'Hoenn Pack',
+    icon: '🌿',
+    videoId: 'mz3pL7xNBbY',
+    source: 'Pokémon Ruby & Sapphire',
+    subtitle: '',
+    builtin: true,
+    tracks: [  // 92 tracks — fully verified from video description
+      {title:'Opening Movie',start:0,dur:57},
+      {title:'Title Screen: Main Theme',start:57,dur:106},
+      {title:'Introductions',start:163,dur:107},
+      {title:'Littleroot Town',start:270,dur:122},
+      {title:'Birch Pokémon Lab',start:392,dur:72},
+      {title:'May',start:464,dur:76},
+      {title:'H-Help Me!',start:540,dur:27},
+      {title:'Battle! (Wild Pokémon)',start:567,dur:105},
+      {title:'Route 101',start:672,dur:83},
+      {title:'Oldale Town',start:755,dur:95},
+      {title:'Pokémon Center',start:850,dur:89},
+      {title:'Trainers\' Eyes Meet (Youngster)',start:939,dur:39},
+      {title:'Trainers\' Eyes Meet (Lass)',start:978,dur:35},
+      {title:'Battle! (Trainer Battle)',start:1013,dur:173},
+      {title:'Victory! (Trainer Battle)',start:1186,dur:38},
+      {title:'Petalburg City',start:1224,dur:78},
+      {title:'Hurry Along',start:1302,dur:64},
+      {title:'Route 104',start:1366,dur:94},
+      {title:'Petalburg Woods',start:1460,dur:94},
+      {title:'Team Magma Appears!',start:1554,dur:55},
+      {title:'Battle! (Team Aqua / Magma)',start:1609,dur:206},
+      {title:'Victory! (Team Aqua / Magma)',start:1815,dur:30},
+      {title:'Rustboro City',start:1845,dur:136},
+      {title:'Trainers\' School',start:1981,dur:90},
+      {title:'Crossing The Sea',start:2071,dur:69},
+      {title:'Dewford Town',start:2140,dur:152},
+      {title:'Trainers\' Eyes Meet (Tuber ♀)',start:2292,dur:41},
+      {title:'Slateport City',start:2333,dur:188},
+      {title:'Oceanic Museum',start:2521,dur:161},
+      {title:'Route 110',start:2682,dur:88},
+      {title:'Cycling',start:2770,dur:111},
+      {title:'Game Corner',start:2881,dur:162},
+      {title:'Verdanturf Town',start:3043,dur:109},
+      {title:'Route 113',start:3152,dur:159},
+      {title:'Twins',start:3311,dur:28},
+      {title:'Fallarbor Town',start:3339,dur:126},
+      {title:'Cable Car',start:3465,dur:18},
+      {title:'Mt. Chimney',start:3483,dur:209},
+      {title:'Trainers\' Eyes Meet (Hiker)',start:3692,dur:43},
+      {title:'Route 111',start:3735,dur:98},
+      {title:'Pokémon Gym',start:3833,dur:87},
+      {title:'Battle! (Gym Leader)',start:3920,dur:163},
+      {title:'Victory! (Gym Leader)',start:4083,dur:107},
+      {title:'Surf',start:4190,dur:161},
+      {title:'Route 119',start:4351,dur:156},
+      {title:'Fortree City',start:4507,dur:77},
+      {title:'Route 120',start:4584,dur:134},
+      {title:'Interviewers',start:4718,dur:32},
+      {title:'Safari Zone',start:4750,dur:56},
+      {title:'Trainers\' Eyes Meet (Gentleman)',start:4806,dur:46},
+      {title:'Lilycove City',start:4852,dur:140},
+      {title:'Museum',start:4992,dur:206},
+      {title:'Brendan',start:5198,dur:79},
+      {title:'Battle! (Brendan / May)',start:5277,dur:135},
+      {title:'Poké Mart',start:5412,dur:98},
+      {title:'Mt. Pyre',start:5510,dur:122},
+      {title:'Trainers\' Eyes Meet (Psychic)',start:5632,dur:35},
+      {title:'Trainers\' Eyes Meet (Hex Maniac)',start:5667,dur:54},
+      {title:'Mt. Pyre Exterior',start:5721,dur:169},
+      {title:'Hideout',start:5890,dur:98},
+      {title:'Team Aqua Appears!',start:5988,dur:71},
+      {title:'Battle! (Archie / Maxie)',start:6059,dur:143},
+      {title:'The Super-Ancient Pokémon Awaken!',start:6202,dur:17},
+      {title:'Drought',start:6219,dur:69},
+      {title:'Heavy Rain',start:6288,dur:75},
+      {title:'Dive',start:6363,dur:184},
+      {title:'Sootopolis City',start:6547,dur:127},
+      {title:'Meteor Falls/Cave of Origin',start:6674,dur:110},
+      {title:'Battle! (Super-Ancient Pokémon)',start:6784,dur:104},
+      {title:'Trainers\' Eyes Meet (Swimmer)',start:6888,dur:30},
+      {title:'Ever Grande City',start:6918,dur:155},
+      {title:'Contest Lobby',start:7073,dur:76},
+      {title:'Pokémon Contest!',start:7149,dur:98},
+      {title:'Results Announcement',start:7247,dur:41},
+      {title:'Contest Winner',start:7288,dur:37},
+      {title:'Sealed Chamber',start:7325,dur:94},
+      {title:'Battle! (Regirock/Regice/Registeel)',start:7419,dur:98},
+      {title:'The Trick House',start:7517,dur:102},
+      {title:'Abandoned Ship',start:7619,dur:95},
+      {title:'Battle Tent',start:7714,dur:99},
+      {title:'Victory Road',start:7813,dur:121},
+      {title:'Trainers\' Eyes Meet (Cooltrainer)',start:7934,dur:70},
+      {title:'The Elite Four Appear!',start:8004,dur:51},
+      {title:'Battle! (Elite Four)',start:8055,dur:139},
+      {title:'Champion Steven',start:8194,dur:70},
+      {title:'Battle! (Champion)',start:8264,dur:142},
+      {title:'Victory! (Elite Four)',start:8406,dur:80},
+      {title:'The Room of Glory',start:8486,dur:83},
+      {title:'The Hall of Fame',start:8569,dur:89},
+      {title:'Credits',start:8658,dur:175},
+      {title:'The End',start:8833,dur:220},
+      {title:'Steven Stone',start:9053,dur:180},
+    ],
+    biomes: [
+      {id:'beach',name:'Coastal Route',emoji:'🌊',cssClass:'biome-beach',keywords:['beach','coast','sea','bay','shore','harbor','surf','island','cove','marina','waterfront'],defaultTracks:[15,22,69,58]},
+      {id:'city',name:'Urban City',emoji:'🏙️',cssClass:'biome-city',keywords:['city','downtown','urban','metro','avenue','street','plaza','district','midtown'],defaultTracks:[20,44,23,25]},
+      {id:'forest',name:'Petalburg Woods',emoji:'🌲',cssClass:'biome-forest',keywords:['forest','woods','park','trail','nature','grove','jungle','botanical','garden','wilderness','hiking'],defaultTracks:[16,8,3,40]},
+      {id:'mountain',name:'Mt. Chimney',emoji:'🌋',cssClass:'biome-mountain',keywords:['mountain','hill','summit','peak','cliff','canyon','valley','ridge','alpine','volcano','rocky'],defaultTracks:[33,59,71,49]},
+      {id:'desert',name:'Route 111 Desert',emoji:'🏜️',cssClass:'biome-desert',keywords:['desert','sand','dune','arid','mesa','plateau','badlands','scrub','dry','nevada','arizona','mojave'],defaultTracks:[34,29,31]},
+      {id:'town',name:'Verdanturf Town',emoji:'🏘️',cssClass:'biome-town',keywords:['suburb','town','village','neighborhood','residential','hamlet','township','borough','community','estate'],defaultTracks:[28,9,13,31]},
+      {id:'ocean',name:'Open Ocean',emoji:'🐋',cssClass:'biome-ocean',keywords:['ocean','gulf','strait','channel','pacific','atlantic','lake','river'],defaultTracks:[38,57,61,39]},
+      {id:'shopping',name:'Lilycove Dept.',emoji:'🛍️',cssClass:'biome-shopping',keywords:['mall','shopping','market','store','retail','plaza','center','outlet','commercial','arcade'],defaultTracks:[10,27,63,45]},
+      {id:'port',name:'SS Tidal / Port',emoji:'⚓',cssClass:'biome-port',keywords:['port','dock','pier','wharf','terminal','shipyard','industrial','warehouse','harbor','freight','airport'],defaultTracks:[21,24,51,66]},
+    ]
+  },
+  {
+    id: 'kanto',
+    name: 'Kanto Pack',
+    icon: '🔴',
+    videoId: '3Q0nQQIKESw',
+    source: 'Pokémon Red & Blue',
+    subtitle: '',
+    builtin: true,
+    tracks: [
+      {title:'Opening',start:0,dur:118},
+      {title:'Palette Town',start:118,dur:78},
+      {title:'Professor Oak',start:196,dur:49},
+      {title:'Oak Research Lab',start:245,dur:46},
+      {title:'Rival Appears',start:291,dur:43},
+      {title:'Route 1',start:334,dur:60},
+      {title:'Battle! (Wild)',start:394,dur:90},
+      {title:'Pewter City',start:521,dur:131},
+      {title:'Pokémon Center',start:652,dur:74},
+      {title:'Viridian Forest',start:734,dur:113},
+      {title:'Battle! (Trainer)',start:910,dur:197},
+      {title:'Mt. Moon',start:1138,dur:100},
+      {title:'Cerulean City',start:1327,dur:77},
+      {title:'Pokémon Gym',start:1404,dur:75},
+      {title:'Route to Cerulean',start:1479,dur:52},
+      {title:'Vermillion City',start:1542,dur:63},
+      {title:'S.S. Anne',start:1605,dur:84},
+      {title:'Route to Lavender',start:1689,dur:77},
+      {title:'Battle! (Gym Leader)',start:1810,dur:120},
+      {title:'Cycling',start:1987,dur:85},
+      {title:'Lavender Town',start:2072,dur:109},
+      {title:'Pokémon Tower',start:2181,dur:141},
+      {title:'Celadon City',start:2322,dur:77},
+      {title:'Casino',start:2399,dur:90},
+      {title:'Team Rocket Hideout',start:2517,dur:149},
+      {title:'Silph Co.',start:2666,dur:81},
+      {title:'Ocean',start:2747,dur:91},
+      {title:'Cinnabar Island',start:2838,dur:59},
+      {title:'Pokémon Mansion',start:2897,dur:84},
+      {title:'Final Road',start:3016,dur:75},
+      {title:'Last Battle (Rival)',start:3091,dur:150},
+      {title:'Ending',start:3305,dur:120},
+    ],
+    biomes: [
+      {id:'beach',name:'Sea Route',emoji:'🌊',cssClass:'biome-beach',keywords:['beach','coast','sea','bay','shore','harbor','surf','island','cove','marina','waterfront'],defaultTracks:[26,27,16]},
+      {id:'city',name:'Celadon City',emoji:'🏙️',cssClass:'biome-city',keywords:['city','downtown','urban','metro','avenue','street','plaza','district','midtown'],defaultTracks:[22,25,15]},
+      {id:'forest',name:'Viridian Forest',emoji:'🌲',cssClass:'biome-forest',keywords:['forest','woods','park','trail','nature','grove','jungle','botanical','garden','wilderness','hiking'],defaultTracks:[9,5,14]},
+      {id:'mountain',name:'Mt. Moon',emoji:'🌋',cssClass:'biome-mountain',keywords:['mountain','hill','summit','peak','cliff','canyon','valley','ridge','alpine','volcano','rocky'],defaultTracks:[11,21,30]},
+      {id:'desert',name:'Safari Zone',emoji:'🏜️',cssClass:'biome-desert',keywords:['desert','sand','dune','arid','mesa','plateau','badlands','scrub','dry','nevada','arizona','mojave'],defaultTracks:[30,5,17]},
+      {id:'town',name:'Palette Town',emoji:'🏘️',cssClass:'biome-town',keywords:['suburb','town','village','neighborhood','residential','hamlet','township','borough','community','estate'],defaultTracks:[1,8,2]},
+      {id:'ocean',name:'Open Ocean',emoji:'🐋',cssClass:'biome-ocean',keywords:['ocean','gulf','strait','channel','pacific','atlantic','lake','river'],defaultTracks:[26,16,31]},
+      {id:'shopping',name:'Celadon Dept.',emoji:'🛍️',cssClass:'biome-shopping',keywords:['mall','shopping','market','store','retail','plaza','center','outlet','commercial','arcade'],defaultTracks:[22,23,8]},
+      {id:'port',name:'Vermillion Port',emoji:'⚓',cssClass:'biome-port',keywords:['port','dock','pier','wharf','terminal','shipyard','industrial','warehouse','harbor','freight','airport'],defaultTracks:[16,25,24]},
+    ]
+  },{
+    id: 'smb3',
+    name: 'Super Mario Bros. 3',
+    icon: '🍄',
+    videoId: 'dqN0iyQypjM',
+    source: 'Super Mario Bros. 3 (NES)',
+    subtitle: '',
+    builtin: true,
+    videos: [{id: 'dqN0iyQypjM', tracks: [
+      {title:'World 1 Map',start:0,dur:52},
+      {title:'Level Selected',start:52,dur:30},
+      {title:'Overworld BGM',start:54,dur:165},
+      {title:'Invincible BGM',start:219,dur:34},
+      {title:'Miss',start:253,dur:30},
+      {title:'World 2 Map',start:257,dur:35},
+      {title:'Athletic BGM',start:292,dur:135},
+      {title:'Course Clear Fanfare',start:427,dur:30},
+      {title:'World 3 Map',start:431,dur:47},
+      {title:'Underwater BGM',start:478,dur:115},
+      {title:'Music Box',start:593,dur:42},
+      {title:'Slot BGM / Nervous Breakdown',start:635,dur:28},
+      {title:'World 4 Map',start:663,dur:47},
+      {title:'Underground BGM',start:710,dur:85},
+      {title:'World 5 Map',start:795,dur:43},
+      {title:'World 5 Sky Map',start:838,dur:51},
+      {title:'Enemy Battle',start:889,dur:104},
+      {title:"Toad's House / P-Switch BGM",start:993,dur:34},
+      {title:'World 6 Map',start:1027,dur:34},
+      {title:'Fortress BGM',start:1061,dur:81},
+      {title:'Fortress Boss',start:1142,dur:77},
+      {title:'Fireworks Fanfare',start:1219,dur:30},
+      {title:'Whistle Sound ~ Warp Island',start:1224,dur:45},
+      {title:'World 7 Map',start:1269,dur:41},
+      {title:"King's Room",start:1310,dur:38},
+      {title:'Airship BGM',start:1348,dur:98},
+      {title:'Princess Kidnapped!',start:1446,dur:30},
+      {title:'World 8 Map',start:1448,dur:42},
+      {title:'King Koopa',start:1490,dur:70},
+      {title:'Koopa Defeated',start:1560,dur:30},
+      {title:'World Clear Fanfare',start:1563,dur:30},
+      {title:'Ending',start:1571,dur:199},
+      {title:'Game Over',start:1770,dur:30},
+      {title:'Overworld BGM (Hurry!)',start:1776,dur:97},
+      {title:'Athletic BGM (Hurry!)',start:1873,dur:88},
+      {title:'Underwater BGM (Hurry!)',start:1961,dur:61},
+      {title:'Underground BGM (Hurry!)',start:2022,dur:59},
+      {title:'Invincible BGM (Hurry!)',start:2081,dur:30},
+      {title:'P-Switch BGM (Hurry!)',start:2102,dur:32},
+      {title:'Enemy Battle BGM (Hurry!)',start:2134,dur:77},
+      {title:'Fortress BGM (Hurry!)',start:2211,dur:42},
+      {title:'Airship BGM (Hurry!)',start:2253,dur:64},
+      {title:'Fortress Boss (Hurry!)',start:2317,dur:56},
+      {title:'King Koopa (Hurry!)',start:2373,dur:48},
+      {title:'SMB3 Medley',start:2421,dur:180},
+    ]}],
+    tracks: [], // legacy compat — populated below
+    biomes: [
+      {id:'beach',   name:'Beach',emoji:'🌿',cssClass:'biome-beach',
+       keywords:['beach','coast','sea','bay','shore','harbor','surf','island','cove','marina','waterfront'],
+       defaultTracks:[2,6,14,15]},   // Overworld BGM, Athletic BGM, World 5 Map, Sky Map
+      {id:'city',    name:'City',emoji:'🗺️',cssClass:'biome-city',
+       keywords:['city','downtown','urban','metro','avenue','street','plaza','district','midtown'],
+       defaultTracks:[0,5,12,23]},   // World 1 Map, World 2 Map, World 4 Map, World 7 Map
+      {id:'forest',  name:'Forest',emoji:'🌲',cssClass:'biome-forest',
+       keywords:['forest','woods','park','trail','nature','grove','jungle','botanical','garden','wilderness','hiking'],
+       defaultTracks:[6,15,2,34]},   // Athletic BGM, Sky Map, Overworld, Overworld Hurry
+      {id:'mountain',name:'Mountain',emoji:'🏰',cssClass:'biome-mountain',
+       keywords:['mountain','hill','summit','peak','cliff','canyon','valley','ridge','alpine','volcano','rocky'],
+       defaultTracks:[19,20,28,27]}, // Fortress BGM, Fortress Boss, King Koopa, World 8 Map
+      {id:'desert',  name:'Desert',emoji:'🏜️',cssClass:'biome-desert',
+       keywords:['desert','sand','dune','arid','mesa','plateau','badlands','scrub','dry','nevada','arizona','mojave'],
+       defaultTracks:[13,36,37,11]}, // Underground BGM, Underground Hurry, Slot BGM, World 4 Map -- cave vibes
+      {id:'town',    name:'Town',emoji:'🏘️',cssClass:'biome-town',
+       keywords:['suburb','town','village','neighborhood','residential','hamlet','township','borough','community','estate'],
+       defaultTracks:[0,8,17,22]},   // World 1 Map, World 3 Map, Toad House, Warp Island
+      {id:'ocean',   name:'Ocean',emoji:'🐋',cssClass:'biome-ocean',
+       keywords:['ocean','gulf','strait','channel','pacific','atlantic','lake','river'],
+       defaultTracks:[9,10,35,31]},  // Underwater BGM, Music Box, Underwater Hurry, Ending
+      {id:'shopping',name:'Shopping',emoji:'🛍️',cssClass:'biome-shopping',
+       keywords:['mall','shopping','market','store','retail','plaza','center','outlet','commercial','arcade'],
+       defaultTracks:[17,1,10,21]},  // Toad House, Level Selected, Music Box, Fireworks
+      {id:'port',    name:'Port',emoji:'✈️',cssClass:'biome-port',
+       keywords:['port','dock','pier','wharf','terminal','shipyard','industrial','warehouse','harbor','freight','airport'],
+       defaultTracks:[25,42,16,40]}, // Airship BGM, Airship Hurry, Enemy Battle, Enemy Hurry
+    ]
+  }
+  ,{
+    id: 'halo_reach',
+    name: 'Halo Reach',
+    icon: '🪖',
+    videoId: '53_CUSmf8fQ',
+    source: 'Halo Reach OST',
+    subtitle: "Martin O'Donnell / Bungie",
+    builtin: true,
+    videos: [{id: '53_CUSmf8fQ', tracks: [
+      {title:'Overture',start:0,dur:287},
+      {title:'Winter Contingency',start:287,dur:300},
+      {title:'ONI: Sword Base',start:1016,dur:300},
+      {title:'Nightfall',start:1525,dur:300},
+      {title:'Tip Of The Spear',start:1866,dur:300},
+      {title:'Long Night Of Solace',start:2232,dur:300},
+      {title:'Exodus',start:2939,dur:300},
+      {title:'New Alexandria',start:3378,dur:300},
+      {title:'The Package',start:3901,dur:300},
+      {title:'The Pillar Of Autumn',start:4317,dur:300},
+      {title:'Epilogue',start:4898,dur:270},
+      {title:'From The Vault',start:5168,dur:299},
+      {title:'Ashes',start:5467,dur:166},
+      {title:'Fortress',start:5633,dur:68},
+      {title:"We're Not Going Anywhere",start:5701,dur:74},
+      {title:'At Any Cost',start:5775,dur:151},
+      {title:'Both Ways (Remix)',start:5926,dur:137},
+      {title:'Walking Away',start:6063,dur:113},
+      {title:'Ghosts And Glass',start:6176,dur:162},
+      {title:'We Remember',start:6338,dur:180},
+    ]}],
+    tracks: [],
+    biomes: [
+      {id:'beach',   name:'Beach',emoji:'🌙',cssClass:'biome-beach',
+       keywords:['beach','coast','sea','bay','shore','harbor','surf','island','cove','marina','waterfront'],
+       defaultTracks:[3,17,18,19]},
+      {id:'city',    name:'City',emoji:'🏙️',cssClass:'biome-city',
+       keywords:['city','downtown','urban','metro','avenue','street','plaza','district','midtown'],
+       defaultTracks:[7,6,15,16]},
+      {id:'forest',  name:'Forest',emoji:'❄️',cssClass:'biome-forest',
+       keywords:['forest','woods','park','trail','nature','grove','jungle','botanical','garden','wilderness','hiking'],
+       defaultTracks:[1,3,11,17]},
+      {id:'mountain',name:'Mountain',emoji:'🌋',cssClass:'biome-mountain',
+       keywords:['mountain','hill','summit','peak','cliff','canyon','valley','ridge','alpine','volcano','rocky'],
+       defaultTracks:[4,5,8,13]},
+      {id:'desert',  name:'Desert',emoji:'🏜️',cssClass:'biome-desert',
+       keywords:['desert','sand','dune','arid','mesa','plateau','badlands','scrub','dry','nevada','arizona','mojave'],
+       defaultTracks:[2,13,15,14]},
+      {id:'town',    name:'Town',emoji:'🏘️',cssClass:'biome-town',
+       keywords:['suburb','town','village','neighborhood','residential','hamlet','township','borough','community','estate'],
+       defaultTracks:[10,11,12,19]},
+      {id:'ocean',   name:'Ocean',emoji:'🌊',cssClass:'biome-ocean',
+       keywords:['ocean','gulf','strait','channel','pacific','atlantic','lake','river'],
+       defaultTracks:[0,10,18,19]},
+      {id:'shopping',name:'Shopping',emoji:'🛍️',cssClass:'biome-shopping',
+       keywords:['mall','shopping','market','store','retail','plaza','center','outlet','commercial','arcade'],
+       defaultTracks:[7,6,4,2]},
+      {id:'port',    name:'Port',emoji:'⚓',cssClass:'biome-port',
+       keywords:['port','dock','pier','wharf','terminal','shipyard','industrial','warehouse','harbor','freight','airport'],
+       defaultTracks:[9,5,4,8]},
+    ]
+  }
+  ,{
+    id: 'terraria',
+    name: 'Terraria',
+    icon: '⛏️',
+    videoId: 'C0seWTv_MS8',
+    source: 'Terraria OST',
+    subtitle: 'Scott Lloyd Shelly & Re-Logic',
+    builtin: true,
+    videos: [{id: 'C0seWTv_MS8', tracks: [
+      {title:'Title (Console)',start:0,dur:96},
+      {title:'Overworld Day',start:96,dur:137},
+      {title:'Eerie',start:233,dur:161},
+      {title:'Overworld Night',start:394,dur:121},
+      {title:'Title Screen',start:515,dur:78},
+      {title:'Underground',start:593,dur:179},
+      {title:'Boss 1',start:772,dur:137},
+      {title:'Jungle',start:909,dur:164},
+      {title:'Corruption',start:1073,dur:155},
+      {title:'Underground Corruption',start:1228,dur:143},
+      {title:'The Hallow',start:1371,dur:127},
+      {title:'Boss 2',start:1498,dur:120},
+      {title:'Underground Hallow',start:1618,dur:174},
+      {title:'Boss 3',start:1792,dur:110},
+      {title:'Tutorial (Console)',start:1902,dur:60},
+      {title:'Ocean (Console)',start:1962,dur:92},
+      {title:'Ocean',start:2054,dur:89},
+      {title:'Eclipse',start:2143,dur:97},
+      {title:'Rain',start:2240,dur:96},
+      {title:'Alternate Day',start:2336,dur:101},
+      {title:'Space',start:2437,dur:96},
+      {title:'Golem',start:2533,dur:88},
+      {title:'Mushrooms',start:2621,dur:76},
+      {title:'Crimson',start:2697,dur:128},
+      {title:'Lihzahrd',start:2825,dur:97},
+      {title:'Ice',start:2922,dur:95},
+      {title:'Plantera',start:3017,dur:77},
+      {title:'Dungeon',start:3094,dur:100},
+      {title:'Lunar Boss',start:3194,dur:87},
+      {title:'Space (Console)',start:3281,dur:84},
+      {title:'Alternate Underground',start:3365,dur:72},
+      {title:'Underground Crimson',start:3437,dur:161},
+      {title:'Goblin Army',start:3598,dur:106},
+      {title:'Underworld',start:3704,dur:130},
+      {title:'Pirate Invasion',start:3834,dur:111},
+      {title:'Pumpkin Moon',start:3945,dur:86},
+      {title:'Frost Moon',start:4031,dur:69},
+      {title:'Martian Madness',start:4100,dur:101},
+      {title:'Lunar Towers',start:4201,dur:87},
+      {title:'Moon Lord',start:4288,dur:113},
+      {title:'The Journey Begins',start:4401,dur:84},
+      {title:'Underground Ice',start:4485,dur:84},
+      {title:'Space Day',start:4569,dur:84},
+      {title:'Empress of Light',start:4653,dur:168},
+      {title:'Queen Slime',start:4821,dur:90},
+      {title:'Slime Rain',start:4911,dur:83},
+      {title:'Desert',start:4994,dur:90},
+      {title:'Underground Desert',start:5084,dur:121},
+      {title:'Sandstorm',start:5205,dur:99},
+      {title:"Old One's Army",start:5304,dur:142},
+      {title:'Underground Jungle',start:5446,dur:109},
+      {title:'Jungle Night',start:5555,dur:96},
+      {title:'Queen Bee',start:5651,dur:87},
+      {title:'Graveyard',start:5738,dur:117},
+      {title:'Town Day',start:5855,dur:127},
+      {title:'High Wind',start:5982,dur:80},
+      {title:'Storm',start:6062,dur:96},
+      {title:'Duke Fishron',start:6158,dur:102},
+      {title:'Morning Rain',start:6260,dur:61},
+      {title:'Ocean Night',start:6321,dur:92},
+      {title:'Town Night',start:6413,dur:117},
+      {title:'Alt Title',start:6530,dur:96},
+      {title:"Journey's End - Credits",start:6626,dur:132},
+      {title:'Terraria Day Theme Remix',start:6758,dur:212},
+      {title:'Prelude',start:6970,dur:97},
+      {title:'Every Adventure Has A Beginning',start:7067,dur:155},
+      {title:'Night Falls Darkness Emerges',start:7222,dur:191},
+      {title:'Below the Surface',start:7413,dur:188},
+      {title:'Secret of the Sands',start:7601,dur:215},
+      {title:'Glimmers Of Vibrance',start:7816,dur:186},
+      {title:'Enchanted Blue',start:8002,dur:168},
+      {title:'Sky Guardian',start:8170,dur:195},
+      {title:'The Endless Void',start:8365,dur:230},
+      {title:'Celestial Caverns',start:8595,dur:185},
+      {title:'Journey to the Core',start:8780,dur:136},
+      {title:'Ancient Citadel',start:8916,dur:195},
+      {title:'Shadows Of Corruption',start:9111,dur:196},
+      {title:'Decay And Corrosion',start:9307,dur:191},
+      {title:'Behold the OctoEye',start:9498,dur:178},
+      {title:'Blood Crawlers',start:9676,dur:141},
+      {title:'Crimson Chasm',start:9817,dur:181},
+      {title:'Fighting Off The Invasion',start:9998,dur:164},
+      {title:'Twisted Virtue',start:10162,dur:185},
+      {title:'A Sweet Menace',start:10347,dur:176},
+      {title:'Rage Of Tarunnk',start:10523,dur:139},
+      {title:'Enter Darkness',start:10662,dur:157},
+      {title:'Fighting the Night',start:10819,dur:181},
+      {title:'Sinkholes of Darkness',start:11000,dur:165},
+      {title:'Consumed by Darkness',start:11165,dur:171},
+      {title:'Postlude - Credits',start:11336,dur:180},
+    ]}],
+    tracks: [],
+    biomes: [
+      {id:'beach',   name:'Beach',    emoji:'🌊',cssClass:'biome-beach',
+       keywords:['beach','coast','sea','bay','shore','harbor','surf','island','cove','marina','waterfront'],
+       defaultTracks:[16,15,58,59]},
+      {id:'city',    name:'City',     emoji:'🏙️',cssClass:'biome-city',
+       keywords:['city','downtown','urban','metro','avenue','street','plaza','district','midtown'],
+       defaultTracks:[54,60,1,19]},
+      {id:'forest',  name:'Forest',   emoji:'🌲',cssClass:'biome-forest',
+       keywords:['forest','woods','park','trail','nature','grove','jungle','botanical','garden','wilderness','hiking'],
+       defaultTracks:[7,1,26,50]},
+      {id:'mountain',name:'Mountain', emoji:'🌋',cssClass:'biome-mountain',
+       keywords:['mountain','hill','summit','peak','cliff','canyon','valley','ridge','alpine','volcano','rocky'],
+       defaultTracks:[5,41,67,73]},
+      {id:'desert',  name:'Desert',   emoji:'🏜️',cssClass:'biome-desert',
+       keywords:['desert','sand','dune','arid','mesa','plateau','badlands','scrub','dry','nevada','arizona','mojave'],
+       defaultTracks:[46,48,68,47]},
+      {id:'town',    name:'Town',     emoji:'🏘️',cssClass:'biome-town',
+       keywords:['suburb','town','village','neighborhood','residential','hamlet','township','borough','community','estate'],
+       defaultTracks:[54,60,40,65]},
+      {id:'ocean',   name:'Ocean',    emoji:'🐋',cssClass:'biome-ocean',
+       keywords:['ocean','gulf','strait','channel','pacific','atlantic','lake','river'],
+       defaultTracks:[16,59,57,18]},
+      {id:'shopping',name:'Shopping', emoji:'🛍️',cssClass:'biome-shopping',
+       keywords:['mall','shopping','market','store','retail','plaza','center','outlet','commercial','arcade'],
+       defaultTracks:[54,14,22,45]},
+      {id:'port',    name:'Port',     emoji:'⚓',cssClass:'biome-port',
+       keywords:['port','dock','pier','wharf','terminal','shipyard','industrial','warehouse','harbor','freight','airport'],
+       defaultTracks:[34,57,16,56]},
+    ]
+  }
+];
+
+const PRESET_CUSTOM = [
+  {id:'home',  name:'Home',   emoji:'🏠', cssClass:'biome-home',   isCustom:true,isPreset:true,lat:null,lon:null,radius:200,
+   packTracks:{'hoenn':[3,9,28,10],'kanto':[1,2,8,12],'smb3':[0,8,17,31],'halo_reach':[10,11,12,19],'terraria':[54,60,1,40]}},
+  {id:'work',  name:'Work',   emoji:'💼', cssClass:'biome-work',   isCustom:true,isPreset:true,lat:null,lon:null,radius:200,
+   packTracks:{'hoenn':[20,23,25,44],'kanto':[7,25,15,22],'smb3':[25,16,19,6],'halo_reach':[7,6,4,2],'terraria':[34,49,37,56]}},
+  {id:'school',name:'School', emoji:'🎓', cssClass:'biome-school', isCustom:true,isPreset:true,lat:null,lon:null,radius:200,
+   packTracks:{'hoenn':[35,11,4,14],'kanto':[3,13,10,2],'smb3':[17,1,0,2],'halo_reach':[11,12,10,0],'terraria':[54,14,1,40]}},
+  {id:'gym',   name:'Gym',    emoji:'🏋️', cssClass:'biome-gym',    isCustom:true,isPreset:true,lat:null,lon:null,radius:200,
+   packTracks:{'hoenn':[36,37,11,73],'kanto':[18,30,10,29],'smb3':[16,28,40,3],'halo_reach':[4,5,9,8],'terraria':[6,11,13,39]}},
+];
+
+const EMOJI_OPTIONS = [
+  '🏠','💼','🎓','🏋️','☕','🍕','🎮','🏖️','🌙','🌄','🎵','🏥','🏪','🌳',
+  '⛽','🎪','🏨','🍔','🎯','🚂','🌸','🏔️','🎨','🎭','🏕️','🎸','🍜','🏄',
+  '🚴','🎻','🦋','🌺','🎬','🍻','🏊','🎤','🚗','✈️','🚢','🏰','🗼','🎡',
+  '🌊','🏜️','🌲','🌋','🏙️','⚓','🛍️','🌿','🔴','⚡','❄️','🌴','🏆','⭐',
+  '🔮','🎲','🦁','🐺','🦊','🐉','🦅','🌈','💎','🗺️','📍','🎯','🏹','⚔️'
+];
+const PACK_EMOJIS = [
+  '🌿','🔴','🌊','⚡','🌙','🌸','🔥','❄️','🌴','🎮','🏆','⭐',
+  '🎵','🎸','🎹','🎺','🥁','🎤','🎼','🎧','📻','🎷','🪗','🎻',
+  '🌍','🌎','🌏','🗺️','🏔️','🌋','🏝️','🌃','🌆','🌇','🌉','🎆',
+  '🔮','💎','👾','🤖','👻','🐉','🦄','🌈','💫','✨','🌟','💥'
+];
+
+// ═══════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════
+const STORE_KEY = 'geovibes_v4';
+function loadStore(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch(e){return{}}}
+function saveStore(d){try{localStorage.setItem(STORE_KEY,JSON.stringify(d))}catch(e){}}
+function gs(k,def){const s=loadStore();return s[k]!==undefined?s[k]:def}
+function ss(k,v){const s=loadStore();s[k]=v;saveStore(s)}
+
+// pack id
+function getActivePackId(){return gs('activePackId','hoenn')}
+function setActivePackId(id){ss('activePackId',id)}
+function getUserPacks(){return gs('userPacks',[])}
+function saveUserPacks(arr){ss('userPacks',arr)}
+
+function getAllPacks(){return [...BUILTIN_PACKS,...getUserPacks()]}
+function getActivePack(){return getAllPacks().find(p=>p.id===getActivePackId())||BUILTIN_PACKS[0]}
+
+// per-pack overrides: names, emojis, track lists, pins
+function packKey(packId,key){return `pack_${packId}_${key}`}
+function getBiomeOverride(packId,biomeId){return gs(packKey(packId,'biomeOverrides'),{})[biomeId]||{}}
+function setBiomeOverride(packId,biomeId,obj){
+  const all=gs(packKey(packId,'biomeOverrides'),{});
+  all[biomeId]={...all[biomeId],...obj};
+  ss(packKey(packId,'biomeOverrides'),all);
+}
+function getLocTracks(packId,locId){
+  const overrides=gs(packKey(packId,'locTracks'),{});
+  if(overrides[locId]!==undefined)return overrides[locId];
+  // default from pack biomes
+  const pack=getAllPacks().find(p=>p.id===packId);
+  if(pack){const b=pack.biomes.find(b=>b.id===locId);if(b)return[...(b.defaultTracks||[])];}
+  // preset custom locations — use pack-specific defaults if available
+  const preset=PRESET_CUSTOM.find(p=>p.id===locId);
+  if(preset&&preset.packTracks){
+    // Use the base pack id (strip 'custom_' forks back to original)
+    const baseId=pack?._forkedFrom||packId;
+    if(preset.packTracks[baseId])return[...preset.packTracks[baseId]];
+    if(preset.packTracks[packId])return[...preset.packTracks[packId]];
+    // Fallback: first available
+    const first=Object.values(preset.packTracks)[0];
+    if(first)return[...first];
+  }
+  const cl=getAllCustomLocs().find(l=>l.id===locId);
+  if(cl)return cl.defaultTracks||[];
+  return[];
+}
+function setLocTracks(packId,locId,arr){
+  const t=gs(packKey(packId,'locTracks'),{});t[locId]=arr;ss(packKey(packId,'locTracks'),t);
+}
+function getPinnedIdx(packId,locId){return gs(packKey(packId,'pins'),{})[locId]}
+function setPinnedIdx(packId,locId,idx){
+  const p=gs(packKey(packId,'pins'),{});
+  if(idx===undefined)delete p[locId];else p[locId]=idx;
+  ss(packKey(packId,'pins'),p);
+}
+
+function getAllCustomLocs(){
+  const saved=gs('customLocs',[]);
+  const presets=PRESET_CUSTOM.map(p=>({...p,...(saved.find(c=>c.id===p.id)||{})}));
+  const userLocs=saved.filter(c=>!PRESET_CUSTOM.find(p=>p.id===c.id));
+  return[...presets,...userLocs];
+}
+function saveCustomLocs(arr){ss('customLocs',arr)}
+
+function getEffectiveBiome(packId,biomeId){
+  const pack=getAllPacks().find(p=>p.id===packId);
+  const base=pack?.biomes.find(b=>b.id===biomeId)||{};
+  const ov=getBiomeOverride(packId,biomeId);
+  return{...base,...ov};
+}
+
+// ═══════════════════════════════════════════
+// PACK CUSTOMIZATION HELPERS
+// ═══════════════════════════════════════════
+
+// When a builtin pack is first customized (rename, emoji, add video, add track),
+// transparently fork it into a user copy and activate that instead.
+function ensurePackEditable(packId){
+  const pack = getAllPacks().find(p => p.id === packId);
+  if(!pack) return packId;
+  if(!pack.builtin) return packId; // already user-owned
+
+  // Fork it
+  const newId = 'custom_' + packId + '_' + Date.now();
+  const forked = {
+    ...JSON.parse(JSON.stringify(pack)), // deep copy
+    id: newId,
+    name: pack.name + ' Custom',
+    builtin: false,
+    _forkedFrom: packId,
+  };
+  // Copy any existing per-pack store data
+  ['biomeOverrides','locTracks','pins','deletedBiomes'].forEach(key => {
+    const val = gs(packKey(packId, key), null);
+    if(val !== null) ss(packKey(newId, key), val);
+  });
+  saveUserPacks([...getUserPacks(), forked]);
+  setActivePackId(newId);
+  renderPacksList();
+  renderLocGrid();
+  return newId;
+}
+
+// Get all tracks across all videos in a pack (flat, with videoIdx + trackIdx)
+function getAllPackTracks(pack){
+  if(!pack) return [];
+  // Legacy packs: single videoId + tracks array
+  if(!pack.videos){
+    return (pack.tracks||[]).map((t,i) => ({...t, videoId: pack.videoId, globalIdx: i}));
+  }
+  // Multi-video packs
+  let result = [], offset = 0;
+  pack.videos.forEach((v,vi) => {
+    (v.tracks||[]).forEach((t,ti) => {
+      result.push({...t, videoId: v.id, videoIdx: vi, trackIdx: ti, globalIdx: offset+ti});
+    });
+    offset += (v.tracks||[]).length;
+  });
+  return result;
+}
+
+// Get the videoId for a given global track index
+function getTrackVideoId(pack, globalIdx){
+  const allTracks = getAllPackTracks(pack);
+  return allTracks[globalIdx]?.videoId || pack.videoId;
+}
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let currentLocId='beach', currentTrackPlayIdx=0, isPlaying=false, videoVisible=false;
+let progressTimer=null, progressSeconds=0, lastLat=null, lastLon=null;
+// ── TRACKING STATE ──
+let trackingActive=false, trackingTimer=null, lastPollLat=null, lastPollLon=null;
+let leafletMap=null, userMarker=null, customPinMarkers=[], radiusCircles=[];
+const MOVE_THRESHOLD=50;    // metres — considered "driving" if exceeded
+const POLL_FAST=30000;      // 30s when moving fast
+const POLL_SLOW=180000;     // 3min when stationary
+let editingLocId=null, editingLocIsCustom=false, editingPins=[];
+// Shuffle queue — ensures every track plays before any repeats
+let shuffleQueue=[];
+let pendingBiomeId=null; // biome queued to switch at next track end
+function buildShuffleQueue(len, currentIdx){
+  // Fisher-Yates shuffle of all indices except current
+  const pool=[];
+  for(let i=0;i<len;i++) if(i!==currentIdx) pool.push(i);
+  for(let i=pool.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [pool[i],pool[j]]=[pool[j],pool[i]];
+  }
+  return pool;
+}
+let selectedLocEmoji='🏠', selectedPackEmoji='🌿';
+let pickerTargetLocId=null;
+
+// ── PLAYBACK HELPERS ──
+function getActiveIframe(){return document.getElementById('ytFrameA');}
+
+function crossfadeTo(src){
+  // Crossfade removed — direct switch for now
+  getActiveIframe().src=src;
+}
+
+function hardSwitchTo(src){
+  getActiveIframe().src=src;
+}
+
+// ── TOAST ──
+let toastTimeout=null;
+function showBiomeToast(emoji, biomeName, trackName, accentCss){
+  const toast=document.getElementById('biomeToast');
+  const inner=document.getElementById('biomeToastInner');
+  // Update content
+  document.getElementById('toastEmoji').textContent=emoji;
+  document.getElementById('toastBiomeName').textContent=biomeName;
+  document.getElementById('toastTrackName').textContent=trackName?'♪ '+trackName:'';
+  // Update accent colour by re-applying CSS var inline
+  const bar=document.getElementById('toastAccentBar');
+  bar.style.background=accentCss||'var(--accent)';
+  inner.style.borderColor=accentCss?accentCss+'44':'rgba(255,255,255,0.12)';
+  // Re-trigger bar animation by cloning
+  const newBar=bar.cloneNode(true);
+  bar.parentNode.replaceChild(newBar,bar);
+  // Dismiss any existing toast first
+  toast.classList.remove('show');
+  clearTimeout(toastTimeout);
+  // Small delay so re-trigger animates properly
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    toast.classList.add('show');
+    toastTimeout=setTimeout(()=>toast.classList.remove('show'), 3800);
+  }));
+}
+
+function getPackId(){return getActivePackId();}
+function currentTracks(){return getLocTracks(getPackId(),currentLocId);}
+
+// ═══════════════════════════════════════════
+// INIT + IMPORT FROM URL
+// ═══════════════════════════════════════════
+function init(){
+  // ── PHP BACKEND HOOK (future): check URL for ?code=XXXXXX ──
+  // When PHP backend is ready, replace ShareBackend.decode() below
+  // with a fetch call and this block handles the response identically.
+  renderPacksList();
+  renderLocGrid();
+  loadLocation('beach',false,false);
+  updateCacheStatus();
+  registerServiceWorker();
+  const fv=document.getElementById('footerVersion');
+  if(fv) fv.textContent='Version '+MM_VERSION;
+}
+
+function importSharedPack(pack, silent){
+  if(!pack||!pack.id||!pack.tracks||!pack.biomes) return false;
+  const existing=getUserPacks();
+  // Assign a fresh id to avoid collision with existing packs
+  const freshId='imported_'+Date.now();
+  const toSave={...pack, id:freshId, builtin:false};
+  // Restore any bundled overrides into the store
+  if(pack._biomeOverrides){
+    ss(packKey(freshId,'biomeOverrides'), pack._biomeOverrides);
+  }
+  if(pack._locTracks){
+    ss(packKey(freshId,'locTracks'), pack._locTracks);
+  }
+  delete toSave._biomeOverrides;
+  delete toSave._locTracks;
+  existing.push(toSave);
+  saveUserPacks(existing);
+  if(!silent){
+    setActivePackId(freshId);
+    renderPacksList();
+    renderLocGrid();
+    loadLocation('beach',false,false);
+  }
+  return true;
+}
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+function goToPacks(){
+  switchTab('packs');
+  // Scroll the packs list into view smoothly
+  setTimeout(()=>{
+    const el=document.getElementById('packsList');
+    if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+  },80);
+}
+
+function switchTab(id){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('active',['player','packs','map','settings'][i]===id);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if(id==='settings')renderHiddenTracks();
+  if(id==='map'){
+    // Init Leaflet on first open (Leaflet needs the container visible)
+    setTimeout(()=>{
+      initLeafletMap();
+      renderCustomPins();
+      if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
+    },50);
+  }
+  if(id==='packs')renderPacksList();
+}
+
+// ═══════════════════════════════════════════
+// PACKS
+// ═══════════════════════════════════════════
+function renderPacksList(){
+  const el=document.getElementById('packsList');
+  if(!el)return;
+  el.innerHTML='';
+  const all=getAllPacks();
+  const activeId=getActivePackId();
+
+  // Active pack first, then rest
+  const activePack=all.find(p=>p.id===activeId);
+  const otherPacks=all.filter(p=>p.id!==activeId);
+
+  // Section label + active pack
+  if(activePack){
+    const activeLabel=document.createElement('div');
+    activeLabel.style.cssText='font-family:var(--pixel);font-size:7px;color:var(--green);letter-spacing:1.5px;margin-bottom:7px;opacity:.8';
+    activeLabel.textContent='▶ NOW PLAYING';
+    el.appendChild(activeLabel);
+  }
+
+  const packsToRender=activePack?[activePack,...otherPacks]:otherPacks;
+  let addedDivider=!activePack; // skip divider if no active pack
+
+  packsToRender.forEach(pack=>{
+    // Insert divider before the "other packs" section
+    if(!addedDivider && pack.id!==activeId){
+      addedDivider=true;
+      const divider=document.createElement('div');
+      divider.style.cssText='display:flex;align-items:center;gap:10px;margin:12px 0 10px';
+      divider.innerHTML='<div style="flex:1;height:1px;background:var(--border)"></div>'
+        +'<span style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1.5px;white-space:nowrap">ALL PACKS</span>'
+        +'<div style="flex:1;height:1px;background:var(--border)"></div>';
+      el.appendChild(divider);
+    }
+
+    const card=document.createElement('div');
+    const isActive=pack.id===activeId;
+    card.className='pack-card'+(isActive?' active':'');
+    // Clicking the card body (not buttons) activates the pack
+    card.onclick=(e)=>{ if(!e.target.closest('.pack-actions')) activatePack(pack.id); };
+    const allTracks=getAllPackTracks(pack);
+    const videoCount=pack.videos?pack.videos.length:1;
+    const packSubtitle=pack.subtitle||pack.source||pack.videoId||'';
+    const metaText=packSubtitle+' · '+allTracks.length+' track'+(allTracks.length!==1?'s':'')+(videoCount>1?' · '+videoCount+' videos':'');
+    // Top row: icon + name + active badge
+    const topRow=document.createElement('div');
+    topRow.className='pack-card-top';
+    topRow.innerHTML='<div class="pack-icon">'+(pack.icon||'🎵')+'</div>'
+      +'<div class="pack-info"><div class="pack-name">'+pack.name+'</div><div class="pack-meta">'+metaText+'</div></div>';
+    if(isActive){
+      const badge=document.createElement('span');
+      badge.style.cssText='font-size:10px;color:var(--green);font-family:var(--pixel);letter-spacing:.5px;flex-shrink:0';
+      badge.textContent='✓ ACTIVE';
+      topRow.appendChild(badge);
+    }
+    card.appendChild(topRow);
+    // Button row (separate line)
+    const actionsDiv=document.createElement('div');
+    actionsDiv.className='pack-actions';
+    const editBtn=document.createElement('button');
+    editBtn.className='pack-action-btn';
+    editBtn.textContent='✏ Edit';
+    editBtn.onclick=(e)=>{ e.stopPropagation(); openPackEdit(pack.id); };
+    actionsDiv.appendChild(editBtn);
+    const shareBtn=document.createElement('button');
+    shareBtn.className='pack-action-btn';
+    shareBtn.textContent='📤 Share';
+    shareBtn.onclick=(e)=>{ e.stopPropagation(); sharePackById(pack.id); };
+    actionsDiv.appendChild(shareBtn);
+    const dupBtn=document.createElement('button');
+    dupBtn.className='pack-action-btn';
+    dupBtn.textContent='⧉ Copy';
+    dupBtn.onclick=(e)=>{ e.stopPropagation(); duplicatePack(pack.id); };
+    actionsDiv.appendChild(dupBtn);
+    if(!pack.builtin){
+      const delBtn=document.createElement('button');
+      delBtn.className='pack-action-btn danger';
+      delBtn.textContent='✕ Delete';
+      delBtn.onclick=(e)=>{ e.stopPropagation(); deletePack(pack.id); };
+      actionsDiv.appendChild(delBtn);
+    }
+    card.appendChild(actionsDiv);
+    el.appendChild(card);
+  });
+  document.getElementById('packEyebrowName').textContent=(getActivePack()?.name||'').toUpperCase();
+  const iconEl=document.getElementById('packEyebrowIcon');
+  if(iconEl) iconEl.textContent=getActivePack()?.icon||'🎵';
+}
+
+function activatePack(id){
+  setActivePackId(id);
+  renderPacksList();
+  renderLocGrid();
+  loadLocation('beach',false,false);
+  switchTab('player');
+}
+
+function deletePack(id){
+  if(!confirm('Delete this pack?'))return;
+  saveUserPacks(getUserPacks().filter(p=>p.id!==id));
+  if(getActivePackId()===id)setActivePackId('hoenn');
+  renderPacksList();
+}
+
+function duplicatePack(id){
+  const src=getAllPacks().find(p=>p.id===id);
+  if(!src)return;
+  const newId='dup_'+Date.now();
+  const dup={...JSON.parse(JSON.stringify(src)), id:newId, name:src.name+' (Copy)', builtin:false};
+  ['biomeOverrides','locTracks','pins','deletedBiomes'].forEach(key=>{
+    const val=gs(packKey(id,key),null);
+    if(val!==null) ss(packKey(newId,key),JSON.parse(JSON.stringify(val)));
+  });
+  saveUserPacks([...getUserPacks(),dup]);
+  renderPacksList();
+  // Open edit menu for the new pack instead of switching to biomes
+  openPackEdit(newId);
+}
+
+function openAddPackModal(){ openPackEdit(null); }
+function closeAddPackModal(){ document.getElementById('packEditOverlay').classList.remove('open'); }
+function renderPackEmojiPicker(){
+  const p=document.getElementById('packEmojiPicker');
+  if(!p)return;
+  p.innerHTML='';
+  PACK_EMOJIS.forEach(em=>{
+    const b=document.createElement('button');
+    b.className='emoji-opt'+(em===selectedPackEmoji?' sel':'');
+    b.textContent=em;b.type='button';
+    b.onclick=()=>{selectedPackEmoji=em;renderPackEmojiPicker();};
+    p.appendChild(b);
+  });
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;gap:5px;margin-top:6px;width:100%';
+  wrap.innerHTML=`<input id="customPackEmojiInput" placeholder="Type emoji…" maxlength="4"
+    style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:5px 9px;color:#fff;font-size:16px;outline:none;min-width:0"
+    oninput="if(this.value.trim()){selectedPackEmoji=this.value.trim();renderPackEmojiPicker()}"/>
+  <button type="button" class="emoji-opt sel" style="flex-shrink:0;min-width:40px;font-size:16px"
+    onclick="document.getElementById('customPackEmojiInput').focus()">${selectedPackEmoji}</button>`;
+  p.appendChild(wrap);
+}
+// saveNewPack merged into savePackEdit
+// ═══════════════════════════════════════════
+// VERSION + SHARE BACKEND
+// ═══════════════════════════════════════════
+const MM_VERSION = '1.1';
+const API_URL = 'https://jongle.me/?mm_action=';
+// Swap ShareBackend.encode/decode for PHP fetch calls when backend is ready.
+// Everything else in the UI stays identical.
+// ═══════════════════════════════════════════
+const ShareBackend = {
+  // ── LOCAL (code-based) ──
+  encode(packObj){
+    try{
+      const json=JSON.stringify(packObj);
+      // btoa requires ASCII; handle unicode via encodeURIComponent
+      const b64=btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g,
+        (_,p1)=>String.fromCharCode('0x'+p1)));
+      return 'MM-'+b64;
+    }catch(e){return null;}
+  },
+  decode(code){
+    try{
+      if(!code.startsWith('MM-')) return null;
+      const b64=code.slice(3);
+      const json=decodeURIComponent(Array.from(atob(b64),
+        c=>'%'+c.charCodeAt(0).toString(16).padStart(2,'0')).join(''));
+      return JSON.parse(json);
+    }catch(e){return null;}
+  },
+
+  // ── PHP BACKEND (active when API_URL is set) ──
+  async saveToServer(packObj) {
+    const r = await fetch(API_URL + 'save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(packObj)
+    });
+    const d = await r.json();
+    if (!r.ok || !d.code) throw new Error(d.error || 'Save failed');
+    return d.code;
+  },
+  async loadFromServer(code) {
+    const r = await fetch(API_URL + 'load&code=' + encodeURIComponent(code));
+    const d = await r.json();
+    if (!r.ok || !d.pack) throw new Error(d.error || 'Not found');
+    return d.pack;
+  },
+};
+
+// Personal biome IDs that always get a warning
+const PERSONAL_BIOME_IDS=new Set(['home','work','school','gym']);
+
+let sharingPackId = null;
+
+function sharePack(){ sharePackById(getActivePackId()); }
+function sharePackById(packId){
+  sharingPackId = packId;
+  const pack = getAllPacks().find(p=>p.id===packId);
+  if(!pack) return;
+  // Reset state
+  document.getElementById('shareResultBox').style.display='none';
+  document.getElementById('sharePrivacyBox').style.display='block';
+  document.getElementById('shareModalTitle').textContent='SHARE: '+pack.name.toUpperCase();
+  document.getElementById('copyFlash').textContent='';
+  openPrivacyModal();
+}
+
+function openPrivacyModal(){
+  const locs=getAllCustomLocs().filter(l=>l.lat&&l.lon);
+  const list=document.getElementById('privLocList');
+  const label=document.getElementById('privLocLabel');
+  list.innerHTML='';
+
+  if(locs.length===0){
+    label.style.display='none';
+    list.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 0">No custom locations with coordinates in this pack.</div>';
+  } else {
+    label.style.display='block';
+  }
+
+  locs.forEach(loc=>{
+    const isPersonal=PERSONAL_BIOME_IDS.has(loc.id)||PERSONAL_BIOME_IDS.has(loc.id.replace(/^preset_/,''));
+    const firstPin=(loc.pins&&loc.pins[0])||null;
+    const coordStr=firstPin?firstPin.lat.toFixed(4)+', '+firstPin.lon.toFixed(4)
+      :(loc.lat?loc.lat.toFixed(4)+', '+loc.lon.toFixed(4):'');
+    const pinCount=loc.pins?loc.pins.length:(loc.lat?1:0);
+    const row=document.createElement('div');
+    row.className='priv-loc-row';
+    const uid='priv_'+loc.id;
+    row.innerHTML=`
+      <div class="priv-loc-emoji">${loc.emoji}</div>
+      <div class="priv-loc-info">
+        <div class="priv-loc-name">${loc.name}${isPersonal?'':''}</div>
+        <div class="priv-loc-coords">${coordStr}${pinCount>1?" (+"+( pinCount-1)+" more)":""}</div>
+      </div>
+      ${isPersonal?'<div class="priv-warn-icon" title="Personal location — consider removing">⚠️</div>':''}
+      <label class="priv-toggle" title="Toggle off to exclude from share">
+        <input type="checkbox" id="${uid}" ${isPersonal?'':'checked'}>
+        <div class="priv-toggle-track"></div>
+        <div class="priv-toggle-thumb"></div>
+      </label>`;
+    // Personal ones default to OFF (excluded), others default ON
+    list.appendChild(row);
+    // Set default: personal = unchecked (excluded), others = checked (included)
+    // Already set via the ${isPersonal?'':'checked'} above
+  });
+
+  document.getElementById('shareModalOverlay').classList.add('open');
+}
+
+function closePrivacyModal(){ closeShareModal(); }
+function closeShareModal(e){
+  if(!e||e.target===document.getElementById('shareModalOverlay'))
+    document.getElementById('shareModalOverlay').classList.remove('open');
+}
+
+async function confirmShare(){
+  const packId=sharingPackId||getPackId();
+  const pack=getAllPacks().find(p=>p.id===packId)||getActivePack();
+  const biomeOverrides=gs(packKey(packId,'biomeOverrides'),{});
+  const locTracks=gs(packKey(packId,'locTracks'),{});
+
+  // Collect which custom locs are included
+  const locs=getAllCustomLocs().filter(l=>l.lat&&l.lon);
+  const excluded=new Set();
+  locs.forEach(loc=>{
+    const cb=document.getElementById('priv_'+loc.id);
+    if(cb&&!cb.checked) excluded.add(loc.id);
+  });
+
+  const allLocs=getAllCustomLocs().map(loc=>{
+    if(excluded.has(loc.id)){
+      const {lat,lon,radius,...rest}=loc;
+      return rest;
+    }
+    return loc;
+  });
+
+  const shareable={
+    ...pack,
+    builtin:false,
+    _biomeOverrides:biomeOverrides,
+    _locTracks:locTracks,
+    _customLocs:allLocs.filter(l=>!PERSONAL_BIOME_IDS.has(l.id)),
+  };
+
+  // Switch to result view BEFORE async work — keep modal open
+  document.getElementById('sharePrivacyBox').style.display='none';
+  document.getElementById('shareResultBox').style.display='block';
+  document.getElementById('shareCodeDisplay').textContent='Generating…';
+  document.getElementById('copyFlash').textContent='';
+
+  let code;
+  if(API_URL){
+    try{ code=await ShareBackend.saveToServer(shareable); }
+    catch(e){ code=ShareBackend.encode(shareable); }
+  } else {
+    code=ShareBackend.encode(shareable);
+  }
+
+  if(!code){
+    document.getElementById('shareCodeDisplay').textContent='Failed to generate code.';
+    return;
+  }
+
+  // Build rich share text: code + link + instructions
+  const pageUrl='https://jongle.me/musicmap';
+  const trackCount=getAllPackTracks(pack).length;
+  const richText=
+    'MusicMap Pack: '+pack.name+'\n'
+    +(pack.subtitle?pack.subtitle+'\n':'')
+    +trackCount+' tracks · '+pack.biomes.length+' biomes\n'
+    +'\n'
+    +'Import code: '+code+'\n'
+    +'\n'
+    +'How to play:\n'
+    +'1. Visit: '+pageUrl+'\n'
+    +'2. Open the Packs tab → Make or Import Pack → Import\n'
+    +'3. Paste the code above and hit Import\n'
+    +'4. Turn on "Listen to World" and explore!';
+
+  document.getElementById('shareCodeDisplay').textContent=richText;
+  // Store just the code for the copy button, store rich text for the share button
+  document.getElementById('shareCodeDisplay').dataset.code=code;
+  document.getElementById('shareCodeDisplay').dataset.rich=richText;
+}
+
+function copyShareCode(richOnly){
+  const el=document.getElementById('shareCodeDisplay');
+  const text=richOnly?el.dataset.rich:el.dataset.code||el.textContent;
+  if(!text||text==='Generating…') return;
+  navigator.clipboard.writeText(text).then(()=>{
+    const flash=document.getElementById('copyFlash');
+    flash.textContent=richOnly?'✓ Full message copied!':'✓ Code copied!';
+    setTimeout(()=>flash.textContent='',2500);
+  }).catch(()=>{
+    document.getElementById('copyFlash').textContent='Select text above and copy manually';
+  });
+}
+
+function previewImportCode(){
+  const raw=document.getElementById('importCodeInput').value.trim();
+  const preview=document.getElementById('importPreview');
+  const nameEl=document.getElementById('importPreviewName');
+  const metaEl=document.getElementById('importPreviewMeta');
+  if(raw.length < 4){preview.classList.remove('visible');return;}
+  // JSON import
+  if(raw.startsWith('{')){
+    try{
+      const j=JSON.parse(raw);
+      const pack=normaliseAiJson(j);
+      if(pack){
+        nameEl.textContent=(pack.icon||'🎵')+' '+pack.name;
+        metaEl.textContent=pack.tracks.length+' tracks · '+pack.biomes.length+' biomes';
+        preview.classList.add('visible');
+      } else {
+        nameEl.textContent='Invalid JSON format';
+        metaEl.textContent='Missing name, videoId or tracks fields';
+        preview.classList.add('visible');
+      }
+    }catch(e){preview.classList.remove('visible');}
+    return;
+  }
+  if(!raw.startsWith('MM-')&&API_URL&&raw.length<=12){
+    nameEl.textContent='🔗 Server code detected';
+    metaEl.textContent='Will fetch from server on import';
+    preview.classList.add('visible');
+    return;
+  }
+  const pack=ShareBackend.decode(raw);
+  if(pack&&pack.name&&pack.tracks){
+    nameEl.textContent=`${pack.icon||'🎵'} ${pack.name}`;
+    metaEl.textContent=`${pack.tracks.length} tracks · ${pack.biomes?.length||0} biomes · ${pack.source||'Custom pack'}`;
+    preview.classList.add('visible');
+  } else {
+    nameEl.textContent='Invalid code';
+    metaEl.textContent='Could not read this code — make sure it starts with MM-';
+    preview.classList.add('visible');
+  }
+}
+
+async function importFromCode(){
+  const raw=document.getElementById('importCodeInput').value.trim();
+  const flash=document.getElementById('importFlash');
+  if(!raw){flash.textContent='Paste a share code or JSON first.';return;}
+
+  flash.textContent='⏳ Loading…';
+  let pack=null;
+
+  if(raw.startsWith('{')){
+    try{
+      const j=JSON.parse(raw);
+      pack=normaliseAiJson(j);
+      if(!pack){flash.textContent='❌ JSON missing required fields (name, videoId, tracks)';return;}
+    }catch(e){flash.textContent='❌ Invalid JSON — check formatting';return;}
+  } else if(!raw.startsWith('MM-')&&API_URL){
+    try{
+      pack=await ShareBackend.loadFromServer(raw);
+    }catch(e){
+      flash.textContent='❌ '+(e.message||'Code not found on server');
+      return;
+    }
+  } else {
+    pack=ShareBackend.decode(raw);
+    if(!pack){flash.textContent='❌ Invalid code — should start with MM- or {';return;}
+  }
+
+  const ok=importSharedPack(pack,false);
+  if(ok){
+    flash.textContent=`✓ "${pack.name}" imported and activated!`;
+    document.getElementById('importCodeInput').value='';
+    document.getElementById('importPreview').classList.remove('visible');
+    switchTab('player');
+    setTimeout(()=>flash.textContent='',3000);
+  } else {
+    flash.textContent='❌ Import failed — pack data looks invalid.';
+  }
+}
+
+function normaliseAiJson(j){
+  if(!j||!j.name||!j.tracks||!j.videoId) return null;
+  const BD={
+    beach:  {emoji:'🌊',cssClass:'biome-beach',  keywords:['beach','coast','sea','bay','shore','harbor','surf','island','cove']},
+    city:   {emoji:'🏙️',cssClass:'biome-city',   keywords:['city','downtown','urban','metro','avenue','street','plaza']},
+    forest: {emoji:'🌲',cssClass:'biome-forest',  keywords:['forest','woods','park','trail','nature','grove','jungle']},
+    mountain:{emoji:'🌋',cssClass:'biome-mountain',keywords:['mountain','hill','summit','peak','cliff','canyon','valley']},
+    desert: {emoji:'🏜️',cssClass:'biome-desert',  keywords:['desert','sand','dune','arid','mesa','plateau','badlands']},
+    town:   {emoji:'🏘️',cssClass:'biome-town',    keywords:['suburb','town','village','neighborhood','residential']},
+    ocean:  {emoji:'🐋',cssClass:'biome-ocean',   keywords:['ocean','gulf','strait','channel','pacific','atlantic','lake']},
+    shopping:{emoji:'🛍️',cssClass:'biome-shopping',keywords:['mall','shopping','market','store','retail','plaza']},
+    port:   {emoji:'⚓',cssClass:'biome-port',    keywords:['port','dock','pier','wharf','terminal','shipyard','harbor']},
+  };
+  const BN={beach:'Beach',city:'City',forest:'Forest',mountain:'Mountain',desert:'Desert',town:'Town',ocean:'Ocean',shopping:'Shopping',port:'Port'};
+  const biomes=Object.entries(j.biomes||{}).map(([id,tracks])=>({
+    id, name:BN[id]||id,
+    emoji:BD[id]?.emoji||'📍',
+    cssClass:BD[id]?.cssClass||'biome-custom',
+    keywords:BD[id]?.keywords||[],
+    defaultTracks:Array.isArray(tracks)?tracks:[],
+  }));
+  return {
+    id:'ai_'+Date.now(), name:j.name, subtitle:j.subtitle||'',
+    icon:j.icon||'🎵', videoId:j.videoId,
+    source:j.subtitle||'Custom Pack', builtin:false,
+    videos:[{id:j.videoId,tracks:j.tracks}],
+    tracks:j.tracks, biomes,
+  };
+}
+
+function copyAiPrompt(){
+  const txt=document.getElementById('aiPromptBox').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const el=document.getElementById('aiPromptFlash');
+    el.textContent='✓ Prompt copied!';
+    setTimeout(()=>el.textContent='',2500);
+  });
+}
+
+// ═══════════════════════════════════════════
+// LOCATION GRID
+// ═══════════════════════════════════════════
+function renderLocGrid(){
+  const g=document.getElementById('locGrid');
+  if(!g)return;
+  g.innerHTML='';
+  const packId=getPackId();
+  const pack=getActivePack();
+  const deletedBiomes=new Set(gs(packKey(packId,'deletedBiomes'),[]));
+  const allBiomes=(pack?.biomes||[]).filter(b=>!deletedBiomes.has(b.id));
+  const customLocs=getAllCustomLocs();
+
+  const allLocs=[
+    ...allBiomes.map(b=>({...getEffectiveBiome(packId,b.id),...b,...getBiomeOverride(packId,b.id),isCustom:false})),
+    ...customLocs.map(cl=>({...cl,isCustom:true}))
+  ];
+
+  allLocs.forEach(loc=>{
+    const btn=document.createElement('button');
+    btn.className='loc-btn'+(loc.isCustom?' custom-loc':'')+(loc.id===currentLocId?' active':'');
+    const tracks=getLocTracks(packId,loc.id);
+    const isNear=lastLat&&(
+      (loc.pins&&loc.pins.length>0&&loc.pins.some(p=>dist(lastLat,lastLon,p.lat,p.lon)<=(p.radius||200)))||
+      (loc.lat&&dist(lastLat,lastLon,loc.lat,loc.lon)<=(loc.radius||200))
+    );
+    if(isNear){const dot=document.createElement('div');dot.className='loc-proximity';btn.appendChild(dot);}
+    const editBtn=document.createElement('button');
+    editBtn.className='loc-edit-btn';
+    editBtn.textContent='✏️';
+    editBtn.onclick=e=>{e.stopPropagation();openLocEdit(loc.id,loc.isCustom);};
+    btn.appendChild(editBtn);
+    const emojiEl=document.createElement('span');
+    emojiEl.className='loc-btn-emoji';
+    emojiEl.textContent=loc.emoji;
+    btn.appendChild(emojiEl);
+    const nameEl2=document.createElement('span');
+    nameEl2.className='loc-btn-name';
+    nameEl2.textContent=loc.name;
+    btn.appendChild(nameEl2);
+    // Show canonical biome name as subtext if overridden
+    const canonicalName={'beach':'Beach','city':'City','forest':'Forest','mountain':'Mountain','desert':'Desert','town':'Town','ocean':'Ocean','shopping':'Shopping','port':'Port'}[loc.id];
+    if(canonicalName && loc.name !== canonicalName){
+      const sub=document.createElement('span');
+      sub.className='loc-btn-subtext';
+      sub.textContent=canonicalName;
+      btn.appendChild(sub);
+    }
+    if(tracks.length===0){const e2=document.createElement('span');e2.style.cssText='font-size:9px;color:var(--muted)';e2.textContent='empty';btn.appendChild(e2);}
+    btn.onclick=()=>loadLocation(loc.id,true);
+    g.appendChild(btn);
+  });
+
+  // add custom location button
+  const addBtn=document.createElement('button');
+  addBtn.className='loc-btn add-loc';
+  addBtn.innerHTML='<span class="loc-btn-emoji">＋</span><span class="loc-btn-name">New place</span>';
+  addBtn.onclick=()=>openLocEdit(null,true);
+  g.appendChild(addBtn);
+}
+
+// ═══════════════════════════════════════════
+// LOAD LOCATION
+// ═══════════════════════════════════════════
+function loadLocation(id,manual,showToast){
+  const wasPlaying=isPlaying;
+  const prevLocId=currentLocId;
+  currentLocId=id;
+  const packId=getPackId();
+  const pack=getActivePack();
+  let loc=pack?.biomes.find(b=>b.id===id);
+  if(loc){
+    const ov=getBiomeOverride(packId,id);
+    loc={...loc,...ov};
+  } else {
+    loc=getAllCustomLocs().find(l=>l.id===id);
+  }
+  if(!loc)return;
+
+  document.getElementById('heroBanner').className=loc.cssClass||'biome-custom';
+  document.getElementById('biomeEmoji').textContent=loc.emoji;
+  document.getElementById('biomeName').textContent=loc.name;
+  const _canonMap={'beach':'Beach','city':'City','forest':'Forest','mountain':'Mountain','desert':'Desert','town':'Town','ocean':'Ocean','shopping':'Shopping','port':'Port'};
+  const _sub=document.getElementById('biomeNameSub');
+  if(_sub){const _can=_canonMap[id];_sub.textContent=(_can&&loc.name!==_can)?_can:'';}
+
+  const tracks=getLocTracks(packId,id);
+  const pinned=getPinnedIdx(packId,id);
+  shuffleQueue=[]; // reset queue on biome change
+  if(tracks.length===0){currentTrackPlayIdx=0;}
+  else if(pinned!==undefined&&tracks.includes(pinned)){
+    currentTrackPlayIdx=tracks.indexOf(pinned);
+  } else {
+    currentTrackPlayIdx=Math.floor(Math.random()*tracks.length);
+  }
+  renderLocGrid();
+  renderTrackList();
+  updateNowPlaying();
+  updatePinStatus();
+
+  const isBiomeChange=(prevLocId!==id);
+  const useFade=wasPlaying&&isBiomeChange;
+  if(wasPlaying||manual){playCurrentTrack(useFade);isPlaying=true;}
+
+  // Show toast when entering a new biome/location
+  if((showToast||manual)&&isBiomeChange){
+    const tIdx=(tracks.length>0)?tracks[currentTrackPlayIdx]:null;
+    const trackTitle=tIdx!==null&&pack?.tracks[tIdx]?pack.tracks[tIdx].title:null;
+    // Get accent colour from CSS var for this biome
+    const accentMap={
+      'biome-beach':'#00b4d8','biome-city':'#7c3aed','biome-forest':'#16a34a',
+      'biome-mountain':'#9f1239','biome-desert':'#d97706','biome-town':'#0891b2',
+      'biome-ocean':'#0284c7','biome-shopping':'#db2777','biome-port':'#0d9488',
+      'biome-home':'#f59e0b','biome-work':'#6366f1','biome-school':'#10b981',
+      'biome-gym':'#ef4444','biome-custom':'#8b5cf6'
+    };
+    const accent=accentMap[loc.cssClass||'biome-custom']||'#7c3aed';
+    showBiomeToast(loc.emoji, loc.name, trackTitle, accent);
+  }
+}
+
+// ═══════════════════════════════════════════
+// TRACK LIST
+// ═══════════════════════════════════════════
+function renderTrackList(){
+  const packId=getPackId();
+  const pack=getActivePack();
+  let loc=pack?.biomes.find(b=>b.id===currentLocId);
+  if(loc){const ov=getBiomeOverride(packId,currentLocId);loc={...loc,...ov};}
+  else loc=getAllCustomLocs().find(l=>l.id===currentLocId);
+  const label=document.getElementById('trackListLabel');
+  if(loc)label.textContent=(loc.name).toUpperCase()+' TRACKS';
+
+  const list=document.getElementById('trackList');
+  list.innerHTML='';
+  const trackIdxs=getLocTracks(packId,currentLocId);
+  const packTracks=getAllPackTracks(pack);
+  if(trackIdxs.length===0){
+    list.innerHTML='<div class="empty-state">No tracks yet.<br>Tap ＋ below to add some.</div>';
+    return;
+  }
+  trackIdxs.forEach((tIdx,i)=>{
+    const t=packTracks[tIdx];
+    if(!t)return;
+    const item=document.createElement('div');
+    item.className='track-item clickable'+(i===currentTrackPlayIdx?' playing':'');
+    item.onclick=e=>{if(!e.target.closest('.track-actions'))selectTrack(i)};
+    const pinned=getPinnedIdx(packId,currentLocId)===tIdx;
+    const numEl=document.createElement('div');
+    numEl.className='track-num';
+    numEl.textContent=i===currentTrackPlayIdx?'▶':(i+1);
+    item.appendChild(numEl);
+    const infoEl=document.createElement('div');
+    infoEl.className='track-info';
+    infoEl.innerHTML='<div class="track-title">'+t.title+'</div><div class="track-game">'+fmt(t.dur)+'</div>';
+    item.appendChild(infoEl);
+    const actEl=document.createElement('div');
+    actEl.className='track-actions';
+    const pinBtn=document.createElement('button');
+    pinBtn.className='t-btn'+(pinned?' on':'');
+    pinBtn.title='Pin';
+    pinBtn.textContent='📌';
+    pinBtn.onclick=()=>doTogglePin(tIdx);
+    actEl.appendChild(pinBtn);
+    const remBtn=document.createElement('button');
+    remBtn.className='t-btn danger';
+    remBtn.title='Remove';
+    remBtn.textContent='✕';
+    remBtn.onclick=()=>doRemoveTrack(tIdx);
+    actEl.appendChild(remBtn);
+    item.appendChild(actEl);
+    list.appendChild(item);
+  });
+}
+
+function doTogglePin(tIdx){
+  const packId=getPackId();
+  const cur=getPinnedIdx(packId,currentLocId);
+  setPinnedIdx(packId,currentLocId,cur===tIdx?undefined:tIdx);
+  renderTrackList();updatePinStatus();
+}
+function doRemoveTrack(tIdx){
+  const packId=getPackId();
+  const tracks=getLocTracks(packId,currentLocId).filter(t=>t!==tIdx);
+  setLocTracks(packId,currentLocId,tracks);
+  if(currentTrackPlayIdx>=tracks.length)currentTrackPlayIdx=Math.max(0,tracks.length-1);
+  renderTrackList();updateNowPlaying();
+  if(tracks.length===0){isPlaying=false;pauseTrack();}
+  else if(isPlaying)playCurrentTrack();
+}
+function selectTrack(i){
+  currentTrackPlayIdx=i;renderTrackList();updateNowPlaying();playCurrentTrack(false);isPlaying=true;
+}
+function updatePinStatus(){
+  const packId=getPackId();
+  const pinned=getPinnedIdx(packId,currentLocId);
+  const pack=getActivePack();
+  const el=document.getElementById('pinStatus');
+  const allT=getAllPackTracks(pack);
+  if(pinned!==undefined&&allT[pinned]){el.textContent=`📌 ${allT[pinned].title}`;}
+  else el.textContent='';
+}
+
+// ═══════════════════════════════════════════
+// NOW PLAYING + PLAYBACK
+// ═══════════════════════════════════════════
+function updateNowPlaying(){
+  const packId=getPackId();
+  const pack=getActivePack();
+  const trackIdxs=getLocTracks(packId,currentLocId);
+  if(trackIdxs.length===0){
+    document.getElementById('npTrack').textContent='No tracks';
+    document.getElementById('npGame').textContent='Add tracks below ↓';
+    document.getElementById('npYtBtn').onclick=null;
+    resetProgress();return;
+  }
+  const tIdx=trackIdxs[currentTrackPlayIdx]??trackIdxs[0];
+  const allTracks=getAllPackTracks(pack);
+  const t=allTracks?.[tIdx];
+  if(!t)return;
+  document.getElementById('npTrack').textContent=t.title;
+  document.getElementById('npGame').textContent=pack?.source||pack?.name||'';
+  const ytVid=t.videoId||pack?.videoId;
+  document.getElementById('npYtBtn').onclick=()=>window.open(`https://www.youtube.com/watch?v=${ytVid}&t=${t.start}`,'_blank');
+  resetProgress();
+}
+function getTrackSrc(pack, t, autoplay){
+  const vid = t.videoId || pack.videoId;
+  return `https://www.youtube-nocookie.com/embed/${vid}?autoplay=${autoplay?1:0}&start=${t.start}&controls=1&modestbranding=1&rel=0`;
+}
+function playCurrentTrack(useFade){
+  const packId=getPackId();
+  const pack=getActivePack();
+  const trackIdxs=getLocTracks(packId,currentLocId);
+  if(trackIdxs.length===0||!pack)return;
+  const tIdx=trackIdxs[currentTrackPlayIdx]??trackIdxs[0];
+  const allTracks=getAllPackTracks(pack);
+  const t=allTracks[tIdx];
+  if(!t)return;
+  const src=getTrackSrc(pack,t,true);
+  if(useFade){
+    crossfadeTo(src);
+  } else {
+    hardSwitchTo(src);
+  }
+  setPlayIcon(true);startProgress(t.dur);
+  document.getElementById('playingBars').style.display='flex';
+}
+function pauseTrack(){
+  const packId=getPackId();
+  const pack=getActivePack();
+  const trackIdxs=getLocTracks(packId,currentLocId);
+  const tIdx=trackIdxs[currentTrackPlayIdx]??trackIdxs[0];
+  const t=pack?.tracks[tIdx];
+  getActiveIframe().src='';
+  setPlayIcon(false);stopProgress();
+  document.getElementById('playingBars').style.display='none';
+}
+function togglePlay(){
+  if(isPlaying){
+    isPlaying=false;
+    pauseTrack();
+    pauseProgress();
+  } else {
+    isPlaying=true;
+    resumeProgress();
+    playCurrentTrack();
+  }
+}
+function nextTrack(){
+  // Apply pending biome change at track boundary
+  if(pendingBiomeId && pendingBiomeId !== currentLocId){
+    const bid=pendingBiomeId;
+    pendingBiomeId=null;
+    loadLocation(bid, false, true); // true = show toast
+    return; // loadLocation will call playCurrentTrack
+  }
+  pendingBiomeId=null;
+  const t=currentTracks();
+  if(t.length<=1){currentTrackPlayIdx=0;}
+  else{
+    if(shuffleQueue.length===0) shuffleQueue=buildShuffleQueue(t.length,currentTrackPlayIdx);
+    currentTrackPlayIdx=shuffleQueue.shift();
+  }
+  renderTrackList();updateNowPlaying();if(isPlaying)playCurrentTrack(true);
+}
+function prevTrack(){
+  const t=currentTracks();
+  currentTrackPlayIdx=(currentTrackPlayIdx-1+t.length)%t.length;
+  renderTrackList();updateNowPlaying();if(isPlaying)playCurrentTrack(true);
+}
+function setPlayIcon(p){document.getElementById('playBtn').textContent=p?'⏸':'▶';}
+function toggleVideo(){
+  videoVisible=!videoVisible;
+  document.getElementById('ytContainer').style.display=videoVisible?'block':'none';
+  document.getElementById('videoToggleBtn').textContent=videoVisible?'🙈':'📺';
+  if(videoVisible){
+    // Ensure container height is respected
+    document.getElementById('ytContainer').style.height='165px';
+  }
+}
+let progressTrackStart=0; // wall-clock ms when track started playing
+let progressTrackDur=0;
+let progressPaused=false;
+
+function startProgress(dur){
+  stopProgress();
+  progressSeconds=0;
+  progressTrackDur=dur;
+  progressTrackStart=Date.now();
+  progressPaused=false;
+  // Schedule biome check 10s before track ends
+  if(trackingActive && dur > 15){
+    const checkDelay = Math.max((dur - 10) * 1000, 2000);
+    setTimeout(()=>{ if(isPlaying && trackingActive) checkBiomeInBackground(); }, checkDelay);
+  }
+  progressTimer=setInterval(()=>{
+    if(progressPaused) return;
+    // Use real elapsed time as source of truth
+    const elapsed=Math.floor((Date.now()-progressTrackStart)/1000);
+    progressSeconds=Math.min(elapsed,dur);
+    document.getElementById('progressFill').style.width=(progressSeconds/dur*100)+'%';
+    document.getElementById('progressTime').textContent=fmt(progressSeconds);
+    if(progressSeconds>=dur) nextTrack();
+  },500); // 500ms ticks for smoother bar
+}
+function pauseProgress(){
+  progressPaused=true;
+}
+function resumeProgress(){
+  // Recalculate start so elapsed time is correct after pause
+  progressTrackStart=Date.now()-progressSeconds*1000;
+  progressPaused=false;
+}
+function stopProgress(){if(progressTimer){clearInterval(progressTimer);progressTimer=null;}}
+function resetProgress(){stopProgress();progressSeconds=0;progressTrackDur=0;document.getElementById('progressFill').style.width='0%';document.getElementById('progressTime').textContent='0:00';}
+function fmt(s){return`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`}
+
+// ═══════════════════════════════════════════
+// TRACK PICKER
+// ═══════════════════════════════════════════
+function openTrackPicker(){
+  pickerTargetLocId=currentLocId;
+  const packId=getPackId();
+  const pack=getActivePack();
+  const loc=pack?.biomes.find(b=>b.id===currentLocId)||getAllCustomLocs().find(l=>l.id===currentLocId);
+  const ov=getBiomeOverride(packId,currentLocId);
+  const displayName=(ov.name||loc?.name||currentLocId).toUpperCase();
+  document.getElementById('pickerTitle').textContent='ADD TO '+displayName;
+  document.getElementById('pickerSearch').value='';
+  document.getElementById('trackPickerOverlay').classList.add('open');
+  renderPickerList('');
+}
+function closeTrackPicker(e){if(e.target===document.getElementById('trackPickerOverlay'))closeTrackPickerDirect();}
+function closeTrackPickerDirect(){document.getElementById('trackPickerOverlay').classList.remove('open');}
+function filterPicker(){renderPickerList(document.getElementById('pickerSearch').value.toLowerCase());}
+function buildTrackBiomeIndex(packId, pack){
+  // Returns Map<globalIdx, [{id, name, emoji}]> — all biomes/locs that contain each track
+  const index = new Map();
+  const deletedBiomes = new Set(gs(packKey(packId,'deletedBiomes'),[]));
+  const allBiomes = (pack?.biomes||[]).filter(b=>!deletedBiomes.has(b.id));
+  const customLocs = getAllCustomLocs();
+  const allLocs = [
+    ...allBiomes.map(b=>{ const ov=getBiomeOverride(packId,b.id); return {id:b.id, name:ov.name||b.name, emoji:ov.emoji||b.emoji}; }),
+    ...customLocs.map(cl=>({id:cl.id, name:cl.name, emoji:cl.emoji}))
+  ];
+  allLocs.forEach(loc=>{
+    getLocTracks(packId,loc.id).forEach(gIdx=>{
+      if(!index.has(gIdx)) index.set(gIdx,[]);
+      index.get(gIdx).push(loc);
+    });
+  });
+  return index;
+}
+
+function renderPickerList(q){
+  const packId=getPackId();
+  const pack=getActivePack();
+  const existing=new Set(getLocTracks(packId,pickerTargetLocId));
+  const biomeIndex=buildTrackBiomeIndex(packId,pack);
+  const list=document.getElementById('pickerList');
+  list.innerHTML='';
+  const tracks=getAllPackTracks(pack);
+  if(tracks.length===0){list.innerHTML='<div class="empty-state">This pack has no tracks yet.<br>Tap ＋ Add videos to add a YouTube video, then import its timestamps.</div>';return;}
+  const filtered=tracks.filter(t=>!q||t.title.toLowerCase().includes(q));
+  filtered.forEach(t=>{
+    const gIdx=t.globalIdx;
+    const added=existing.has(gIdx);
+    const item=document.createElement('div');
+    item.className='modal-track-item';
+    item.style.cssText=added?'opacity:1;background:rgba(74,222,128,.07);border-color:rgba(74,222,128,.3)':'';
+    const addIcon=document.createElement('span');
+    addIcon.className='modal-track-add';
+    addIcon.style.color=added?'var(--green)':'var(--accent2)';
+    addIcon.textContent=added?'✓':'＋';
+    item.appendChild(addIcon);
+    const infoD=document.createElement('div');
+    infoD.style.flex='1';
+    // Track title + duration
+    const titleRow=document.createElement('div');
+    titleRow.style.cssText='font-size:13px;font-weight:500;color:#fff;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap';
+    const titleSpan=document.createElement('span');
+    titleSpan.textContent=t.title;
+    titleRow.appendChild(titleSpan);
+    // Show video label when pack has multiple videos
+    if(t.videoId && pack.videos && pack.videos.length > 1){
+      const vidLabel=document.createElement('span');
+      vidLabel.style.cssText='font-size:10px;color:var(--muted);font-style:italic';
+      vidLabel.textContent='| '+(videoTitleCache[t.videoId]||t.videoId);
+      titleRow.appendChild(vidLabel);
+      // Fetch title async if not cached
+      if(!videoTitleCache[t.videoId]){
+        fetchVideoTitle(t.videoId).then(title=>{
+          vidLabel.textContent='| '+title;
+        });
+      }
+    }
+    infoD.appendChild(titleRow);
+    const metaRow=document.createElement('div');
+    metaRow.style.cssText='font-size:11px;color:var(--muted)';
+    metaRow.textContent=fmt(t.dur)+(added?' · tap to remove':'');
+    infoD.appendChild(metaRow);
+    // Biome usage row — show emojis of all biomes this track appears in
+    const usedIn=(biomeIndex.get(gIdx)||[]).filter(loc=>loc.id!==pickerTargetLocId);
+    if(usedIn.length>0){
+      const usageRow=document.createElement('div');
+      usageRow.style.cssText='font-size:11px;margin-top:2px;display:flex;align-items:center;gap:3px;flex-wrap:wrap';
+      const usageLabel=document.createElement('span');
+      usageLabel.style.cssText='color:var(--muted);font-size:10px;margin-right:2px';
+      usageLabel.textContent='also in:';
+      usageRow.appendChild(usageLabel);
+      usedIn.forEach(loc=>{
+        const chip=document.createElement('span');
+        chip.title=loc.name;
+        chip.style.cssText='font-size:13px;line-height:1;cursor:default';
+        chip.textContent=loc.emoji;
+        usageRow.appendChild(chip);
+      });
+      infoD.appendChild(usageRow);
+    }
+    item.appendChild(infoD);
+    item.onclick=()=>{
+      const cur=getLocTracks(packId,pickerTargetLocId);
+      if(added){
+        setLocTracks(packId,pickerTargetLocId,cur.filter(x=>x!==gIdx));
+      } else {
+        setLocTracks(packId,pickerTargetLocId,[...cur,gIdx]);
+      }
+      if(pickerTargetLocId===currentLocId){renderTrackList();updateNowPlaying();}
+      renderPickerList(q);
+    };
+    list.appendChild(item);
+  });
+  if(filtered.length===0)list.innerHTML='<div class="empty-state">No tracks found.</div>';
+}
+
+// ═══════════════════════════════════════════
+// LOCATION EDIT MODAL (biomes + custom)
+// ═══════════════════════════════════════════
+function openLocEdit(locId,isCustom,prefillLat,prefillLon){
+  editingLocId=locId;
+  editingLocIsCustom=isCustom;
+  const packId=getPackId();
+  let loc, name, emoji, lat='', lon='', radius=200;
+
+  if(!isCustom&&locId){
+    // editing a biome: load from pack + overrides
+    const pack=getActivePack();
+    const base=pack?.biomes.find(b=>b.id===locId)||{};
+    const ov=getBiomeOverride(packId,locId);
+    name=ov.name||base.name||'';
+    emoji=ov.emoji||base.emoji||'📍';
+    selectedLocEmoji=emoji;
+  } else if(locId){
+    loc=getAllCustomLocs().find(l=>l.id===locId)||{};
+    name=loc.name||''; emoji=loc.emoji||'🏠';
+    selectedLocEmoji=emoji;
+    // Migrate legacy single-pin to pins array
+    editingPins = loc.pins ? JSON.parse(JSON.stringify(loc.pins))
+      : (loc.lat ? [{lat:loc.lat,lon:loc.lon,radius:loc.radius||200}] : []);
+  } else {
+    name=''; selectedLocEmoji='🏠';
+    editingPins = [];
+    // Pre-fill from map click or current location
+    if(prefillLat!==undefined) editingPins=[{lat:prefillLat,lon:prefillLon,radius:200}];
+  }
+
+  document.getElementById('locEditTitle').textContent=locId?'EDIT LOCATION':'NEW LOCATION';
+  const tracksBtnRow=document.getElementById('leTracksBtnRow');
+  if(tracksBtnRow) tracksBtnRow.style.display=locId?'block':'none';
+  document.getElementById('leNameInput').value=name;
+  document.getElementById('leCoordSection').style.display=(isCustom||!locId)?'block':'none';
+  renderLePinList();
+
+  const delBtn=document.getElementById('leDeleteBtn');
+  // Show delete for: any custom loc, any preset custom loc, any biome override
+  // Hide only when creating a new location (no locId)
+  delBtn.style.display=locId?'block':'none';
+
+  renderLocEmojiPicker();
+  document.getElementById('locEditOverlay').classList.add('open');
+}
+function closeLocEdit(e){if(!e||e.target===document.getElementById('locEditOverlay'))document.getElementById('locEditOverlay').classList.remove('open');}
+
+function openTrackPickerFromLocEdit(){
+  // Save current edits silently first so the picker reflects this location
+  const name=document.getElementById('leNameInput').value.trim();
+  if(name) saveLocEdit(); // saveLocEdit closes the modal — reopen picker after
+  // If editingLocId is set, open picker for it; otherwise use currentLocId
+  const targetId=editingLocId||currentLocId;
+  document.getElementById('locEditOverlay').classList.remove('open');
+  // Small delay so modal close animation doesn't conflict
+  setTimeout(()=>{
+    pickerTargetLocId=targetId;
+    const packId=getPackId();
+    const pack=getActivePack();
+    const loc=pack?.biomes.find(b=>b.id===targetId)||getAllCustomLocs().find(l=>l.id===targetId);
+    const ov=getBiomeOverride(packId,targetId);
+    const displayName=(ov.name||loc?.name||targetId).toUpperCase();
+    document.getElementById('pickerTitle').textContent='TRACKS FOR '+displayName;
+    document.getElementById('pickerSearch').value='';
+    document.getElementById('trackPickerOverlay').classList.add('open');
+    renderPickerList('');
+  },150);
+}
+function renderLocEmojiPicker(){
+  const p=document.getElementById('leEmojiPicker');
+  if(!p)return;
+  p.innerHTML='';
+  EMOJI_OPTIONS.forEach(em=>{
+    const b=document.createElement('button');
+    b.className='emoji-opt'+(em===selectedLocEmoji?' sel':'');
+    b.textContent=em;b.type='button';
+    b.onclick=()=>{selectedLocEmoji=em;renderLocEmojiPicker();};
+    p.appendChild(b);
+  });
+  // Custom emoji input
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;gap:5px;margin-top:6px;width:100%';
+  wrap.innerHTML=`<input id="customLocEmojiInput" placeholder="Type emoji…" maxlength="4"
+    style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:5px 9px;color:#fff;font-size:16px;outline:none;min-width:0"
+    oninput="if(this.value.trim()){selectedLocEmoji=this.value.trim();renderLocEmojiPicker()}"/>
+  <button type="button" class="emoji-opt sel" style="flex-shrink:0;min-width:40px;font-size:16px"
+    onclick="document.getElementById('customLocEmojiInput').focus()">${selectedLocEmoji}</button>`;
+  p.appendChild(wrap);
+}
+function fillCurrentCoords(){ addCurrentLocationPin(); } // legacy alias
+function addCurrentLocationPin(){
+  if(lastLat!==null){
+    editingPins.push({lat:lastLat,lon:lastLon,radius:200});
+    renderLePinList();
+  } else {
+    navigator.geolocation&&navigator.geolocation.getCurrentPosition(pos=>{
+      lastLat=pos.coords.latitude;lastLon=pos.coords.longitude;
+      editingPins.push({lat:lastLat,lon:lastLon,radius:200});
+      renderLePinList();
+    });
+  }
+}
+
+function renderLePinList(){
+  const list=document.getElementById('lePinList');
+  if(!list) return;
+  list.innerHTML='';
+  if(editingPins.length===0){
+    list.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 0">No pins yet — add from map or use your location.</div>';
+    return;
+  }
+  editingPins.forEach((pin,i)=>{
+    const row=document.createElement('div');
+    row.className='pin-row';
+    const coordsDiv=document.createElement('div');
+    coordsDiv.className='pin-row-coords';
+    coordsDiv.innerHTML=pin.lat.toFixed(5)+', '+pin.lon.toFixed(5)
+      +'<div class="pin-row-radius">'+pin.radius+'m radius</div>';
+    // Radius input
+    const radInput=document.createElement('input');
+    radInput.type='number';
+    radInput.value=pin.radius;
+    radInput.min=50;radInput.max=5000;radInput.step=50;
+    radInput.style.cssText='width:70px;background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:4px 7px;color:#fff;font-size:12px;text-align:center;outline:none';
+    radInput.oninput=function(){ editingPins[i].radius=parseInt(this.value)||200; coordsDiv.querySelector('.pin-row-radius').textContent=editingPins[i].radius+'m radius'; };
+    const delBtn=document.createElement('button');
+    delBtn.className='pin-row-del';
+    delBtn.textContent='✕';
+    delBtn.onclick=()=>{ editingPins.splice(i,1); renderLePinList(); };
+    row.appendChild(coordsDiv);
+    row.appendChild(radInput);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+function saveLocEdit(){
+  const name=document.getElementById('leNameInput').value.trim();
+  if(!name){alert('Please enter a name.');return;}
+  const packId=getPackId();
+
+  if(!editingLocIsCustom&&editingLocId){
+    // Save biome override (name + emoji only)
+    setBiomeOverride(packId,editingLocId,{name,emoji:selectedLocEmoji});
+    document.getElementById('locEditOverlay').classList.remove('open');
+    renderLocGrid();
+    if(currentLocId===editingLocId)loadLocation(editingLocId,false);
+    return;
+  }
+
+  // Custom location — use pins array
+  const locs=gs('customLocs',[]);
+  // Legacy compat: also store first pin's lat/lon/radius at top level
+  const firstPin=editingPins[0]||null;
+  const legacyLat=firstPin?firstPin.lat:null;
+  const legacyLon=firstPin?firstPin.lon:null;
+  const legacyRadius=firstPin?firstPin.radius:200;
+
+  if(editingLocId){
+    const preset=PRESET_CUSTOM.find(p=>p.id===editingLocId);
+    if(preset){
+      const idx=locs.findIndex(l=>l.id===editingLocId);
+      const updated={...preset,name,emoji:selectedLocEmoji,lat:legacyLat,lon:legacyLon,radius:legacyRadius,pins:editingPins};
+      if(idx>=0)locs[idx]=updated;else locs.push(updated);
+    } else {
+      const idx=locs.findIndex(l=>l.id===editingLocId);
+      if(idx>=0)locs[idx]={...locs[idx],name,emoji:selectedLocEmoji,lat:legacyLat,lon:legacyLon,radius:legacyRadius,pins:editingPins};
+    }
+  } else {
+    const newId='custom_'+Date.now();
+    locs.push({id:newId,name,emoji:selectedLocEmoji,cssClass:'biome-custom',isCustom:true,isPreset:false,lat:legacyLat,lon:legacyLon,radius:legacyRadius,pins:editingPins,defaultTracks:[]});
+  }
+  saveCustomLocs(locs);
+  document.getElementById('locEditOverlay').classList.remove('open');
+  renderLocGrid();
+  renderCustomPins();
+  if(leafletMap&&lastLat) updateMapPin(lastLat,lastLon,false);
+}
+function deleteCustomLoc(){
+  if(!editingLocId||!confirm('Delete this location? This will also remove its tracks from the playlist.'))return;
+  document.getElementById('locEditOverlay').classList.remove('open');
+
+  if(!editingLocIsCustom){
+    // Deleting a biome from the pack — store as a deleted biome override
+    const packId=getPackId();
+    const deleted=gs(packKey(packId,'deletedBiomes'),[]);
+    if(!deleted.includes(editingLocId)) deleted.push(editingLocId);
+    ss(packKey(packId,'deletedBiomes'),deleted);
+  } else {
+    saveCustomLocs(gs('customLocs',[]).filter(l=>l.id!==editingLocId));
+  }
+
+  if(currentLocId===editingLocId) loadLocation('beach',false,false);
+  else{ renderLocGrid(); renderCustomPins(); }
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+function renderHiddenTracks(){
+  const list=document.getElementById('hiddenTrackList');
+  if(!list)return;
+  list.innerHTML='';
+  const packId=getPackId();
+  const pack=getActivePack();
+  let any=false;
+  (pack?.biomes||[]).forEach(b=>{
+    const defaults=b.defaultTracks||[];
+    const current=new Set(getLocTracks(packId,b.id));
+    const ov=getBiomeOverride(packId,b.id);
+    const name=ov.name||b.name;
+    const allTracks=getAllPackTracks(pack);
+    defaults.forEach(tIdx=>{
+      if(!current.has(tIdx)&&allTracks[tIdx]){
+        any=true;
+        const t=allTracks[tIdx];
+        const item=document.createElement('div');
+        item.className='track-item';
+        item.innerHTML='<div class="track-info"><div class="track-title">'+t.title+'</div><div class="track-game">'+(ov.emoji||b.emoji)+' '+name+'</div></div>';
+        const restBtn=document.createElement('button');
+        restBtn.className='pill-btn';
+        restBtn.textContent='Restore';
+        restBtn.onclick=()=>restoreTrack(b.id,tIdx);
+        item.appendChild(restBtn);
+        list.appendChild(item);
+      }
+    });
+  });
+  if(!any)list.innerHTML='<div class="empty-state">No removed tracks.</div>';
+}
+function restoreTrack(locId,tIdx){
+  const packId=getPackId();
+  const tracks=getLocTracks(packId,locId);
+  if(!tracks.includes(tIdx))setLocTracks(packId,locId,[...tracks,tIdx]);
+  renderHiddenTracks();
+  if(locId===currentLocId)renderTrackList();
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(loadStore(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='musicmap-preferences.json';a.click();
+}
+function clearAllData(){
+  if(confirm('Clear all saved data?')){localStorage.removeItem(STORE_KEY);location.reload();}
+}
+function updateCacheStatus(){
+  const s=loadStore();
+  const custom=(s.customLocs||[]).length;
+  const packs=(s.userPacks||[]).length;
+  const el=document.getElementById('cacheStatus');
+  if(el)el.textContent=`${packs} custom pack(s), ${custom} custom location(s) saved in localStorage.`;
+}
+
+// ═══════════════════════════════════════════
+// MAP
+// ═══════════════════════════════════════════
+// ── LEAFLET MAP ──
+function initLeafletMap(){
+  if(leafletMap) return; // already initialised
+  const el=document.getElementById('leafletMap');
+  if(!el||typeof L==='undefined') return;
+
+  leafletMap=L.map('leafletMap',{
+    center:[20,0], zoom:2,
+    zoomControl:true,
+    attributionControl:true
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom:19
+  }).addTo(leafletMap);
+
+  // Click to drop a pin
+  leafletMap.on('click', e=>{
+    const {lat,lng}=e.latlng;
+    openLocEdit(null,true,lat,lng);
+  });
+
+  // Render existing custom pins
+  renderCustomPins();
+
+  // If we already have a location, go there
+  if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
+}
+
+// Accent colours per biome cssClass for radius circles
+const BIOME_COLORS={
+  'biome-beach':'#00b4d8','biome-city':'#7c3aed','biome-forest':'#16a34a',
+  'biome-mountain':'#9f1239','biome-desert':'#d97706','biome-town':'#0891b2',
+  'biome-ocean':'#0284c7','biome-shopping':'#db2777','biome-port':'#0d9488',
+  'biome-home':'#f59e0b','biome-work':'#6366f1','biome-school':'#10b981',
+  'biome-gym':'#ef4444','biome-custom':'#8b5cf6'
+};
+
+function renderCustomPins(){
+  if(!leafletMap) return;
+  // Remove old markers + circles
+  customPinMarkers.forEach(m=>leafletMap.removeLayer(m));
+  radiusCircles.forEach(c=>leafletMap.removeLayer(c));
+  customPinMarkers=[];
+  radiusCircles=[];
+
+  getAllCustomLocs().filter(l=>l.lat&&l.lon).forEach(loc=>{
+    const color=BIOME_COLORS[loc.cssClass||'biome-custom']||'#8b5cf6';
+    const radius=loc.radius||200;
+
+    // Radius circle
+    const circle=L.circle([loc.lat,loc.lon],{
+      radius,
+      color,
+      fillColor:color,
+      fillOpacity:0.13,
+      weight:1.5,
+      opacity:0.55,
+      dashArray:'4 4'
+    }).addTo(leafletMap);
+    radiusCircles.push(circle);
+
+    // Emoji marker
+    const icon=L.divIcon({
+      className:'',
+      html:`<div class="mm-marker" title="${loc.name}">${loc.emoji}</div>`,
+      iconSize:[30,30],iconAnchor:[15,15]
+    });
+    const marker=L.marker([loc.lat,loc.lon],{icon}).addTo(leafletMap);
+    const popupDiv=document.createElement('div');
+    popupDiv.style.cssText='font-family:sans-serif;min-width:140px';
+    popupDiv.innerHTML='<div style="font-size:15px;font-weight:600;margin-bottom:3px">'+loc.emoji+' '+loc.name+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+radius+'m radius</div>';
+    const playPop=document.createElement('button');
+    playPop.textContent='▶ Play this biome';
+    playPop.style.cssText='width:100%;padding:6px 10px;border-radius:7px;border:none;background:'+color+';color:#fff;cursor:pointer;font-size:12px;font-weight:600';
+    playPop.onclick=()=>{loadLocation(loc.id,true,true);closeAllPopups();};
+    popupDiv.appendChild(playPop);
+    const editPop=document.createElement('button');
+    editPop.textContent='✏ Edit location';
+    editPop.style.cssText='width:100%;margin-top:5px;padding:5px 10px;border-radius:7px;border:1px solid #ccc;background:none;color:#555;cursor:pointer;font-size:11px';
+    editPop.onclick=()=>{openLocEdit(loc.id,true);closeAllPopups();};
+    popupDiv.appendChild(editPop);
+    marker.bindPopup(popupDiv);
+    customPinMarkers.push(marker);
+  });
+}
+
+function closeAllPopups(){
+  if(leafletMap) leafletMap.closePopup();
+}
+
+function updateMapPin(lat,lon,flyTo){
+  if(!leafletMap) return;
+  if(!userMarker){
+    const icon=L.divIcon({
+      className:'',
+      html:'<div class="mm-user-marker"></div>',
+      iconSize:[22,22],
+      iconAnchor:[11,11]
+    });
+    userMarker=L.marker([lat,lon],{icon,zIndexOffset:1000}).addTo(leafletMap);
+    userMarker.bindPopup('<b>📍 You are here</b>');
+  } else {
+    userMarker.setLatLng([lat,lon]);
+  }
+  if(flyTo||trackingActive){
+    const zoom=leafletMap.getZoom()<10?13:leafletMap.getZoom();
+    leafletMap.flyTo([lat,lon],zoom,{duration:1.2});
+  }
+}
+
+// Legacy stub — called in some places
+function updateMapDot(lat,lon){ updateMapPin(lat,lon,false); }
+
+// ═══════════════════════════════════════════
+// GEO
+// ═══════════════════════════════════════════
+function dist(lat1,lon1,lat2,lon2){
+  const R=6371000,d=Math.PI/180;
+  const a=Math.sin((lat2-lat1)*d/2)**2+Math.cos(lat1*d)*Math.cos(lat2*d)*Math.sin((lon2-lon1)*d/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+// ── TOGGLE TRACKING ──
+function toggleTracking(){
+  if(trackingActive){
+    stopTracking();
+  } else {
+    startTracking();
+  }
+}
+
+function startTracking(){
+  if(!navigator.geolocation){
+    setTrackingUI(false,'Geolocation not supported.');return;
+  }
+  trackingActive=true;
+  setTrackingUI(true,'Locating…');
+  pollLocation(true); // immediate first poll
+}
+
+function stopTracking(){
+  trackingActive=false;
+  clearTimeout(trackingTimer);
+  setTrackingUI(false,'Tracking off');
+}
+
+function setTrackingUI(on, statusText){
+  const btn=document.getElementById('heroDetectBtn');
+  const icon=document.getElementById('heroDetectIcon');
+  const label=document.getElementById('heroDetectLabel');
+  const sub=document.getElementById('heroDetectSub');
+  const status=document.getElementById('heroStatusBar');
+  btn.classList.toggle('tracking', on);
+  icon.textContent = on ? '🟢' : '📍';
+  label.textContent = on ? 'LISTENING' : 'LISTEN TO WORLD';
+  if(sub) sub.textContent = on ? 'TRACKING ON · TAP TO STOP' : 'DETECT MY LOCATION';
+  if(status) status.textContent = statusText||'';
+}
+
+// ── POLL LOCATION ──
+async function pollLocation(isFirstPoll){
+  if(!trackingActive) return;
+
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const lat=pos.coords.latitude, lon=pos.coords.longitude;
+
+    // Determine if moving fast (schedule next poll)
+    let moved=0;
+    if(lastPollLat!==null) moved=dist(lastPollLat,lastPollLon,lat,lon);
+    const nextPoll = (moved > MOVE_THRESHOLD) ? POLL_FAST : POLL_SLOW;
+    lastPollLat=lat; lastPollLon=lon;
+    lastLat=lat; lastLon=lon;
+
+    // Update map pin
+    updateMapPin(lat,lon);
+
+    // Custom locations ALWAYS override default biomes — checked first
+    const nearby=getAllCustomLocs().find(l=>{
+      if(l.pins&&l.pins.length>0) return l.pins.some(p=>dist(lat,lon,p.lat,p.lon)<=(p.radius||200));
+      return l.lat&&l.lon&&dist(lat,lon,l.lat,l.lon)<=(l.radius||200);
+    });
+    const newLocId = nearby ? nearby.id : null;
+
+    if(!newLocId){
+      // Update location pill with address (lightweight, no biome classify)
+      try{
+        const locName=await revGeo(lat,lon);
+        document.getElementById('locationPill').textContent=locName||`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+        setTrackingUI(true,`📍 ${locName||'Located'} · ${moved>0?(moved>MOVE_THRESHOLD?'🚗 driving':'🚶 walking'):'standing by'}`);
+        document.getElementById('nearBadge').style.display='none';
+      }catch(e){}
+      // On first poll, do an immediate biome classify to set initial biome
+      if(isFirstPoll){
+        try{
+          const locName2=await revGeo(lat,lon);
+          const id=await classifyBiome(lat,lon,locName2);
+          if(id!==currentLocId) loadLocation(id,false,false);
+          if(!isPlaying){ playCurrentTrack(false); isPlaying=true; }
+        }catch(e){}
+      }
+    } else {
+      // Don't repeat the biome name in the pill — it's already in the hero
+      document.getElementById('locationPill').textContent='';
+      document.getElementById('nearBadge').style.display='inline';
+      setTrackingUI(true, '📍 You are here');
+      if(nearby.id!==currentLocId || isFirstPoll){
+        if(isFirstPoll){
+          loadLocation(nearby.id,false,false);
+          if(!isPlaying){ playCurrentTrack(false); isPlaying=true; }
+        } else {
+          pendingBiomeId=nearby.id;
+          setTrackingUI(true,'📍 You are here · switching at track end');
+        }
+        renderLocGrid();
+      }
+    }
+
+    // Lightweight GPS refresh — just update coords, biome check happens at track end
+    if(trackingActive){
+      const nextPollDelay = moved > MOVE_THRESHOLD ? POLL_FAST : POLL_SLOW;
+      trackingTimer=setTimeout(()=>pollLocation(false), nextPollDelay);
+    }
+  }, err=>{
+    const m={1:'Location denied — tracking stopped.',2:'Location unavailable.',3:'Timed out, retrying…'};
+    setTrackingUI(trackingActive, m[err.code]||'GPS error');
+    if(err.code===1) stopTracking();
+    else if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), POLL_SLOW);
+  },{timeout:15000,enableHighAccuracy:true,maximumAge:20000});
+}
+async function revGeo(lat,lon){
+  try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);const d=await r.json();const a=d.address||{};return[a.city||a.town||a.village||a.county,a.state].filter(Boolean).join(', ');}catch(e){return null;}
+}
+// ── OSM TAG → BIOME MAPPING ──
+const OSM_BIOME_MAP = [
+  // [tag_key, tag_value, biome_id] — checked in order, first match wins
+  ['natural','beach',    'beach'],
+  ['natural','coastline','beach'],
+  ['natural','sand',     'desert'],
+  ['natural','desert',   'desert'],
+  ['natural','water',    'beach'],
+  ['natural','bay',      'ocean'],
+  ['natural','strait',   'ocean'],
+  ['natural','lake',     'ocean'],
+  ['natural','river',    'ocean'],
+  ['natural','wetland',  'forest'],
+  ['natural','wood',     'forest'],
+  ['natural','forest',   'forest'],
+  ['natural','scrub',    'forest'],
+  ['natural','heath',    'forest'],
+  ['natural','grassland','forest'],
+  ['natural','peak',     'mountain'],
+  ['natural','cliff',    'mountain'],
+  ['natural','rock',     'mountain'],
+  ['natural','scree',    'mountain'],
+  ['landuse','forest',   'forest'],
+  ['landuse','orchard',  'forest'],
+  ['landuse','vineyard', 'forest'],
+  ['landuse','meadow',   'forest'],
+  ['landuse','farmland', 'desert'],
+  ['landuse','reservoir','ocean'],
+  ['landuse','basin',    'ocean'],
+  ['landuse','retail',   'shopping'],
+  ['landuse','commercial','shopping'],
+  ['landuse','industrial','port'],
+  ['landuse','port',     'port'],
+  ['landuse','railway',  'port'],
+  ['landuse','residential','town'],
+  ['landuse','village_green','town'],
+  ['landuse','allotments','town'],
+  ['landuse','recreation_ground','town'],
+  ['leisure','beach_resort','beach'],
+  ['leisure','marina',   'port'],
+  ['leisure','nature_reserve','forest'],
+  ['amenity','marketplace','shopping'],
+  ['place',  'island',   'beach'],
+];
+
+async function queryOSMBiome(lat, lon){
+  // Query Overpass for features within 300m
+  const query = `[out:json][timeout:8];
+(
+  way(around:300,${lat},${lon})[natural];
+  way(around:300,${lat},${lon})[landuse];
+  way(around:300,${lat},${lon})[leisure~"^(beach_resort|marina|nature_reserve)$"];
+  way(around:300,${lat},${lon})[amenity=marketplace];
+  node(around:300,${lat},${lon})[natural~"^(peak|cliff|beach|coastline)$"];
+  relation(around:300,${lat},${lon})[natural];
+);
+out tags 20;`;
+
+  const r = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: 'data=' + encodeURIComponent(query),
+    headers: {'Content-Type':'application/x-www-form-urlencoded'}
+  });
+  const d = await r.json();
+  const elements = d.elements || [];
+
+  // Score each biome by how many matching features we find
+  const scores = {};
+  for(const el of elements){
+    const tags = el.tags || {};
+    for(const [key, val, biomeId] of OSM_BIOME_MAP){
+      if(tags[key] && (val === '*' || tags[key] === val)){
+        scores[biomeId] = (scores[biomeId]||0) + 1;
+      }
+    }
+  }
+
+  if(Object.keys(scores).length === 0) return null;
+  // Return the highest-scoring biome
+  return Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][0];
+}
+
+async function classifyBiome(lat, lon, name){
+  const pack = getActivePack();
+  const biomes = pack?.biomes || [];
+
+  // 1. OSM tags — most accurate
+  try{
+    const osmBiome = await queryOSMBiome(lat, lon);
+    if(osmBiome && biomes.find(b => b.id === osmBiome)){
+      return osmBiome;
+    }
+  }catch(e){ /* Overpass unavailable — fall through */ }
+
+  // 2. Keyword matching on address name
+  if(name){
+    const l = name.toLowerCase();
+    for(const b of biomes){
+      if(b.keywords?.some(k => l.includes(k))) return b.id;
+    }
+  }
+
+  // 3. Default
+  return 'town';
+}
+function registerServiceWorker(){
+  if('serviceWorker'in navigator){
+    const sw=`const C='gv2';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.add(location.href))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));`;
+    navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw],{type:'application/javascript'}))).catch(()=>{});
+  }
+}
+
+// ═══════════════════════════════════════════
+// PACK EDIT MODAL
+// ═══════════════════════════════════════════
+let editingPackId = null;
+let peSelectedEmoji = '🌿';
+let peVideos = []; // [{id, tracks[]}]
+
+function openPackEdit(packId){
+  editingPackId = packId;
+  const guide = document.getElementById('peGuide');
+  const metaSection = document.getElementById('peMetaSection');
+  const videoLabel = document.getElementById('peVideoSectionLabel');
+  document.getElementById('peNewVideoUrl').value = '';
+  document.getElementById('peUrlStatus').textContent = '';
+  document.getElementById('peUrlStatus').className = 'url-status';
+
+  if(!packId){
+    // NEW PACK mode
+    peSelectedEmoji = '🌿';
+    peVideos = [];
+    document.getElementById('packEditTitle').textContent = 'ADD PACK';
+    document.getElementById('peNameInput').value = '';
+    document.getElementById('peSubtitleInput').value = '';
+    if(guide) guide.style.display = 'block';
+    videoLabel.textContent = 'ADD YOUTUBE VIDEO';
+  } else {
+    const pack = getAllPacks().find(p => p.id === packId);
+    if(!pack) return;
+    peSelectedEmoji = pack.icon || '🌿';
+    peVideos = pack.videos
+      ? JSON.parse(JSON.stringify(pack.videos))
+      : [{id: pack.videoId, tracks: JSON.parse(JSON.stringify(pack.tracks||[]))}];
+    document.getElementById('packEditTitle').textContent = pack.builtin ? 'CUSTOMISE PACK' : 'EDIT PACK';
+    document.getElementById('peNameInput').value = pack.name;
+    document.getElementById('peSubtitleInput').value = pack.subtitle||pack.source||'';
+    if(guide) guide.style.display = 'none';
+    videoLabel.textContent = 'ADD ANOTHER VIDEO';
+  }
+  renderPeEmojiPicker();
+  renderPeVideoList();
+  document.getElementById('packEditOverlay').classList.add('open');
+  warmVideoTitles(editingPackId?getAllPacks().find(p=>p.id===editingPackId):null);
+}
+
+function closePackEdit(e){
+  if(!e||e.target===document.getElementById('packEditOverlay'))
+    document.getElementById('packEditOverlay').classList.remove('open');
+}
+
+function peExtractVideoId(raw){
+  if(!raw) return null;
+  const m = raw.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+  if(m) return m[1];
+  if(/^[A-Za-z0-9_-]{11}$/.test(raw.trim())) return raw.trim();
+  return null;
+}
+
+function peOnUrlInput(raw){
+  const status = document.getElementById('peUrlStatus');
+  const vid = peExtractVideoId(raw);
+  if(!raw.trim()){ status.textContent=''; status.className='url-status'; return; }
+  if(!vid){
+    status.textContent = '✗ Could not find a valid YouTube video ID';
+    status.className = 'url-status err';
+    return;
+  }
+  if(peVideos.find(v => v.id === vid)){
+    status.textContent = '✓ Already in pack';
+    status.className = 'url-status ok';
+    return;
+  }
+  status.textContent = '✓ Valid video ID: ' + vid + ' — click ＋ Add or paste timestamps below';
+  status.className = 'url-status ok';
+}
+
+function peAddVideo(){
+  const raw = document.getElementById('peNewVideoUrl').value.trim();
+  const vid = peExtractVideoId(raw);
+  if(!vid){ alert('Could not find a valid YouTube video ID.'); return; }
+  if(peVideos.find(v => v.id === vid)){ alert('This video is already in the pack.'); return; }
+  peVideos.push({id: vid, tracks: []});
+  document.getElementById('peNewVideoUrl').value = '';
+  document.getElementById('peUrlStatus').textContent = '';
+  document.getElementById('peUrlStatus').className = 'url-status';
+  // Auto-fill pack name from video id if blank
+  const nameInput = document.getElementById('peNameInput');
+  if(!nameInput.value.trim()) nameInput.placeholder = 'Name your pack…';
+  renderPeVideoList();
+  // Scroll to the new video section
+  setTimeout(()=>{
+    const sections = document.querySelectorAll('.pe-video-section');
+    if(sections.length) sections[sections.length-1].scrollIntoView({behavior:'smooth',block:'nearest'});
+  }, 50);
+}
+
+function renderPeEmojiPicker(){
+  const p = document.getElementById('peEmojiPicker');
+  if(!p) return;
+  p.innerHTML = '';
+  PACK_EMOJIS.forEach(em => {
+    const b = document.createElement('button');
+    b.className = 'emoji-opt' + (em === peSelectedEmoji ? ' sel' : '');
+    b.textContent = em; b.type = 'button';
+    b.onclick = () => { peSelectedEmoji = em; renderPeEmojiPicker(); };
+    p.appendChild(b);
+  });
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;gap:5px;margin-top:6px;width:100%';
+  const peInput = document.createElement('input');
+  peInput.id = 'peCustomEmojiInput';
+  peInput.placeholder = 'Type emoji…';
+  peInput.maxLength = 4;
+  peInput.style.cssText = 'flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:5px 9px;color:#fff;font-size:16px;outline:none;min-width:0';
+  peInput.oninput = function(){ if(this.value.trim()){ peSelectedEmoji=this.value.trim(); renderPeEmojiPicker(); } };
+  const pePreview = document.createElement('button');
+  pePreview.type = 'button';
+  pePreview.className = 'emoji-opt sel';
+  pePreview.style.cssText = 'flex-shrink:0;min-width:40px;font-size:16px';
+  pePreview.textContent = peSelectedEmoji;
+  pePreview.onclick = () => peInput.focus();
+  wrap.appendChild(peInput);
+  wrap.appendChild(pePreview);
+  p.appendChild(wrap);
+}
+
+function renderPeVideoList(){
+  const list = document.getElementById('peVideoList');
+  if(!list) return;
+  list.innerHTML = '';
+  peVideos.forEach((v, vi) => {
+    const section = document.createElement('div');
+    section.className = 'pe-video-section';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'pe-video-section-header';
+    const infoDiv = document.createElement('div');
+    infoDiv.innerHTML = '<div class="pe-video-id">' + v.id + '</div>'
+      + '<div class="pe-video-track-count">' + (v.tracks||[]).length + ' tracks imported</div>';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'pill-btn';
+    delBtn.style.color = 'var(--red)';
+    delBtn.textContent = '✕ Remove';
+    delBtn.onclick = () => { peVideos.splice(vi,1); renderPeVideoList(); };
+    header.appendChild(infoDiv);
+    header.appendChild(delBtn);
+    section.appendChild(header);
+
+    // Inline timestamp importer for this video
+    const tsLabel = document.createElement('label');
+    tsLabel.className = 'form-label';
+    tsLabel.style.marginBottom = '5px';
+    tsLabel.textContent = (v.tracks||[]).length > 0 ? 'PASTE MORE TIMESTAMPS (APPENDS)' : 'PASTE TIMESTAMPS';
+    section.appendChild(tsLabel);
+
+    const tsHint = document.createElement('div');
+    tsHint.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.5';
+    tsHint.textContent = 'Copy the chapter list from the YouTube video description and paste it here.';
+    section.appendChild(tsHint);
+
+    const ta = document.createElement('textarea');
+    ta.className = 'ts-import-area';
+    ta.placeholder = 'e.g. 001. Route 101: [0:00:38](url)\nor plain:\n0:38 Route 101';
+    ta.style.minHeight = '80px';
+    const previewDiv = document.createElement('div');
+    previewDiv.className = 'ts-parse-result';
+    const countDiv = document.createElement('div');
+    countDiv.className = 'ts-parse-count';
+    const trackDiv = document.createElement('div');
+    trackDiv.className = 'ts-track-preview';
+    previewDiv.appendChild(countDiv);
+    previewDiv.appendChild(trackDiv);
+    const importBtn = document.createElement('button');
+    importBtn.className = 'btn-primary';
+    importBtn.style.cssText = 'width:100%;padding:9px;margin-top:8px';
+    importBtn.textContent = 'Import tracks';
+    importBtn.disabled = true;
+
+    let parsedForThis = [];
+    ta.oninput = function(){
+      parsedForThis = parseTimestamps(this.value);
+      if(parsedForThis.length > 0){
+        countDiv.textContent = parsedForThis.length + ' TRACKS DETECTED';
+        trackDiv.innerHTML = parsedForThis.slice(0,6).map(t =>
+          '<div>' + fmt(t.start) + ' — ' + t.title + ' (' + fmt(t.dur) + ')</div>'
+        ).join('') + (parsedForThis.length > 6 ? '<div style="opacity:.5">…and ' + (parsedForThis.length-6) + ' more</div>' : '');
+        previewDiv.classList.add('visible');
+        importBtn.disabled = false;
+      } else {
+        previewDiv.classList.remove('visible');
+        importBtn.disabled = true;
+      }
+    };
+    importBtn.onclick = () => {
+      if(!parsedForThis.length) return;
+      peVideos[vi].tracks = [...(peVideos[vi].tracks||[]), ...parsedForThis];
+      ta.value = '';
+      parsedForThis = [];
+      previewDiv.classList.remove('visible');
+      importBtn.disabled = true;
+      renderPeVideoList();
+    };
+
+    section.appendChild(ta);
+    section.appendChild(previewDiv);
+    section.appendChild(importBtn);
+    list.appendChild(section);
+  });
+}
+
+function savePackEdit(){
+  const name = document.getElementById('peNameInput').value.trim();
+  const subtitle = document.getElementById('peSubtitleInput').value.trim();
+  if(!name){ alert('Please enter a pack name.'); return; }
+
+  // If URL field has a valid unregistered video, add it automatically
+  const rawUrl = document.getElementById('peNewVideoUrl').value.trim();
+  if(rawUrl){
+    const vid = peExtractVideoId(rawUrl);
+    if(vid && !peVideos.find(v => v.id === vid)) peVideos.push({id:vid, tracks:[]});
+  }
+
+  if(!editingPackId){
+    // CREATE
+    if(peVideos.length === 0){ alert('Please add at least one YouTube video.'); return; }
+    const newPack = {
+      id: 'user_' + Date.now(),
+      name, subtitle, icon: peSelectedEmoji,
+      videoId: peVideos[0].id,
+      source: 'Custom Pack', builtin: false,
+      videos: peVideos,
+      tracks: peVideos.flatMap(v => v.tracks||[]),
+      biomes: [
+        {id:'beach',name:'Beach',emoji:'🌊',cssClass:'biome-beach',keywords:['beach','coast','sea','bay','shore'],defaultTracks:[]},
+        {id:'city',name:'City',emoji:'🏙️',cssClass:'biome-city',keywords:['city','downtown','urban','metro'],defaultTracks:[]},
+        {id:'forest',name:'Forest',emoji:'🌲',cssClass:'biome-forest',keywords:['forest','woods','park','trail'],defaultTracks:[]},
+        {id:'mountain',name:'Mountain',emoji:'🌋',cssClass:'biome-mountain',keywords:['mountain','hill','summit'],defaultTracks:[]},
+        {id:'desert',name:'Desert',emoji:'🏜️',cssClass:'biome-desert',keywords:['desert','sand','dune','arid'],defaultTracks:[]},
+        {id:'town',name:'Town',emoji:'🏘️',cssClass:'biome-town',keywords:['suburb','town','village'],defaultTracks:[]},
+        {id:'ocean',name:'Ocean',emoji:'🐋',cssClass:'biome-ocean',keywords:['ocean','gulf','pacific'],defaultTracks:[]},
+        {id:'shopping',name:'Shopping',emoji:'🛍️',cssClass:'biome-shopping',keywords:['mall','shopping','store'],defaultTracks:[]},
+        {id:'port',name:'Port',emoji:'⚓',cssClass:'biome-port',keywords:['port','dock','pier','harbor'],defaultTracks:[]},
+      ]
+    };
+    saveUserPacks([...getUserPacks(), newPack]);
+    document.getElementById('packEditOverlay').classList.remove('open');
+    activatePack(newPack.id);
+    return;
+  }
+
+  // EDIT EXISTING
+  const realId = ensurePackEditable(editingPackId);
+  const allPacks = getAllPacks();
+  const pack = allPacks.find(p => p.id === realId);
+  if(!pack){ alert('Pack not found.'); return; }
+  pack.name = name;
+  pack.subtitle = subtitle;
+  pack.icon = peSelectedEmoji;
+  pack.videos = peVideos;
+  if(peVideos.length > 0){
+    pack.videoId = peVideos[0].id;
+    pack.tracks = peVideos.flatMap(v => v.tracks||[]);
+  }
+  pack.builtin = false;
+  const userPacks = getUserPacks();
+  const idx = userPacks.findIndex(p => p.id === realId);
+  if(idx >= 0) userPacks[idx] = pack; else userPacks.push(pack);
+  saveUserPacks(userPacks);
+  document.getElementById('packEditOverlay').classList.remove('open');
+  renderPacksList();
+  if(getActivePackId() === realId) renderLocGrid();
+}
+// ═══════════════════════════════════════════
+// TIMESTAMP IMPORTER
+// ═══════════════════════════════════════════
+let tsImportVideoIdx = -1;
+let tsParsedTracks = [];
+
+function openTsImport(videoIdx){
+  tsImportVideoIdx = videoIdx;
+  tsParsedTracks = [];
+  const vid = peVideos[videoIdx];
+  document.getElementById('tsImportVideoLabel').textContent = 'Video: ' + (vid?.id || '');
+  document.getElementById('tsImportInput').value = '';
+  document.getElementById('tsParseResult').classList.remove('visible');
+  document.getElementById('tsImportBtn').disabled = true;
+  document.getElementById('tsImportOverlay').classList.add('open');
+}
+function closeTsImport(e){
+  if(!e||e.target===document.getElementById('tsImportOverlay'))
+    document.getElementById('tsImportOverlay').classList.remove('open');
+}
+
+function parseTimestamps(text){
+  const tracks = [];
+  // Format 1: markdown link  "NNN. Title: [H:MM:SS](url?t=Ns)"
+  const mdRe = new RegExp('(?:\\d+\\.\\s+)?([^:\\[\\]\\n]+?):\\s*\\[(\\d+:\\d+:\\d+|\\d+:\\d+)\\]\\(https?://[^)]*?(?:[?&]t=(\\d+)s?)?\\)', 'g');
+  const mdMatches = [...text.matchAll(mdRe)];
+  if(mdMatches.length > 0){
+    const starts = mdMatches.map(m => {
+      const title = m[1].trim().replace(/^\d+\.\s*/, '');
+      const start = m[3] ? parseInt(m[3]) : (() => {
+        const p = m[2].split(':').map(Number);
+        return p.length===3 ? p[0]*3600+p[1]*60+p[2] : p[0]*60+p[1];
+      })();
+      return {title, start};
+    });
+    starts.forEach((s,i) => {
+      const dur = i+1 < starts.length ? Math.min(starts[i+1].start - s.start, 300) : 180;
+      tracks.push({title:s.title, start:s.start, dur});
+    });
+    return tracks;
+  }
+  // Format 2: plain "H:MM:SS Title" or "M:SS Title" lines
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const plainRe = /^(\d+:\d+(?::\d+)?)\s+(.+)$/;
+  const starts2 = [];
+  lines.forEach(line => {
+    const m = line.match(plainRe);
+    if(m){
+      const p = m[1].split(':').map(Number);
+      const start = p.length===3 ? p[0]*3600+p[1]*60+p[2] : p[0]*60+p[1];
+      starts2.push({title: m[2].trim(), start});
+    }
+  });
+  starts2.forEach((s,i) => {
+    const dur = i+1 < starts2.length ? Math.min(starts2[i+1].start - s.start, 300) : 180;
+    tracks.push({title:s.title, start:s.start, dur});
+  });
+  return tracks;
+}
+
+function parseTsPreview(){
+  const text = document.getElementById('tsImportInput').value;
+  const result = document.getElementById('tsParseResult');
+  const btn = document.getElementById('tsImportBtn');
+  tsParsedTracks = parseTimestamps(text);
+  if(tsParsedTracks.length === 0){
+    result.classList.remove('visible');
+    btn.disabled = true;
+    return;
+  }
+  document.getElementById('tsParseCount').textContent = tsParsedTracks.length + ' TRACKS DETECTED';
+  document.getElementById('tsTrackPreview').innerHTML = tsParsedTracks.slice(0,8).map(t =>
+    '<div>' + fmt(t.start) + ' — ' + t.title + ' (' + fmt(t.dur) + ')</div>'
+  ).join('') + (tsParsedTracks.length > 8 ? '<div style="opacity:.5">…and ' + (tsParsedTracks.length-8) + ' more</div>' : '');
+  result.classList.add('visible');
+  btn.disabled = false;
+}
+
+function confirmTsImport(){
+  if(tsImportVideoIdx < 0 || tsParsedTracks.length === 0) return;
+  const existing = peVideos[tsImportVideoIdx].tracks || [];
+  // Append (don't replace — user may be adding more tracks from a second video)
+  peVideos[tsImportVideoIdx].tracks = [...existing, ...tsParsedTracks];
+  document.getElementById('tsImportOverlay').classList.remove('open');
+  renderPeVideoList();
+}
+
+
+// ═══════════════════════════════════════════
+// MAP PIN PICKER
+// ═══════════════════════════════════════════
+let mapPickerMap=null, mapPickerMarker=null, mapPickerCircle=null;
+let mapPickerPendingLat=null, mapPickerPendingLon=null;
+
+function openMapPicker(){
+  document.getElementById('mapPickerOverlay').classList.add('open');
+  document.getElementById('mapPickerPending').classList.remove('visible');
+  document.getElementById('mapPickerConfirmBtn').disabled=true;
+  mapPickerPendingLat=null; mapPickerPendingLon=null;
+
+  setTimeout(()=>{
+    if(!mapPickerMap){
+      mapPickerMap=L.map('mapPickerMap',{zoomControl:true,attributionControl:false});
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(mapPickerMap);
+      mapPickerMap.on('click',e=>mapPickerPlacePin(e.latlng.lat,e.latlng.lng));
+    }
+    // Center on existing pins or last known location
+    const firstPin=editingPins[0];
+    const center=firstPin?[firstPin.lat,firstPin.lon]:lastLat?[lastLat,lastLon]:[20,0];
+    const zoom=firstPin||lastLat?14:2;
+    mapPickerMap.setView(center,zoom);
+    mapPickerMap.invalidateSize();
+    // Show existing pins as faint markers
+    if(mapPickerMarker){mapPickerMap.removeLayer(mapPickerMarker);mapPickerMarker=null;}
+    if(mapPickerCircle){mapPickerMap.removeLayer(mapPickerCircle);mapPickerCircle=null;}
+  },80);
+}
+
+function closeMapPicker(){
+  document.getElementById('mapPickerOverlay').classList.remove('open');
+}
+
+function mapPickerPlacePin(lat,lng){
+  mapPickerPendingLat=lat; mapPickerPendingLon=lng;
+  const radius=parseInt(document.getElementById('mapPickerRadiusSlider').value)||200;
+
+  // Update marker
+  if(mapPickerMarker) mapPickerMap.removeLayer(mapPickerMarker);
+  if(mapPickerCircle) mapPickerMap.removeLayer(mapPickerCircle);
+
+  const icon=L.divIcon({className:'',html:'<div class="mm-user-marker" style="background:var(--accent,#7c3aed)"></div>',iconSize:[22,22],iconAnchor:[11,11]});
+  mapPickerMarker=L.marker([lat,lng],{icon}).addTo(mapPickerMap);
+  mapPickerCircle=L.circle([lat,lng],{radius,color:'#7c3aed',fillColor:'#7c3aed',fillOpacity:0.15,weight:1.5,dashArray:'4 4'}).addTo(mapPickerMap);
+
+  // Update footer
+  document.getElementById('mapPickerCoords').textContent=lat.toFixed(6)+', '+lng.toFixed(6);
+  document.getElementById('mapPickerPending').classList.add('visible');
+  document.getElementById('mapPickerConfirmBtn').disabled=false;
+}
+
+function updateMapPickerRadius(){
+  const radius=parseInt(document.getElementById('mapPickerRadiusSlider').value)||200;
+  document.getElementById('mapPickerRadiusVal').textContent=radius+'m';
+  if(mapPickerCircle) mapPickerCircle.setRadius(radius);
+}
+
+function confirmMapPin(){
+  if(mapPickerPendingLat===null) return;
+  const radius=parseInt(document.getElementById('mapPickerRadiusSlider').value)||200;
+  editingPins.push({lat:mapPickerPendingLat,lon:mapPickerPendingLon,radius});
+  renderLePinList();
+  closeMapPicker();
+}
+
+// ── BACKGROUND BIOME CHECK (called 10s before track ends) ──
+async function checkBiomeInBackground(){
+  if(!lastLat||!lastLon) return;
+  // Check custom location proximity first
+  const nearby=getAllCustomLocs().find(l=>{
+    if(l.pins&&l.pins.length>0) return l.pins.some(p=>dist(lastLat,lastLon,p.lat,p.lon)<=(p.radius||200));
+    return l.lat&&l.lon&&dist(lastLat,lastLon,l.lat,l.lon)<=(l.radius||200);
+  });
+  if(nearby){
+    pendingBiomeId = nearby.id !== currentLocId ? nearby.id : null;
+    return;
+  }
+  try{
+    const locName=await revGeo(lastLat,lastLon);
+    const id=await classifyBiome(lastLat,lastLon,locName);
+    pendingBiomeId = id !== currentLocId ? id : null;
+  }catch(e){ pendingBiomeId=null; }
+}
+
+
+// ═══════════════════════════════════════════
+// MAKE OR IMPORT MODAL
+// ═══════════════════════════════════════════
+let miSelectedEmoji = '🎵';
+let miVideos = []; // [{type:'video'|'playlist', rawUrl, videoId, title, trackCount, tracks:[]}]
+
+function openMakeImportModal(){
+  miVideos = [];
+  miSelectedEmoji = '🎵';
+  document.getElementById('miPackName').value = '';
+  document.getElementById('miSubtitle').value = '';
+  document.getElementById('miUrlInput').value = '';
+  document.getElementById('miUrlStatus').textContent = '';
+  document.getElementById('miUrlStatus').className = 'url-status';
+  document.getElementById('miImportInput').value = '';
+  document.getElementById('miImportPreview').classList.remove('visible');
+  document.getElementById('miImportFlash').textContent = '';
+  renderMiEmojiPicker();
+  renderMiVideoList();
+  miSwitchTab('make');
+  document.getElementById('makeImportOverlay').classList.add('open');
+}
+
+function closeMakeImport(e){
+  if(!e||e.target===document.getElementById('makeImportOverlay'))
+    document.getElementById('makeImportOverlay').classList.remove('open');
+}
+
+function miSwitchTab(tab){
+  document.querySelectorAll('.mi-tab').forEach((b,i)=>{
+    b.classList.toggle('active',['make','import'][i]===tab);
+  });
+  document.querySelectorAll('.mi-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('mi-'+tab).classList.add('active');
+}
+
+function renderMiEmojiPicker(){
+  const p = document.getElementById('miEmojiPicker');
+  if(!p) return;
+  p.innerHTML = '';
+  PACK_EMOJIS.forEach(em=>{
+    const b=document.createElement('button');
+    b.className='emoji-opt'+(em===miSelectedEmoji?' sel':'');
+    b.textContent=em; b.type='button';
+    b.onclick=()=>{miSelectedEmoji=em;renderMiEmojiPicker();};
+    p.appendChild(b);
+  });
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;gap:5px;margin-top:6px;width:100%';
+  const inp=document.createElement('input');
+  inp.placeholder='Type emoji…'; inp.maxLength=4;
+  inp.style.cssText='flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:5px 9px;color:#fff;font-size:16px;outline:none;min-width:0';
+  inp.oninput=function(){if(this.value.trim()){miSelectedEmoji=this.value.trim();renderMiEmojiPicker();}};
+  const prev=document.createElement('button');
+  prev.type='button'; prev.className='emoji-opt sel';
+  prev.style.cssText='flex-shrink:0;min-width:40px;font-size:16px';
+  prev.textContent=miSelectedEmoji;
+  prev.onclick=()=>inp.focus();
+  wrap.appendChild(inp); wrap.appendChild(prev); p.appendChild(wrap);
+}
+
+// ── URL detection ──
+function miExtractVideoId(url){
+  const m=url.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m?m[1]:null;
+}
+function miExtractPlaylistId(url){
+  const m=url.match(/[?&]list=([A-Za-z0-9_-]+)/);
+  return m?m[1]:null;
+}
+
+function miOnUrlInput(){
+  const raw=document.getElementById('miUrlInput').value.trim();
+  const status=document.getElementById('miUrlStatus');
+  if(!raw){status.textContent='';status.className='url-status';return;}
+  const vid=miExtractVideoId(raw);
+  const pid=miExtractPlaylistId(raw);
+  if(pid){
+    status.textContent='✓ Playlist detected — click ＋ Add to resolve tracks';
+    status.className='url-status ok';
+  } else if(vid){
+    status.textContent='✓ Video ID: '+vid;
+    status.className='url-status ok';
+  } else {
+    status.textContent='✗ Could not find a YouTube video or playlist ID';
+    status.className='url-status err';
+  }
+}
+
+async function miAddUrl(){
+  const raw=document.getElementById('miUrlInput').value.trim();
+  const status=document.getElementById('miUrlStatus');
+  if(!raw) return;
+
+  const pid=miExtractPlaylistId(raw);
+  const vid=miExtractVideoId(raw);
+
+  if(!pid&&!vid){status.textContent='✗ No valid YouTube URL found';status.className='url-status err';return;}
+
+  if(pid){
+    // Playlist — resolve via oEmbed per video (no API key needed)
+    // We can't enumerate playlist videos without the YouTube Data API key
+    // Instead: add as a single playlist entry with a note, let user import timestamps
+    if(miVideos.find(v=>v.playlistId===pid)){status.textContent='Already added';return;}
+    const entry={type:'playlist',rawUrl:raw,playlistId:pid,videoId:null,title:'Loading…',trackCount:0,tracks:[]};
+    miVideos.push(entry);
+    renderMiVideoList();
+    document.getElementById('miUrlInput').value='';
+    status.textContent='';status.className='url-status';
+    // Try to get playlist title via oEmbed
+    try{
+      const r=await fetch('https://www.youtube.com/oembed?url='+encodeURIComponent('https://www.youtube.com/playlist?list='+pid)+'&format=json');
+      if(r.ok){const d=await r.json();entry.title=d.title||'Playlist '+pid;}
+      else entry.title='Playlist '+pid;
+    }catch(e){entry.title='Playlist '+pid;}
+    renderMiVideoList();
+  } else {
+    if(miVideos.find(v=>v.videoId===vid)){status.textContent='Already added';return;}
+    const entry={type:'video',rawUrl:raw,videoId:vid,title:'Loading…',trackCount:0,tracks:[]};
+    miVideos.push(entry);
+    renderMiVideoList();
+    document.getElementById('miUrlInput').value='';
+    status.textContent='';status.className='url-status';
+    // Fetch video title
+    try{
+      const title=await fetchVideoTitle(vid);
+      entry.title=title;
+    }catch(e){}
+    renderMiVideoList();
+  }
+}
+
+function renderMiVideoList(){
+  const list=document.getElementById('miVideoList');
+  if(!list) return;
+  list.innerHTML='';
+  miVideos.forEach((v,vi)=>{
+    const sec=document.createElement('div');
+    sec.className='pe-video-section';
+
+    // Header row
+    const hdr=document.createElement('div');
+    hdr.className='pe-video-section-header';
+    const info=document.createElement('div');
+    info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'📋 ':'')+v.title+'</div>'
+      +'<div class="pe-video-track-count">'+(v.type==='playlist'?'Playlist · '+(v.tracks.length||0)+' tracks imported':v.videoId+' · '+(v.tracks.length||0)+' tracks')+'</div>';
+    const del=document.createElement('button');
+    del.className='pill-btn'; del.style.color='var(--red)'; del.textContent='✕ Remove';
+    del.onclick=()=>{miVideos.splice(vi,1);renderMiVideoList();};
+    hdr.appendChild(info); hdr.appendChild(del); sec.appendChild(hdr);
+
+    // For playlists: each video = one track, but user can also paste timestamps
+    // For regular videos: timestamp importer
+    const tsLabel=document.createElement('label');
+    tsLabel.className='form-label'; tsLabel.style.marginBottom='5px';
+    tsLabel.textContent=v.type==='playlist'
+      ?'PASTE PLAYLIST VIDEO TITLES (one per line = one track, or paste timestamps)'
+      :(v.tracks.length>0?'PASTE MORE TIMESTAMPS (APPENDS)':'PASTE TIMESTAMPS');
+    const hint=document.createElement('div');
+    hint.style.cssText='font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.5';
+    hint.textContent=v.type==='playlist'
+      ?'Each line = one track starting from 0s. Or paste a full timestamp list.'
+      :'Copy chapter list from the YouTube video description.';
+    sec.appendChild(tsLabel); sec.appendChild(hint);
+
+    const ta=document.createElement('textarea');
+    ta.className='ts-import-area'; ta.style.minHeight='80px';
+    ta.placeholder=v.type==='playlist'?'Song Title One\nSong Title Two\nSong Title Three\u2026\n\nor paste timestamps:\n0:00 Track Name':'e.g. 001. Route 101: [0:00:38](url)\nor plain: 0:38 Route 101';
+
+    const preview=document.createElement('div'); preview.className='ts-parse-result';
+    const countD=document.createElement('div'); countD.className='ts-parse-count';
+    const trackD=document.createElement('div'); trackD.className='ts-track-preview';
+    preview.appendChild(countD); preview.appendChild(trackD);
+
+    const importBtn=document.createElement('button');
+    importBtn.className='btn-primary';
+    importBtn.style.cssText='width:100%;padding:9px;margin-top:8px';
+    importBtn.textContent='Import tracks';
+    importBtn.disabled=true;
+
+    let parsed=[];
+    ta.oninput=function(){
+      const text=this.value;
+      if(v.type==='playlist' && !text.match(/\d+:\d+/)){
+        // Plain line-by-line mode — each line is a track title, start=0, playlist video
+        const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+        parsed=lines.map((title,i)=>({title,start:0,dur:300,isPlaylistItem:true,lineIdx:i}));
+      } else {
+        parsed=parseTimestamps(text);
+      }
+      if(parsed.length>0){
+        countD.textContent=parsed.length+' TRACKS DETECTED';
+        trackD.innerHTML=parsed.slice(0,5).map(t=>
+          '<div>'+(t.isPlaylistItem?'🎵':'⏱ '+fmt(t.start))+' — '+t.title+'</div>'
+        ).join('')+(parsed.length>5?'<div style="opacity:.5">…and '+(parsed.length-5)+' more</div>':'');
+        preview.classList.add('visible');
+        importBtn.disabled=false;
+      } else {
+        preview.classList.remove('visible');
+        importBtn.disabled=true;
+      }
+    };
+    importBtn.onclick=()=>{
+      if(!parsed.length) return;
+      miVideos[vi].tracks=[...(miVideos[vi].tracks||[]),...parsed];
+      ta.value=''; parsed=[];
+      preview.classList.remove('visible');
+      importBtn.disabled=true;
+      renderMiVideoList();
+    };
+
+    sec.appendChild(ta); sec.appendChild(preview); sec.appendChild(importBtn);
+    list.appendChild(sec);
+  });
+}
+
+function miSavePack(){
+  const name=document.getElementById('miPackName').value.trim();
+  const subtitle=document.getElementById('miSubtitle').value.trim();
+  if(!name){alert('Please enter a pack name.');return;}
+  if(miVideos.length===0){alert('Please add at least one YouTube video or playlist.');return;}
+
+  // Check URL input for any unregistered video
+  const rawUrl=document.getElementById('miUrlInput').value.trim();
+  if(rawUrl){
+    const vid=miExtractVideoId(rawUrl);
+    if(vid&&!miVideos.find(v=>v.videoId===vid)) miVideos.push({type:'video',videoId:vid,title:vid,tracks:[]});
+  }
+
+  // Build flat tracks array across all videos
+  const videos=miVideos.map(v=>({
+    id:v.videoId||v.playlistId,
+    tracks:v.tracks||[]
+  }));
+  const allTracks=videos.flatMap(v=>v.tracks);
+
+  const newPack={
+    id:'user_'+Date.now(),
+    name, subtitle, icon:miSelectedEmoji,
+    videoId:videos[0].id,
+    source:subtitle||'Custom Pack', builtin:false,
+    videos, tracks:allTracks,
+    biomes:[
+      {id:'beach',  name:'Beach',   emoji:'🌊',cssClass:'biome-beach',  keywords:['beach','coast','sea','bay','shore'],defaultTracks:[]},
+      {id:'city',   name:'City',    emoji:'🏙️',cssClass:'biome-city',   keywords:['city','downtown','urban','metro'],defaultTracks:[]},
+      {id:'forest', name:'Forest',  emoji:'🌲',cssClass:'biome-forest', keywords:['forest','woods','park','trail'],defaultTracks:[]},
+      {id:'mountain',name:'Mountain',emoji:'🌋',cssClass:'biome-mountain',keywords:['mountain','hill','summit'],defaultTracks:[]},
+      {id:'desert', name:'Desert',  emoji:'🏜️',cssClass:'biome-desert', keywords:['desert','sand','dune','arid'],defaultTracks:[]},
+      {id:'town',   name:'Town',    emoji:'🏘️',cssClass:'biome-town',   keywords:['suburb','town','village'],defaultTracks:[]},
+      {id:'ocean',  name:'Ocean',   emoji:'🐋',cssClass:'biome-ocean',  keywords:['ocean','gulf','pacific'],defaultTracks:[]},
+      {id:'shopping',name:'Shopping',emoji:'🛍️',cssClass:'biome-shopping',keywords:['mall','shopping','store'],defaultTracks:[]},
+      {id:'port',   name:'Port',    emoji:'⚓',cssClass:'biome-port',   keywords:['port','dock','pier','harbor'],defaultTracks:[]},
+    ]
+  };
+  saveUserPacks([...getUserPacks(),newPack]);
+  document.getElementById('makeImportOverlay').classList.remove('open');
+  activatePack(newPack.id);
+}
+
+// ── IMPORT TAB ──
+function miPreviewImport(){
+  const raw=document.getElementById('miImportInput').value.trim();
+  const preview=document.getElementById('miImportPreview');
+  const nameEl=document.getElementById('miImportPreviewName');
+  const metaEl=document.getElementById('miImportPreviewMeta');
+  if(raw.length<4){preview.classList.remove('visible');return;}
+
+  if(raw.startsWith('{')){
+    try{
+      const j=JSON.parse(raw);
+      // Handle multi-video AI format
+      const pack=miNormaliseAiJson(j);
+      if(pack){
+        nameEl.textContent=(pack.icon||'🎵')+' '+pack.name;
+        const tc=getAllPackTracks(pack).length;
+        metaEl.textContent=tc+' tracks · '+(pack.biomes?.length||0)+' biomes';
+        preview.classList.add('visible');
+      }
+    }catch(e){preview.classList.remove('visible');}
+    return;
+  }
+  if(!raw.startsWith('MM-')&&API_URL&&raw.length<=12){
+    nameEl.textContent='🔗 Server code — will fetch on import';
+    metaEl.textContent=''; preview.classList.add('visible'); return;
+  }
+  const pack=ShareBackend.decode(raw);
+  if(pack&&pack.name){
+    nameEl.textContent=(pack.icon||'🎵')+' '+pack.name;
+    metaEl.textContent=(pack.tracks?.length||0)+' tracks';
+    preview.classList.add('visible');
+  } else {
+    preview.classList.remove('visible');
+  }
+}
+
+async function miDoImport(){
+  const raw=document.getElementById('miImportInput').value.trim();
+  const flash=document.getElementById('miImportFlash');
+  if(!raw){flash.textContent='Paste a code or JSON first.';return;}
+  flash.textContent='⏳ Loading…';
+  let pack=null;
+
+  if(raw.startsWith('{')){
+    try{const j=JSON.parse(raw);pack=miNormaliseAiJson(j);}
+    catch(e){flash.textContent='❌ Invalid JSON';return;}
+    if(!pack){flash.textContent='❌ Missing required fields';return;}
+  } else if(!raw.startsWith('MM-')&&API_URL){
+    try{pack=await ShareBackend.loadFromServer(raw);}
+    catch(e){flash.textContent='❌ '+(e.message||'Not found');return;}
+  } else {
+    pack=ShareBackend.decode(raw);
+    if(!pack){flash.textContent='❌ Invalid code';return;}
+  }
+
+  const ok=importSharedPack(pack,false);
+  if(ok){
+    flash.textContent='✓ "'+pack.name+'" imported!';
+    document.getElementById('miImportInput').value='';
+    document.getElementById('miImportPreview').classList.remove('visible');
+    document.getElementById('makeImportOverlay').classList.remove('open');
+    setTimeout(()=>flash.textContent='',3000);
+  } else {
+    flash.textContent='❌ Import failed';
+  }
+}
+
+function miNormaliseAiJson(j){
+  if(!j||!j.name) return null;
+  const BD={
+    beach:{emoji:'🌊',cssClass:'biome-beach',keywords:['beach','coast','sea']},
+    city:{emoji:'🏙️',cssClass:'biome-city',keywords:['city','downtown','urban']},
+    forest:{emoji:'🌲',cssClass:'biome-forest',keywords:['forest','woods','park']},
+    mountain:{emoji:'🌋',cssClass:'biome-mountain',keywords:['mountain','hill','summit']},
+    desert:{emoji:'🏜️',cssClass:'biome-desert',keywords:['desert','sand','dune']},
+    town:{emoji:'🏘️',cssClass:'biome-town',keywords:['suburb','town','village']},
+    ocean:{emoji:'🐋',cssClass:'biome-ocean',keywords:['ocean','gulf','lake']},
+    shopping:{emoji:'🛍️',cssClass:'biome-shopping',keywords:['mall','shopping','store']},
+    port:{emoji:'⚓',cssClass:'biome-port',keywords:['port','dock','harbor']},
+  };
+  const BN={beach:'Beach',city:'City',forest:'Forest',mountain:'Mountain',desert:'Desert',town:'Town',ocean:'Ocean',shopping:'Shopping',port:'Port'};
+
+  // Multi-video format (new) or legacy single-video
+  let videos=[], allTracks=[];
+  if(j.videos&&Array.isArray(j.videos)){
+    videos=j.videos.map(v=>({id:v.videoId||v.url?.match(/([A-Za-z0-9_-]{11})/)?.[1]||'',tracks:v.tracks||[]}));
+    allTracks=videos.flatMap(v=>v.tracks);
+  } else if(j.tracks&&j.videoId){
+    videos=[{id:j.videoId,tracks:j.tracks}];
+    allTracks=j.tracks;
+  } else return null;
+
+  const biomes=Object.entries(j.biomes||{}).map(([id,tracks])=>({
+    id, name:BN[id]||id, emoji:BD[id]?.emoji||'📍',
+    cssClass:BD[id]?.cssClass||'biome-custom',
+    keywords:BD[id]?.keywords||[], defaultTracks:Array.isArray(tracks)?tracks:[],
+  }));
+
+  return{
+    id:'ai_'+Date.now(), name:j.name, subtitle:j.subtitle||'',
+    icon:j.icon||'🎵', videoId:videos[0]?.id||'',
+    source:j.subtitle||'Custom Pack', builtin:false,
+    videos, tracks:allTracks, biomes,
+  };
+}
+
+function miCopyPrompt(){
+  const txt=document.getElementById('miAiPrompt').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const el=document.getElementById('miPromptFlash');
+    el.textContent='✓ Prompt copied!';
+    setTimeout(()=>el.textContent='',2500);
+  });
+}
+
+// ── REDIRECT old entry points ──
+function openAddPackModal(){ openMakeImportModal(); }
+
+// ── VIDEO TITLE CACHE ──
+const videoTitleCache = {};
+async function fetchVideoTitle(videoId){
+  if(videoTitleCache[videoId]) return videoTitleCache[videoId];
+  try{
+    // Use oEmbed — no API key needed
+    const r=await fetch('https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v='+videoId+'&format=json');
+    const d=await r.json();
+    // Take first 4 words as short label
+    const words=d.title.split(/\s+/).slice(0,4).join(' ');
+    videoTitleCache[videoId]=words;
+    return words;
+  }catch(e){
+    videoTitleCache[videoId]=videoId;
+    return videoId;
+  }
+}
+async function warmVideoTitles(pack){
+  if(!pack) return;
+  const vids=pack.videos?pack.videos.map(v=>v.id):[pack.videoId];
+  await Promise.all(vids.filter(Boolean).map(fetchVideoTitle));
+}
+init();
+</script>
+<!-- SHARE PACK MODAL -->
+<div id="shareModalOverlay" class="modal-overlay center" onclick="closeShareModal(event)">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-title" style="margin-bottom:4px" id="shareModalTitle">SHARE PACK</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+      Anyone with this code can import your pack — including your biome names and track customisations. Review any personal location data before sharing.
+    </div>
+    <!-- Share code display (shown after generating) -->
+    <div id="shareResultBox" style="display:none">
+      <div class="share-code-label">SHARE MESSAGE — tap to select all</div>
+      <div class="share-code-display" id="shareCodeDisplay"
+        style="text-align:left;font-size:12px;line-height:1.7;white-space:pre-wrap;cursor:text"
+        onclick="this.focus();document.execCommand('selectAll')"></div>
+      <div style="display:flex;gap:8px;margin-bottom:6px;margin-top:10px">
+        <button class="btn-primary" style="flex:1;padding:9px" onclick="copyShareCode(true)">📋 Copy message</button>
+        <button class="btn-secondary" style="padding:9px" onclick="copyShareCode(false)">🔑 Code only</button>
+        <button class="btn-secondary" style="padding:9px 12px" onclick="closeShareModal()">✕</button>
+      </div>
+      <div class="copy-flash" id="copyFlash"></div>
+    </div>
+    <!-- Privacy check (shown before generating) -->
+    <div id="sharePrivacyBox">
+      <div class="priv-section-label" id="privLocLabel">CUSTOM LOCATIONS IN THIS PACK</div>
+      <div id="privLocList"></div>
+      <div class="form-actions" style="margin-top:14px">
+        <button class="btn-secondary" onclick="closeShareModal()">Cancel</button>
+        <button class="btn-primary" onclick="confirmShare()">Generate code →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAKE OR IMPORT MODAL -->
+<div id="makeImportOverlay" class="modal-overlay center" onclick="closeMakeImport(event)">
+  <div class="modal-box" style="max-width:520px;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:92vh">
+    <div class="modal-header">
+      <div class="modal-title">MAKE OR IMPORT PACK</div>
+      <button class="modal-close" onclick="closeMakeImport()">✕</button>
+    </div>
+    <div style="padding:0 18px;flex:1;overflow-y:auto">
+      <!-- TABS -->
+      <div class="mi-tabs" style="margin-top:14px">
+        <button class="mi-tab active" onclick="miSwitchTab('make')">🎵 Make a Pack</button>
+        <button class="mi-tab" onclick="miSwitchTab('import')">⬇ Import</button>
+      </div>
+
+      <!-- MAKE PANE -->
+      <div class="mi-pane active" id="mi-make">
+        <div class="guide-box" style="margin-bottom:14px">
+          <div class="guide-box-title">📖 HOW IT WORKS</div>
+          <div class="guide-step"><div class="guide-num">1</div><div>Paste one or more YouTube video or playlist URLs below.</div></div>
+          <div class="guide-step"><div class="guide-num">2</div><div>Each video gets its own timestamp importer — copy chapter lists from YouTube descriptions.</div></div>
+          <div class="guide-step"><div class="guide-num">3</div><div>Name your pack, pick an icon, hit Save. Then assign tracks to biomes from 🌴 Biomes.</div></div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Pack name</label>
+          <input class="form-input" id="miPackName" placeholder="e.g. Stardew Valley, Celeste OST…" maxlength="32"/>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Subtitle</label>
+          <input class="form-input" id="miSubtitle" placeholder="e.g. ConcernedApe" maxlength="60"/>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Icon</label>
+          <div class="emoji-picker" id="miEmojiPicker"></div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Add YouTube video or playlist URL</label>
+          <div style="display:flex;gap:7px">
+            <input class="form-input" id="miUrlInput" placeholder="https://youtube.com/watch?v=… or /playlist?list=…" style="flex:1"
+              oninput="miOnUrlInput()" onpaste="setTimeout(miOnUrlInput,50)"/>
+            <button class="pill-btn" style="white-space:nowrap;padding:8px 12px" onclick="miAddUrl()">＋ Add</button>
+          </div>
+          <div class="url-status" id="miUrlStatus"></div>
+        </div>
+        <div id="miVideoList"></div>
+        <div style="padding-bottom:16px">
+          <button class="btn-primary" style="width:100%" onclick="miSavePack()">Save Pack →</button>
+        </div>
+      </div>
+
+      <!-- IMPORT PANE -->
+      <div class="mi-pane" id="mi-import">
+        <div class="form-row" style="margin-top:4px">
+          <label class="form-label">Share code or AI / JSON</label>
+          <textarea class="ts-import-area" id="miImportInput" style="min-height:120px"
+            placeholder="Paste any of:&#10;• MusicMap share code (starts with MM- or 6-char server code)&#10;• JSON from AI (see prompt below)" oninput="miPreviewImport()"></textarea>
+        </div>
+        <div class="ts-parse-result" id="miImportPreview">
+          <div class="ts-parse-count" id="miImportPreviewName"></div>
+          <div class="ts-track-preview" id="miImportPreviewMeta"></div>
+        </div>
+        <button class="btn-primary" style="width:100%;margin-bottom:14px" onclick="miDoImport()">⬇ Import Pack</button>
+        <div class="copy-flash" id="miImportFlash" style="margin-bottom:10px"></div>
+
+        <!-- AI prompt -->
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <div style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1px;margin-bottom:8px">🤖 AI PACK BUILDER PROMPT</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">Ask any AI (ChatGPT, Claude, Gemini) to generate a pack. Fill in the URL(s) and timestamps, then paste the JSON back here.</div>
+          <div id="miAiPrompt" style="background:rgba(0,0,0,.4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:rgba(255,255,255,.75);font-family:'Courier New',monospace;line-height:1.7;white-space:pre-wrap;cursor:pointer;user-select:all;margin-bottom:8px" onclick="miCopyPrompt()">Convert this YouTube OST into MusicMap JSON.
+
+Videos / Playlists: [PASTE ONE OR MORE URLS]
+Timestamps: [PASTE CHAPTER LIST — one per video if multiple]
+
+Return ONLY valid JSON, no explanation:
+{
+  "name": "Pack Name",
+  "subtitle": "Artist / Game",
+  "icon": "emoji",
+  "videos": [
+    {
+      "url": "https://youtube.com/watch?v=...",
+      "videoId": "abc123",
+      "tracks": [
+        {"title": "Track Name", "start": 0, "dur": 120}
+      ]
+    }
+  ],
+  "biomes": {
+    "beach": [0,3], "city": [1,4], "forest": [2,5],
+    "mountain": [6], "desert": [8], "town": [9,10],
+    "ocean": [11], "shopping": [12], "port": [13]
+  }
+}
+
+Rules:
+- Each playlist video = one track (title = video title, start=0, dur=300)
+- "start" = seconds from video start
+- "dur" = seconds to next track (max 300)
+- biome arrays = track indices across ALL videos combined (0-based, flat)
+- icon = single emoji for the game/music theme</div>
+          <button class="pill-btn" style="width:100%;padding:9px" onclick="miCopyPrompt()">📋 Copy prompt</button>
+          <div class="copy-flash" id="miPromptFlash" style="margin-top:6px"></div>
+        </div>
+        <div style="padding-bottom:16px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PACK EDIT MODAL -->
+<div id="packEditOverlay" class="modal-overlay center" onclick="closePackEdit(event)">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-title" style="margin-bottom:12px" id="packEditTitle">ADD PACK</div>
+
+    <!-- Guide (shown for new packs only) -->
+    <div class="guide-box" id="peGuide">
+      <div class="guide-box-title">📖 HOW TO ADD A PACK</div>
+      <div class="guide-step"><div class="guide-num">1</div><div>Find a full OST playlist on YouTube — any game, album or mix works.</div></div>
+      <div class="guide-step"><div class="guide-num">2</div><div>Paste the YouTube URL below. The video is added instantly and a timestamp field appears.</div></div>
+      <div class="guide-step"><div class="guide-num">3</div><div>On the YouTube video page, open the description and copy the full timestamp list (chapters). Paste it into the field that appears.</div></div>
+      <div class="guide-step"><div class="guide-num">4</div><div>Give your pack a name, pick an icon, and hit Save. Then assign tracks to each biome from the 🌴 Biomes tab.</div></div>
+    </div>
+
+    <!-- Pack name + icon (collapsed in new-pack mode until URL is entered) -->
+    <div id="peMetaSection">
+      <div class="form-row">
+        <label class="form-label">Pack name</label>
+        <input class="form-input" id="peNameInput" placeholder="e.g. Johto Pack, Kanto Remix…" maxlength="32"/>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Subtitle</label>
+        <input class="form-input" id="peSubtitleInput" placeholder="e.g. Pokémon Ruby &amp; Sapphire" maxlength="60"/>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Icon</label>
+        <div class="emoji-picker" id="peEmojiPicker"></div>
+      </div>
+    </div>
+
+    <!-- Videos section -->
+    <div class="form-row">
+      <label class="form-label" id="peVideoSectionLabel">ADD YOUTUBE VIDEO</label>
+      <div style="display:flex;gap:7px;align-items:center">
+        <input class="form-input" id="peNewVideoUrl" placeholder="Paste YouTube URL or video ID…" style="flex:1" oninput="peOnUrlInput(this.value)" onpaste="setTimeout(()=>peOnUrlInput(document.getElementById('peNewVideoUrl').value),50)"/>
+        <button class="pill-btn" style="white-space:nowrap;padding:8px 12px" onclick="peAddVideo()">＋ Add</button>
+      </div>
+      <div class="url-status" id="peUrlStatus"></div>
+    </div>
+
+    <!-- Video list with inline timestamp importer -->
+    <div id="peVideoList"></div>
+
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="closePackEdit()">Cancel</button>
+      <button class="btn-primary" onclick="savePackEdit()">Save Pack</button>
+    </div>
+  </div>
+</div>
+
+<!-- TIMESTAMP IMPORTER MODAL -->
+<div id="tsImportOverlay" class="modal-overlay center" onclick="closeTsImport(event)">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-title" style="margin-bottom:4px">IMPORT TIMESTAMPS</div>
+    <div id="tsImportVideoLabel" style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:monospace"></div>
+    <div class="form-row">
+      <label class="form-label">Paste timestamp list</label>
+      <textarea class="ts-import-area" id="tsImportInput" placeholder="Paste YouTube timestamps here — supports:&#10;• Markdown: 001. Track Name: [0:00:38](url)&#10;• Plain: 0:00 Track Name" oninput="parseTsPreview()"></textarea>
+    </div>
+    <div class="ts-parse-result" id="tsParseResult">
+      <div class="ts-parse-count" id="tsParseCount"></div>
+      <div class="ts-track-preview" id="tsTrackPreview"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="closeTsImport()">Cancel</button>
+      <button class="btn-primary" id="tsImportBtn" onclick="confirmTsImport()" disabled>Import tracks</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAP PIN PICKER MODAL -->
+<div id="mapPickerOverlay">
+  <div id="mapPickerHeader">
+    <div id="mapPickerTitle">DROP A PIN</div>
+    <button class="modal-close" onclick="closeMapPicker()">✕</button>
+  </div>
+  <div id="mapPickerMap"></div>
+  <div id="mapPickerFooter">
+    <div class="map-picker-instruction">Tap anywhere on the map to place a pin</div>
+    <div class="map-picker-pending" id="mapPickerPending">
+      <div class="map-picker-coords" id="mapPickerCoords"></div>
+      <div class="map-picker-radius-row">
+        <label>RADIUS</label>
+        <input type="range" id="mapPickerRadiusSlider" min="50" max="2000" value="200" step="50" oninput="updateMapPickerRadius()"/>
+        <span class="map-picker-radius-val" id="mapPickerRadiusVal">200m</span>
+      </div>
+      <button id="mapPickerConfirmBtn" onclick="confirmMapPin()" disabled>✓ Add this pin</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRIVACY SHARE MODAL (outside geovibes-app so fixed positioning works) -->
+<div id="privacyModalOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;align-items:center;justify-content:center;padding:16px">
+  <div id="privacyModal" style="background:#16213e;border-radius:16px;width:100%;max-width:460px;border:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;max-height:90vh;overflow:hidden">
+    <div class="priv-header">
+      <div class="priv-title">⚠ BEFORE YOU SHARE</div>
+      <div class="priv-warning-banner">
+        Your pack may contain <b>personal location data</b> — home, work, school, gym and other custom places. Review what's included before sharing. Toggle off any locations you want to keep private.
+      </div>
+    </div>
+    <div class="priv-body">
+      <div class="priv-section-label" id="privLocLabel">CUSTOM LOCATIONS IN THIS PACK</div>
+      <div id="privLocList"></div>
+    </div>
+    <div class="priv-footer">
+      <button class="btn-secondary" onclick="closePrivacyModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmShare()">Generate code →</button>
+    </div>
+  </div>
+</div>
+<div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.1</div>
+  <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">This was generated with assistance from AI<br>by <span style="color:rgba(255,255,255,.5)">Jongle</span></div>
+</div>
+</div><!-- #geovibes-app -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
