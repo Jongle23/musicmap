@@ -1462,7 +1462,9 @@ function renderPackEmojiPicker(){
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
 const MM_VERSION = '1.1';
-const API_URL = 'https://jongle.me/?mm_action=';
+// Set this to your own PHP API endpoint to enable short server share codes (see README "API Setup").
+// Leave blank to use local MM- encoded share codes only.
+const API_URL = '';
 // Swap ShareBackend.encode/decode for PHP fetch calls when backend is ready.
 // Everything else in the UI stays identical.
 // ═══════════════════════════════════════════
@@ -1623,7 +1625,7 @@ async function confirmShare(){
   }
 
   // Build rich share text: code + link + instructions
-  const pageUrl='https://jongle.me/musicmap';
+  const pageUrl=location.href.split('?')[0];
   const trackCount=getAllPackTracks(pack).length;
   const richText=
     'MusicMap Pack: '+pack.name+'\n'
