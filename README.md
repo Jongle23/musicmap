@@ -1,4 +1,4 @@
-# MusicMap v1.1
+# 🎵 MusicMap v1.1
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -6,7 +6,7 @@ MusicMap is a geolocation-aware music player that detects your real-world enviro
 
 ---
 
-## How It Works
+## 🌍 How It Works
 
 1. **Tap "Listen to World"** — MusicMap uses your GPS to detect your surroundings
 2. **OpenStreetMap** classifies your environment into a biome (beach, forest, city, etc.)
@@ -16,7 +16,7 @@ MusicMap is a geolocation-aware music player that detects your real-world enviro
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Play It
 Visit **[jongle.me/musicmap](https://jongle.me/musicmap)** — no install required. Works in any modern browser.
@@ -34,7 +34,7 @@ For share code functionality, deploy `musicmap-api.php` as a PHP snippet on your
 
 ---
 
-## Default Packs
+## 📦 Default Packs
 
 MusicMap ships with five built-in packs:
 
@@ -50,7 +50,7 @@ All music is streamed via YouTube. No audio files are bundled.
 
 ---
 
-## Features
+## 🎮 Features
 
 - **5 built-in game music packs** with verified track timestamps
 - **OSM-powered biome detection** — uses real map data, not just address guessing
@@ -64,7 +64,7 @@ All music is streamed via YouTube. No audio files are bundled.
 
 ---
 
-## API Setup (Share Codes)
+## 🔧 API Setup (Share Codes)
 
 To enable 6-character share codes:
 
@@ -78,7 +78,7 @@ Without the API, MusicMap falls back to local `MM-` encoded share codes (longer 
 
 ---
 
-## AI Pack Builder
+## 🤖 AI Pack Builder
 
 MusicMap includes a built-in prompt for generating packs with any AI assistant:
 
@@ -92,7 +92,7 @@ The AI format supports multiple videos and playlists.
 
 ---
 
-## File Structure
+## 📁 File Structure
 
 ```
 musicmap.html       — The full app (single file, self-contained)
@@ -103,7 +103,7 @@ README.md           — This file
 
 ---
 
-## Built With
+## 🛠️ Built With
 
 - [OpenStreetMap](https://www.openstreetmap.org/) + [Nominatim](https://nominatim.org/) — reverse geocoding
 - [Overpass API](https://overpass-api.de/) — OSM biome tag detection
@@ -114,7 +114,7 @@ README.md           — This file
 
 ---
 
-## License
+## 📄 License
 
 **MusicMap Source Available License**
 
@@ -128,7 +128,7 @@ For licensing enquiries: contact via [jongle.me](https://jongle.me)
 
 ---
 
-## Thank You
+## 🙏 Thank You
 
 Thank you for checking out MusicMap.
 
