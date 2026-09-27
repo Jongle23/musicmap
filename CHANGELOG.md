@@ -7,6 +7,9 @@
 - Pack and location text (names, emojis, track titles, video titles) is now HTML-escaped everywhere it's rendered. A crafted share code could previously run scripts on the page.
 
 ### Changed
+- Redesigned, mobile-first player: one consistent round button row (video · prev · play · next · YouTube) with 44px+ touch targets, a track-length display on the progress bar, a now-playing indicator next to the title, and a 16:9 video
+- "Listen to World" and "Change pack" buttons are now the same size, side by side or stacked
+- Footer credit now reads "Built by Jongle", linked to jongle.me
 - UI-chrome emoji replaced with a consistent inline SVG icon set
 - `API_URL` ships blank so self-hosters set their own; share links now use the page's own URL instead of a hardcoded domain
 - License is now the MusicMap Source Available License (`LICENSE.md`), replacing GPLv3
