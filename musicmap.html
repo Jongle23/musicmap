@@ -62,7 +62,16 @@ body{background:var(--bg)}
 .hero-btn>svg:last-child{margin-left:auto}
 @media (hover:none){.hero-btn:hover{transform:none}}
 #heroDetectBtn.tracking{background:rgba(74,222,128,.2);border-color:rgba(74,222,128,.6)}
-#heroStatusBar{font-size:10px;color:rgba(255,255,255,0.6);text-align:center;min-height:14px;position:relative;z-index:1;margin-top:5px}
+/* Single location notice — colour follows state (see setTrackingUI) */
+.loc-status{display:inline-flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;padding:6px 12px;border-radius:100px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.35);color:rgba(255,255,255,.85);font-size:12px;line-height:1.2;position:relative;z-index:1}
+.loc-status:empty{display:none}
+.loc-status .ic{flex-shrink:0}
+.loc-status-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.loc-status[data-state=here]{background:rgba(74,222,128,.18);border-color:rgba(74,222,128,.45);color:#bbf7d0}
+.loc-status[data-state=pending]{background:rgba(250,204,21,.16);border-color:rgba(250,204,21,.45);color:#fef08a}
+.loc-status[data-state=error]{background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.45);color:#fecaca}
+.loc-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;animation:locPulse 1s ease-in-out infinite}
+@keyframes locPulse{0%,100%{opacity:.3}50%{opacity:1}}
 #heroBanner{width:100%;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 22px;position:relative;background:var(--bggrad,linear-gradient(135deg,#1a1a2e,#16213e));transition:background 1s;text-align:center}
 
 #mainContent{width:100%;max-width:520px;padding:0 16px 80px;margin-top:0}
@@ -109,7 +118,7 @@ body{background:var(--bg)}
 .hero-biome-info{text-align:center;width:100%}
 .hero-biome-name{font-family:var(--pixel);font-size:clamp(10px,2.8vw,15px);color:#fff;text-shadow:3px 3px 0 rgba(0,0,0,.5);line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
 .hero-biome-sub{font-size:9px;color:rgba(255,255,255,.45);font-family:var(--pixel);letter-spacing:.5px;text-align:center}
-.hero-biome-right{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.hero-biome-right{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;width:100%;min-width:0}
 
 
 /* biome toast */
@@ -442,9 +451,7 @@ body{background:var(--bg)}
       <div class="hero-biome-sub" id="biomeNameSub"></div>
     </div>
     <div class="hero-biome-right">
-      <div class="location-pill" id="locationPill"></div>
-      <span id="nearBadge" style="display:none;align-items:center;gap:3px;font-size:8px;padding:2px 7px;border-radius:100px;background:rgba(74,222,128,.15);color:var(--green);font-family:var(--pixel);letter-spacing:.5px"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg> NEARBY</span>
-      <div id="heroStatusBar" style="font-size:9px;color:rgba(255,255,255,.6);text-align:center;line-height:1.3"></div>
+      <div class="loc-status" id="locStatus" role="status" aria-live="polite"></div>
     </div>
   </div>
   <!-- DIVIDER -->
@@ -2124,6 +2131,8 @@ function nextTrack(){
     const bid=pendingBiomeId;
     pendingBiomeId=null;
     loadLocation(bid, false, true); // true = show toast
+    // Arrived at a saved place — the "switching after this track" notice is now done
+    if(trackingActive && getAllCustomLocs().some(l=>l.id===bid)) setTrackingUI(true,'You\'re here','here');
     return; // loadLocation will call playCurrentTrack
   }
   pendingBiomeId=null;
@@ -2696,29 +2705,39 @@ function toggleTracking(){
 
 function startTracking(){
   if(!navigator.geolocation){
-    setTrackingUI(false,'Geolocation not supported.');return;
+    setTrackingUI(false,'Location isn\'t supported on this device','error');return;
   }
   trackingActive=true;
-  setTrackingUI(true,'Locating…');
+  setTrackingUI(true,'Finding you…','locating');
   pollLocation(true); // immediate first poll
 }
 
 function stopTracking(){
   trackingActive=false;
   clearTimeout(trackingTimer);
-  setTrackingUI(false,'Tracking off');
+  setTrackingUI(false,'');
 }
 
-function setTrackingUI(on, statusText){
+// One location notice under the biome name. state:
+//   locating — waiting for GPS          world   — open world, shows address + movement
+//   here     — inside a saved place     pending — in range of a saved place, switches after this track
+//   error    — GPS problem              ''      — hidden (tracking off)
+function setTrackingUI(on, statusText, state){
   const btn=document.getElementById('heroDetectBtn');
-  const icon=document.getElementById('heroDetectIcon');
   const label=document.getElementById('heroDetectLabel');
   const sub=document.getElementById('heroDetectSub');
-  const status=document.getElementById('heroStatusBar');
+  const status=document.getElementById('locStatus');
   btn.classList.toggle('tracking', on);
   label.textContent = on ? 'LISTENING' : 'LISTEN TO WORLD';
   if(sub) sub.textContent = on ? 'TRACKING ON · TAP TO STOP' : 'DETECT MY LOCATION';
-  if(status) status.innerHTML = statusText||'';
+  if(!status) return;
+  state = statusText ? (state||'world') : '';
+  status.dataset.state = state;
+  if(!state){ status.innerHTML=''; return; }
+  const lead = state==='locating' ? '<span class="loc-status-dot"></span>'
+             : state==='error'    ? ic('alert','ic-sm')
+             : ic('mapPin','ic-sm');
+  status.innerHTML = lead+'<span class="loc-status-text">'+esc(statusText)+'</span>';
 }
 
 // ── POLL LOCATION ──
@@ -2746,12 +2765,12 @@ async function pollLocation(isFirstPoll){
     const newLocId = nearby ? nearby.id : null;
 
     if(!newLocId){
-      // Update location pill with address (lightweight, no biome classify)
+      // Open world: address + how you're moving (lightweight, no biome classify)
       try{
         const locName=await revGeo(lat,lon);
-        document.getElementById('locationPill').textContent=locName||`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
-        setTrackingUI(true,`${ic('mapPin','ic-sm')} ${esc(locName||'Located')} · ${moved>0?(moved>MOVE_THRESHOLD?'driving':'walking'):'standing by'}`);
-        document.getElementById('nearBadge').style.display='none';
+        const place=locName||`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+        const motion=isFirstPoll?'':(moved>MOVE_THRESHOLD?' · On the move':moved>0?' · Walking':' · Standing by');
+        setTrackingUI(true, place+motion, 'world');
       }catch(e){}
       // On first poll, do an immediate biome classify to set initial biome
       if(isFirstPoll){
@@ -2763,17 +2782,16 @@ async function pollLocation(isFirstPoll){
         }catch(e){}
       }
     } else {
-      // Don't repeat the biome name in the pill — it's already in the hero
-      document.getElementById('locationPill').textContent='';
-      document.getElementById('nearBadge').style.display='inline';
-      setTrackingUI(true, ic('mapPin','ic-sm')+' You are here');
+      // Saved place: the hero already shows its name, so the notice just confirms it
+      setTrackingUI(true, 'You\'re here', 'here');
       if(nearby.id!==currentLocId || isFirstPoll){
         if(isFirstPoll){
           loadLocation(nearby.id,false,false);
           if(!isPlaying){ playCurrentTrack(false); isPlaying=true; }
         } else {
+          // Hero still shows the old place until the track ends — name the new one here
           pendingBiomeId=nearby.id;
-          setTrackingUI(true,ic('mapPin','ic-sm')+' You are here · switching at track end');
+          setTrackingUI(true, `Near ${nearby.name} · switching after this track`, 'pending');
         }
         renderLocGrid();
       }
@@ -2785,10 +2803,10 @@ async function pollLocation(isFirstPoll){
       trackingTimer=setTimeout(()=>pollLocation(false), nextPollDelay);
     }
   }, err=>{
-    const m={1:'Location denied — tracking stopped.',2:'Location unavailable.',3:'Timed out, retrying…'};
-    setTrackingUI(trackingActive, m[err.code]||'GPS error');
-    if(err.code===1) stopTracking();
-    else if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), POLL_SLOW);
+    const m={1:'Location permission denied',2:'Location unavailable · retrying',3:'GPS timed out · retrying'};
+    if(err.code===1){ stopTracking(); setTrackingUI(false, m[1], 'error'); return; }
+    setTrackingUI(trackingActive, m[err.code]||'GPS error', 'error');
+    if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), POLL_SLOW);
   },{timeout:15000,enableHighAccuracy:true,maximumAge:20000});
 }
 async function revGeo(lat,lon){

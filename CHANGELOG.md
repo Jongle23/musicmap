@@ -9,6 +9,7 @@
 ### Changed
 - Redesigned, mobile-first player: one consistent round button row (video · prev · play · next · YouTube) with 44px+ touch targets, a track-length display on the progress bar, a now-playing indicator next to the title, and a 16:9 video
 - "Listen to World" and "Change pack" buttons are now the same size, side by side or stacked
+- The location pill, NEARBY badge and "You are here" line are merged into one status chip that follows the data: finding you, your address and movement in the open world, "You're here" at a saved place, "Near X · switching after this track" before a change, or a GPS error
 - Footer credit now reads "Built by Jongle", linked to jongle.me
 - UI-chrome emoji replaced with a consistent inline SVG icon set
 - `API_URL` ships blank so self-hosters set their own; share links now use the page's own URL instead of a hardcoded domain
