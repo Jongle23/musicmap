@@ -1,6 +1,42 @@
 # MusicMap Changelog
 
-## v1.0.13 — Current
+## v1.1.1 — Current
+**Release date:** 2026-09-27
+
+### Security
+- Pack and location text (names, emojis, track titles, video titles) is now HTML-escaped everywhere it's rendered. A crafted share code could previously run scripts on the page.
+
+### Changed
+- Redesigned, mobile-first player: one consistent round button row (video · prev · play · next · YouTube) with 44px+ touch targets, a track-length display on the progress bar, a now-playing indicator next to the title, and a 16:9 video
+- "Listen to World" and "Change pack" buttons are now the same size, side by side or stacked
+- The location pill, NEARBY badge and "You are here" line are merged into one status chip that follows the data: finding you, your address and movement in the open world, "You're here" at a saved place, "Near X · switching after this track" before a change, or a GPS error
+- Footer credit now reads "Built by Jongle", linked to jongle.me
+- UI-chrome emoji replaced with a consistent inline SVG icon set
+- `API_URL` ships blank so self-hosters set their own; share links now use the page's own URL instead of a hardcoded domain
+- License is now the MusicMap Source Available License (`LICENSE.md`), replacing GPLv3
+
+### Share API (`musicmap-api.php`)
+- Added to the repo (it was referenced by the README but missing)
+- `ping` now reports the API version
+- Rate limit uses `REMOTE_ADDR` by default; proxy headers like Cloudflare's are only trusted when configured, so they can't be spoofed
+- Titles containing `&` are no longer corrupted to `&amp;`, and packs saved by older versions are repaired on load
+- Share codes are claimed atomically, so two simultaneous saves can't overwrite each other
+- `save` requires POST
+- Stored IP hashes are keyed with the site's salt so they can't be reversed
+- Upload folder protection works on both Apache 2.2 and 2.4 and is refreshed on existing installs
+- No longer requires PHP 8.1 (PHP 7.4+), and does no work on normal page loads
+
+---
+
+## v1.1
+**Release date:** 2026-06-08
+
+- First public GitHub release
+- Five built-in packs: Hoenn, Kanto, Super Mario Bros. 3, Halo Reach, Terraria
+
+---
+
+## v1.0.13
 **Release date:** 2026-05-27
 
 ### Added

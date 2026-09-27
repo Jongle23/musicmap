@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MusicMap v1.1</title>
+<title>MusicMap v1.1.1</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -57,40 +57,68 @@ body{background:var(--bg)}
 .hero-btn:active{transform:scale(.97)}
 .hero-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
 #heroDetectBtn{/* inherits .hero-btn */}
+/* Top pair: same size whether side by side or stacked on phones */
+.hero-btn,.hero-btn.pack-eyebrow-name{flex:1 1 200px;min-height:56px;padding:10px 16px;gap:10px;box-sizing:border-box;border-radius:18px;justify-content:flex-start;-webkit-tap-highlight-color:transparent}
+.hero-btn>svg:last-child{margin-left:auto}
+@media (hover:none){.hero-btn:hover{transform:none}}
 #heroDetectBtn.tracking{background:rgba(74,222,128,.2);border-color:rgba(74,222,128,.6)}
-#heroStatusBar{font-size:10px;color:rgba(255,255,255,0.6);text-align:center;min-height:14px;position:relative;z-index:1;margin-top:5px}
+/* Single location notice — colour follows state (see setTrackingUI) */
+.loc-status{display:inline-flex;align-items:center;gap:6px;max-width:100%;box-sizing:border-box;padding:6px 12px;border-radius:100px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.35);color:rgba(255,255,255,.85);font-size:12px;line-height:1.2;position:relative;z-index:1}
+.loc-status:empty{display:none}
+.loc-status .ic{flex-shrink:0}
+.loc-status-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.loc-status[data-state=here]{background:rgba(74,222,128,.18);border-color:rgba(74,222,128,.45);color:#bbf7d0}
+.loc-status[data-state=pending]{background:rgba(250,204,21,.16);border-color:rgba(250,204,21,.45);color:#fef08a}
+.loc-status[data-state=error]{background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.45);color:#fecaca}
+.loc-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;animation:locPulse 1s ease-in-out infinite}
+@keyframes locPulse{0%,100%{opacity:.3}50%{opacity:1}}
 #heroBanner{width:100%;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 20px 22px;position:relative;background:var(--bggrad,linear-gradient(135deg,#1a1a2e,#16213e));transition:background 1s;text-align:center}
 
 #mainContent{width:100%;max-width:520px;padding:0 16px 80px;margin-top:0}
 
 /* now playing */
 /* nowPlayingCard removed — now inside heroBanner */
-#ytContainer{display:none;width:100%;border-radius:10px;overflow:hidden;background:#000;margin-bottom:11px}
+#ytContainer{display:none;width:100%;border-radius:12px;overflow:hidden;background:#000;margin-bottom:14px}
+#ytContainer iframe{width:100%;aspect-ratio:16/9;height:auto;border:none;display:block}
 
 /* hero player section */
-.hero-player{width:100%;max-width:520px;padding:0 16px 16px;position:relative;z-index:1}
-.hero-np-track{font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;margin-bottom:1px}
-.hero-np-game{font-size:10px;color:rgba(255,255,255,.55);text-align:center;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hero-controls{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px}
-.hero-ctrl-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;color:#fff;font-size:15px;flex-shrink:0;backdrop-filter:blur(4px)}
-.hero-ctrl-btn:hover{background:rgba(255,255,255,.22);transform:scale(1.05)}
-.hero-ctrl-btn:active{transform:scale(.95)}
-.hero-ctrl-btn.primary{width:48px;height:48px;background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.4);font-size:19px}
-.hero-ctrl-right{display:flex;gap:5px;margin-left:8px}
-.hero-pill-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:5px 9px;cursor:pointer;color:rgba(255,255,255,.8);font-size:11px;transition:all .15s;white-space:nowrap;backdrop-filter:blur(4px)}
-.hero-pill-btn.active{background:rgba(255,255,255,.28);color:#fff;border-color:rgba(255,255,255,.4)}
-.hero-pill-btn:hover{background:rgba(255,255,255,.2);color:#fff}
-.hero-progress{display:flex;align-items:center;gap:8px}
-.hero-progress-bg{flex:1;height:3px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
-.hero-progress-fill{height:100%;background:rgba(255,255,255,.8);border-radius:2px;width:0%;transition:width .5s linear}
-.hero-progress-time{font-size:10px;color:rgba(255,255,255,.55);min-width:30px}
+/* Mobile-first: one circular button family, 44px+ touch targets, symmetric row:
+   [video] [prev] [PLAY] [next] [YouTube] */
+.hero-player{width:100%;max-width:520px;padding:16px 16px 14px;position:relative;z-index:1;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:20px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.hero-np-head{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
+.hero-np-head .playing-bars{flex-shrink:0}
+.hero-np-head .playing-bars span{background:#fff}
+.hero-np-track{font-size:16px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;min-width:0}
+.hero-np-game{font-size:12px;color:rgba(255,255,255,.6);text-align:center;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero-progress{display:flex;align-items:center;gap:10px;margin:14px 0 12px}
+.hero-progress-bg{flex:1;height:4px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
+.hero-progress-fill{height:100%;background:#fff;border-radius:2px;width:0%;transition:width .5s linear}
+.hero-progress-time{font-size:11px;color:rgba(255,255,255,.6);min-width:32px;font-variant-numeric:tabular-nums}
+#progressDur{text-align:right}
+.hero-controls{display:flex;align-items:center;justify-content:space-between;max-width:320px;margin:0 auto}
+.hero-ctrl-btn{width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:background .15s,border-color .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.hero-ctrl-btn .ic{width:22px;height:22px}
+.hero-ctrl-btn.primary{width:64px;height:64px;background:#fff;border-color:#fff;color:#111;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.hero-ctrl-btn.primary .ic{width:26px;height:26px}
+/* secondary actions: same shape, quieter */
+.hero-ctrl-btn.ghost{width:44px;height:44px;background:transparent;border-color:transparent;color:rgba(255,255,255,.7)}
+.hero-ctrl-btn.ghost .ic{width:20px;height:20px}
+.hero-ctrl-btn.ghost.active{background:rgba(255,255,255,.18);color:#fff}
+.hero-ctrl-btn:disabled{opacity:.35;cursor:default}
+.hero-ctrl-btn:active{transform:scale(.92)}
+@media (hover:hover){
+  .hero-ctrl-btn:hover{background:rgba(255,255,255,.2)}
+  .hero-ctrl-btn.primary:hover{background:#fff;transform:scale(1.04)}
+  .hero-ctrl-btn.ghost:hover{color:#fff}
+}
+.hero-ctrl-btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .hero-divider{width:100%;height:1px;background:rgba(255,255,255,.1);margin:12px 0 10px;max-width:520px;position:relative;z-index:1}
 .hero-biome-row{display:flex;flex-direction:column;align-items:center;width:100%;max-width:520px;padding:0 16px;position:relative;z-index:1;margin-bottom:8px;gap:4px}
 .hero-biome-emoji{font-size:34px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.4));animation:floatE 3s ease-in-out infinite}
 .hero-biome-info{text-align:center;width:100%}
 .hero-biome-name{font-family:var(--pixel);font-size:clamp(10px,2.8vw,15px);color:#fff;text-shadow:3px 3px 0 rgba(0,0,0,.5);line-height:1.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
 .hero-biome-sub{font-size:9px;color:rgba(255,255,255,.45);font-family:var(--pixel);letter-spacing:.5px;text-align:center}
-.hero-biome-right{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.hero-biome-right{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;width:100%;min-width:0}
 
 
 /* biome toast */
@@ -423,31 +451,30 @@ body{background:var(--bg)}
       <div class="hero-biome-sub" id="biomeNameSub"></div>
     </div>
     <div class="hero-biome-right">
-      <div class="location-pill" id="locationPill"></div>
-      <span id="nearBadge" style="display:none;align-items:center;gap:3px;font-size:8px;padding:2px 7px;border-radius:100px;background:rgba(74,222,128,.15);color:var(--green);font-family:var(--pixel);letter-spacing:.5px"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg> NEARBY</span>
-      <div id="heroStatusBar" style="font-size:9px;color:rgba(255,255,255,.6);text-align:center;line-height:1.3"></div>
+      <div class="loc-status" id="locStatus" role="status" aria-live="polite"></div>
     </div>
   </div>
   <!-- DIVIDER -->
   <div class="hero-divider"></div>
   <!-- NOW PLAYING (integrated) -->
-  <div class="hero-player" style="background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
-    <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen style="width:100%;height:165px;border:none;display:block;border-radius:8px;margin-bottom:10px"></iframe></div>
-    <div class="hero-np-track" id="npTrack">Route 104</div>
-    <div class="hero-np-game" id="npGame">Pokémon Ruby &amp; Sapphire</div>
-    <div class="hero-controls">
-      <button class="hero-ctrl-btn" onclick="prevTrack()"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></button>
-      <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
-      <button class="hero-ctrl-btn" onclick="nextTrack()"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></button>
-      <div class="hero-ctrl-right">
-        <div class="playing-bars" id="playingBars" style="display:none;margin-right:2px"><span></span><span></span><span></span></div>
-        <button class="hero-pill-btn" id="videoToggleBtn" onclick="toggleVideo()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
-        <button class="hero-pill-btn" id="npYtBtn"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> YT</button>
-      </div>
+  <div class="hero-player">
+    <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>
+    <div class="hero-np-head">
+      <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="hero-np-track" id="npTrack">Route 104</div>
     </div>
+    <div class="hero-np-game" id="npGame">Pokémon Ruby &amp; Sapphire</div>
     <div class="hero-progress">
       <span class="hero-progress-time" id="progressTime">0:00</span>
       <div class="hero-progress-bg"><div class="hero-progress-fill" id="progressFill"></div></div>
+      <span class="hero-progress-time" id="progressDur">0:00</span>
+    </div>
+    <div class="hero-controls">
+      <button class="hero-ctrl-btn ghost" id="videoToggleBtn" onclick="toggleVideo()" aria-label="Show video" aria-pressed="false" title="Show video"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
+      <button class="hero-ctrl-btn" onclick="prevTrack()" aria-label="Previous track" title="Previous"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></button>
+      <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()" aria-label="Play / pause" title="Play / pause"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+      <button class="hero-ctrl-btn" onclick="nextTrack()" aria-label="Next track" title="Next"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></button>
+      <button class="hero-ctrl-btn ghost" id="npYtBtn" aria-label="Open on YouTube" title="Open on YouTube"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
     </div>
   </div>
 </div>
@@ -458,7 +485,7 @@ body{background:var(--bg)}
     <button class="tab-btn" onclick="switchTab('player')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Biomes</button>
     <button class="tab-btn active" onclick="switchTab('packs')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><line x1="12" y1="13" x2="12" y2="21"/></svg>Packs</button>
     <button class="tab-btn" onclick="switchTab('map')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>Map</button>
-    <button class="tab-btn" onclick="switchTab('settings')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.2" y1="4.2" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.8" y2="19.8"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.2" y1="19.8" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.8" y2="4.2"/></svg>Settings</button>
+    <button class="tab-btn" onclick="switchTab('settings')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Settings</button>
   </div>
 
   <!-- PLAYER TAB -->
@@ -614,6 +641,10 @@ function ic(name, size){
   const cls='ic '+(size||'ic-md');
   if(ICONS_FILLED[name]) return `<svg class="${cls}" viewBox="0 0 24 24" fill="currentColor" stroke="none">${ICONS_FILLED[name]}</svg>`;
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||''}</svg>`;
+}
+// Escape text before it goes into innerHTML — pack/location data can come from shared codes
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // ═══════════════════════════════════════════
@@ -1411,8 +1442,8 @@ function renderPacksList(){
     // Top row: icon + name + active badge
     const topRow=document.createElement('div');
     topRow.className='pack-card-top';
-    topRow.innerHTML='<div class="pack-icon">'+(pack.icon||'🎵')+'</div>'
-      +'<div class="pack-info"><div class="pack-name">'+pack.name+'</div><div class="pack-meta">'+metaText+'</div></div>';
+    topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
+      +'<div class="pack-info"><div class="pack-name">'+esc(pack.name)+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
     if(isActive){
       const badge=document.createElement('span');
       badge.style.cssText='font-size:10px;color:var(--green);font-family:var(--pixel);letter-spacing:.5px;flex-shrink:0';
@@ -1509,7 +1540,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.1';
+const MM_VERSION = '1.1.1';
 // Set this to your own PHP API endpoint to enable short server share codes (see README "API Setup").
 // Leave blank to use local MM- encoded share codes only.
 const API_URL = '';
@@ -1597,14 +1628,14 @@ function openPrivacyModal(){
     row.className='priv-loc-row';
     const uid='priv_'+loc.id;
     row.innerHTML=`
-      <div class="priv-loc-emoji">${loc.emoji}</div>
+      <div class="priv-loc-emoji">${esc(loc.emoji)}</div>
       <div class="priv-loc-info">
-        <div class="priv-loc-name">${loc.name}${isPersonal?'':''}</div>
+        <div class="priv-loc-name">${esc(loc.name)}</div>
         <div class="priv-loc-coords">${coordStr}${pinCount>1?" (+"+( pinCount-1)+" more)":""}</div>
       </div>
       ${isPersonal?'<div class="priv-warn-icon" title="Personal location — consider removing">'+ic('alert','ic-sm')+'</div>':''}
       <label class="priv-toggle" title="Toggle off to exclude from share">
-        <input type="checkbox" id="${uid}" ${isPersonal?'':'checked'}>
+        <input type="checkbox" id="${esc(uid)}" ${isPersonal?'':'checked'}>
         <div class="priv-toggle-track"></div>
         <div class="priv-toggle-thumb"></div>
       </label>`;
@@ -1979,7 +2010,7 @@ function renderTrackList(){
     item.appendChild(numEl);
     const infoEl=document.createElement('div');
     infoEl.className='track-info';
-    infoEl.innerHTML='<div class="track-title">'+t.title+'</div><div class="track-game">'+fmt(t.dur)+'</div>';
+    infoEl.innerHTML='<div class="track-title">'+esc(t.title)+'</div><div class="track-game">'+fmt(t.dur)+'</div>';
     item.appendChild(infoEl);
     const actEl=document.createElement('div');
     actEl.className='track-actions';
@@ -2024,7 +2055,7 @@ function updatePinStatus(){
   const pack=getActivePack();
   const el=document.getElementById('pinStatus');
   const allT=getAllPackTracks(pack);
-  if(pinned!==undefined&&allT[pinned]){el.innerHTML=ic('bookmark','ic-sm')+` ${allT[pinned].title}`;}
+  if(pinned!==undefined&&allT[pinned]){el.innerHTML=ic('bookmark','ic-sm')+` ${esc(allT[pinned].title)}`;}
   else el.textContent='';
 }
 
@@ -2038,7 +2069,7 @@ function updateNowPlaying(){
   if(trackIdxs.length===0){
     document.getElementById('npTrack').textContent='No tracks';
     document.getElementById('npGame').textContent='Add tracks below ↓';
-    document.getElementById('npYtBtn').onclick=null;
+    {const yb=document.getElementById('npYtBtn');yb.onclick=null;yb.disabled=true;}
     resetProgress();return;
   }
   const tIdx=trackIdxs[currentTrackPlayIdx]??trackIdxs[0];
@@ -2048,7 +2079,7 @@ function updateNowPlaying(){
   document.getElementById('npTrack').textContent=t.title;
   document.getElementById('npGame').textContent=pack?.source||pack?.name||'';
   const ytVid=t.videoId||pack?.videoId;
-  document.getElementById('npYtBtn').onclick=()=>window.open(`https://www.youtube.com/watch?v=${ytVid}&t=${t.start}`,'_blank');
+  {const yb=document.getElementById('npYtBtn');yb.disabled=false;yb.onclick=()=>window.open('https://www.youtube.com/watch?v='+encodeURIComponent(ytVid)+'&t='+(parseInt(t.start,10)||0),'_blank','noopener');}
   resetProgress();
 }
 function getTrackSrc(pack, t, autoplay){
@@ -2100,6 +2131,8 @@ function nextTrack(){
     const bid=pendingBiomeId;
     pendingBiomeId=null;
     loadLocation(bid, false, true); // true = show toast
+    // Arrived at a saved place — the "switching after this track" notice is now done
+    if(trackingActive && getAllCustomLocs().some(l=>l.id===bid)) setTrackingUI(true,'You\'re here','here');
     return; // loadLocation will call playCurrentTrack
   }
   pendingBiomeId=null;
@@ -2120,11 +2153,11 @@ function setPlayIcon(p){document.getElementById('playBtn').innerHTML=p?ic('pause
 function toggleVideo(){
   videoVisible=!videoVisible;
   document.getElementById('ytContainer').style.display=videoVisible?'block':'none';
-  document.getElementById('videoToggleBtn').classList.toggle('active',videoVisible);
-  if(videoVisible){
-    // Ensure container height is respected
-    document.getElementById('ytContainer').style.height='165px';
-  }
+  const btn=document.getElementById('videoToggleBtn');
+  btn.classList.toggle('active',videoVisible);
+  btn.setAttribute('aria-pressed',videoVisible);
+  btn.setAttribute('aria-label',videoVisible?'Hide video':'Show video');
+  btn.title=videoVisible?'Hide video':'Show video';
 }
 let progressTrackStart=0; // wall-clock ms when track started playing
 let progressTrackDur=0;
@@ -2136,6 +2169,7 @@ function startProgress(dur){
   progressTrackDur=dur;
   progressTrackStart=Date.now();
   progressPaused=false;
+  document.getElementById('progressDur').textContent=dur?fmt(dur):'0:00';
   // Schedule biome check 10s before track ends
   if(trackingActive && dur > 15){
     const checkDelay = Math.max((dur - 10) * 1000, 2000);
@@ -2160,7 +2194,7 @@ function resumeProgress(){
   progressPaused=false;
 }
 function stopProgress(){if(progressTimer){clearInterval(progressTimer);progressTimer=null;}}
-function resetProgress(){stopProgress();progressSeconds=0;progressTrackDur=0;document.getElementById('progressFill').style.width='0%';document.getElementById('progressTime').textContent='0:00';}
+function resetProgress(){stopProgress();progressSeconds=0;progressTrackDur=0;document.getElementById('progressFill').style.width='0%';document.getElementById('progressTime').textContent='0:00';document.getElementById('progressDur').textContent='0:00';}
 function fmt(s){return`${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`}
 
 // ═══════════════════════════════════════════
@@ -2399,7 +2433,7 @@ function renderLePinList(){
     const coordsDiv=document.createElement('div');
     coordsDiv.className='pin-row-coords';
     coordsDiv.innerHTML=pin.lat.toFixed(5)+', '+pin.lon.toFixed(5)
-      +'<div class="pin-row-radius">'+pin.radius+'m radius</div>';
+      +'<div class="pin-row-radius">'+esc(pin.radius)+'m radius</div>';
     // Radius input
     const radInput=document.createElement('input');
     radInput.type='number';
@@ -2499,7 +2533,7 @@ function renderHiddenTracks(){
         const t=allTracks[tIdx];
         const item=document.createElement('div');
         item.className='track-item';
-        item.innerHTML='<div class="track-info"><div class="track-title">'+t.title+'</div><div class="track-game">'+(ov.emoji||b.emoji)+' '+name+'</div></div>';
+        item.innerHTML='<div class="track-info"><div class="track-title">'+esc(t.title)+'</div><div class="track-game">'+esc(ov.emoji||b.emoji)+' '+esc(name)+'</div></div>';
         const restBtn=document.createElement('button');
         restBtn.className='pill-btn';
         restBtn.textContent='Restore';
@@ -2602,14 +2636,14 @@ function renderCustomPins(){
     // Emoji marker
     const icon=L.divIcon({
       className:'',
-      html:`<div class="mm-marker" title="${loc.name}">${loc.emoji}</div>`,
+      html:`<div class="mm-marker" title="${esc(loc.name)}">${esc(loc.emoji)}</div>`,
       iconSize:[30,30],iconAnchor:[15,15]
     });
     const marker=L.marker([loc.lat,loc.lon],{icon}).addTo(leafletMap);
     const popupDiv=document.createElement('div');
     popupDiv.style.cssText='font-family:sans-serif;min-width:140px';
-    popupDiv.innerHTML='<div style="font-size:15px;font-weight:600;margin-bottom:3px">'+loc.emoji+' '+loc.name+'</div>'
-      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+radius+'m radius</div>';
+    popupDiv.innerHTML='<div style="font-size:15px;font-weight:600;margin-bottom:3px">'+esc(loc.emoji)+' '+esc(loc.name)+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+esc(radius)+'m radius</div>';
     const playPop=document.createElement('button');
     playPop.innerHTML=ic('play','ic-sm')+' Play this biome';
     playPop.style.cssText='width:100%;padding:6px 10px;border-radius:7px;border:none;background:'+color+';color:#fff;cursor:pointer;font-size:12px;font-weight:600';
@@ -2671,29 +2705,39 @@ function toggleTracking(){
 
 function startTracking(){
   if(!navigator.geolocation){
-    setTrackingUI(false,'Geolocation not supported.');return;
+    setTrackingUI(false,'Location isn\'t supported on this device','error');return;
   }
   trackingActive=true;
-  setTrackingUI(true,'Locating…');
+  setTrackingUI(true,'Finding you…','locating');
   pollLocation(true); // immediate first poll
 }
 
 function stopTracking(){
   trackingActive=false;
   clearTimeout(trackingTimer);
-  setTrackingUI(false,'Tracking off');
+  setTrackingUI(false,'');
 }
 
-function setTrackingUI(on, statusText){
+// One location notice under the biome name. state:
+//   locating — waiting for GPS          world   — open world, shows address + movement
+//   here     — inside a saved place     pending — in range of a saved place, switches after this track
+//   error    — GPS problem              ''      — hidden (tracking off)
+function setTrackingUI(on, statusText, state){
   const btn=document.getElementById('heroDetectBtn');
-  const icon=document.getElementById('heroDetectIcon');
   const label=document.getElementById('heroDetectLabel');
   const sub=document.getElementById('heroDetectSub');
-  const status=document.getElementById('heroStatusBar');
+  const status=document.getElementById('locStatus');
   btn.classList.toggle('tracking', on);
   label.textContent = on ? 'LISTENING' : 'LISTEN TO WORLD';
   if(sub) sub.textContent = on ? 'TRACKING ON · TAP TO STOP' : 'DETECT MY LOCATION';
-  if(status) status.innerHTML = statusText||'';
+  if(!status) return;
+  state = statusText ? (state||'world') : '';
+  status.dataset.state = state;
+  if(!state){ status.innerHTML=''; return; }
+  const lead = state==='locating' ? '<span class="loc-status-dot"></span>'
+             : state==='error'    ? ic('alert','ic-sm')
+             : ic('mapPin','ic-sm');
+  status.innerHTML = lead+'<span class="loc-status-text">'+esc(statusText)+'</span>';
 }
 
 // ── POLL LOCATION ──
@@ -2721,12 +2765,12 @@ async function pollLocation(isFirstPoll){
     const newLocId = nearby ? nearby.id : null;
 
     if(!newLocId){
-      // Update location pill with address (lightweight, no biome classify)
+      // Open world: address + how you're moving (lightweight, no biome classify)
       try{
         const locName=await revGeo(lat,lon);
-        document.getElementById('locationPill').textContent=locName||`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
-        setTrackingUI(true,`${ic('mapPin','ic-sm')} ${locName||'Located'} · ${moved>0?(moved>MOVE_THRESHOLD?'driving':'walking'):'standing by'}`);
-        document.getElementById('nearBadge').style.display='none';
+        const place=locName||`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+        const motion=isFirstPoll?'':(moved>MOVE_THRESHOLD?' · On the move':moved>0?' · Walking':' · Standing by');
+        setTrackingUI(true, place+motion, 'world');
       }catch(e){}
       // On first poll, do an immediate biome classify to set initial biome
       if(isFirstPoll){
@@ -2738,17 +2782,16 @@ async function pollLocation(isFirstPoll){
         }catch(e){}
       }
     } else {
-      // Don't repeat the biome name in the pill — it's already in the hero
-      document.getElementById('locationPill').textContent='';
-      document.getElementById('nearBadge').style.display='inline';
-      setTrackingUI(true, ic('mapPin','ic-sm')+' You are here');
+      // Saved place: the hero already shows its name, so the notice just confirms it
+      setTrackingUI(true, 'You\'re here', 'here');
       if(nearby.id!==currentLocId || isFirstPoll){
         if(isFirstPoll){
           loadLocation(nearby.id,false,false);
           if(!isPlaying){ playCurrentTrack(false); isPlaying=true; }
         } else {
+          // Hero still shows the old place until the track ends — name the new one here
           pendingBiomeId=nearby.id;
-          setTrackingUI(true,ic('mapPin','ic-sm')+' You are here · switching at track end');
+          setTrackingUI(true, `Near ${nearby.name} · switching after this track`, 'pending');
         }
         renderLocGrid();
       }
@@ -2760,10 +2803,10 @@ async function pollLocation(isFirstPoll){
       trackingTimer=setTimeout(()=>pollLocation(false), nextPollDelay);
     }
   }, err=>{
-    const m={1:'Location denied — tracking stopped.',2:'Location unavailable.',3:'Timed out, retrying…'};
-    setTrackingUI(trackingActive, m[err.code]||'GPS error');
-    if(err.code===1) stopTracking();
-    else if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), POLL_SLOW);
+    const m={1:'Location permission denied',2:'Location unavailable · retrying',3:'GPS timed out · retrying'};
+    if(err.code===1){ stopTracking(); setTrackingUI(false, m[1], 'error'); return; }
+    setTrackingUI(trackingActive, m[err.code]||'GPS error', 'error');
+    if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), POLL_SLOW);
   },{timeout:15000,enableHighAccuracy:true,maximumAge:20000});
 }
 async function revGeo(lat,lon){
@@ -3018,7 +3061,7 @@ function renderPeVideoList(){
     const header = document.createElement('div');
     header.className = 'pe-video-section-header';
     const infoDiv = document.createElement('div');
-    infoDiv.innerHTML = '<div class="pe-video-id">' + v.id + '</div>'
+    infoDiv.innerHTML = '<div class="pe-video-id">' + esc(v.id) + '</div>'
       + '<div class="pe-video-track-count">' + (v.tracks||[]).length + ' tracks imported</div>';
     const delBtn = document.createElement('button');
     delBtn.className = 'pill-btn';
@@ -3065,7 +3108,7 @@ function renderPeVideoList(){
       if(parsedForThis.length > 0){
         countDiv.textContent = parsedForThis.length + ' TRACKS DETECTED';
         trackDiv.innerHTML = parsedForThis.slice(0,6).map(t =>
-          '<div>' + fmt(t.start) + ' — ' + t.title + ' (' + fmt(t.dur) + ')</div>'
+          '<div>' + fmt(t.start) + ' — ' + esc(t.title) + ' (' + fmt(t.dur) + ')</div>'
         ).join('') + (parsedForThis.length > 6 ? '<div style="opacity:.5">…and ' + (parsedForThis.length-6) + ' more</div>' : '');
         previewDiv.classList.add('visible');
         importBtn.disabled = false;
@@ -3225,7 +3268,7 @@ function parseTsPreview(){
   }
   document.getElementById('tsParseCount').textContent = tsParsedTracks.length + ' TRACKS DETECTED';
   document.getElementById('tsTrackPreview').innerHTML = tsParsedTracks.slice(0,8).map(t =>
-    '<div>' + fmt(t.start) + ' — ' + t.title + ' (' + fmt(t.dur) + ')</div>'
+    '<div>' + fmt(t.start) + ' — ' + esc(t.title) + ' (' + fmt(t.dur) + ')</div>'
   ).join('') + (tsParsedTracks.length > 8 ? '<div style="opacity:.5">…and ' + (tsParsedTracks.length-8) + ' more</div>' : '');
   result.classList.add('visible');
   btn.disabled = false;
@@ -3471,7 +3514,7 @@ function renderMiVideoList(){
     const hdr=document.createElement('div');
     hdr.className='pe-video-section-header';
     const info=document.createElement('div');
-    info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'Playlist: ':'')+v.title+'</div>'
+    info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'Playlist: ':'')+esc(v.title)+'</div>'
       +'<div class="pe-video-track-count">'+(v.type==='playlist'?'Playlist · '+(v.tracks.length||0)+' tracks imported':v.videoId+' · '+(v.tracks.length||0)+' tracks')+'</div>';
     const del=document.createElement('button');
     del.className='pill-btn'; del.style.color='var(--red)'; del.innerHTML=ic('trash','ic-sm')+' Remove';
@@ -3520,7 +3563,7 @@ function renderMiVideoList(){
       if(parsed.length>0){
         countD.textContent=parsed.length+' TRACKS DETECTED';
         trackD.innerHTML=parsed.slice(0,5).map(t=>
-          '<div>'+(t.isPlaylistItem?'🎵':'⏱ '+fmt(t.start))+' — '+t.title+'</div>'
+          '<div>'+(t.isPlaylistItem?'🎵':'⏱ '+fmt(t.start))+' — '+esc(t.title)+'</div>'
         ).join('')+(parsed.length>5?'<div style="opacity:.5">…and '+(parsed.length-5)+' more</div>':'');
         preview.classList.add('visible');
         importBtn.disabled=false;
@@ -3979,8 +4022,8 @@ Rules:
   </div>
 </div>
 <div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.1</div>
-  <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">This was generated with assistance from AI<br>by <span style="color:rgba(255,255,255,.5)">Jongle</span></div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.1.1</div>
+  <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a></div>
 </div>
 </div><!-- #geovibes-app -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
