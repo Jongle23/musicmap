@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.1
+# 🎵 MusicMap v1.1.1
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -68,13 +68,15 @@ All music is streamed via YouTube. No audio files are bundled.
 
 To enable 6-character share codes:
 
-1. Copy the contents of `musicmap-api.php`
+1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.1.1"}`
 5. In `musicmap.html`, find `const API_URL` and set it to `'https://yoursite.com/?mm_action='`
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
+
+If your site is behind Cloudflare or another proxy, set `$TRUSTED_IP_HEADER` in the snippet (e.g. `'HTTP_CF_CONNECTING_IP'`) so the save rate limit applies per visitor. Packs are stored in `wp-content/uploads/musicmap_packs/`; on nginx hosts, the `.htaccess` there is ignored, so add a server rule if you want to block direct downloads.
 
 ---
 
@@ -92,13 +94,27 @@ The AI format supports multiple videos and playlists.
 
 ---
 
+## 🔜 Coming Soon: Local Music Vibes Mode
+
+A second mode, switched from the menu, that plays real-world music from wherever you are instead of game packs:
+
+- **Made Here** — artists who originated in your city, region or country
+- **Most Popular Here** — your country's charts
+- **Genre Popular Songs** — genre playlists built from local top artists
+
+It will run on the same `musicmap-api.php`, extended with routes that look up music from MusicBrainz, Last.fm and YouTube. An early prototype lives in `alpha/` and isn't part of the live app yet.
+
+---
+
 ## 📁 File Structure
 
 ```
 musicmap.html       — The full app (single file, self-contained)
 musicmap-api.php    — PHP share code API (WordPress/PHP Snippets)
+CHANGELOG.md        — Version history
 LICENSE.md          — License terms
 README.md           — This file
+alpha/              — Prototype of the upcoming Local Music Vibes mode (not live)
 ```
 
 ---

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MusicMap v1.1</title>
+<title>MusicMap v1.1.1</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -614,6 +614,10 @@ function ic(name, size){
   const cls='ic '+(size||'ic-md');
   if(ICONS_FILLED[name]) return `<svg class="${cls}" viewBox="0 0 24 24" fill="currentColor" stroke="none">${ICONS_FILLED[name]}</svg>`;
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||''}</svg>`;
+}
+// Escape text before it goes into innerHTML — pack/location data can come from shared codes
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // ═══════════════════════════════════════════
@@ -1411,8 +1415,8 @@ function renderPacksList(){
     // Top row: icon + name + active badge
     const topRow=document.createElement('div');
     topRow.className='pack-card-top';
-    topRow.innerHTML='<div class="pack-icon">'+(pack.icon||'🎵')+'</div>'
-      +'<div class="pack-info"><div class="pack-name">'+pack.name+'</div><div class="pack-meta">'+metaText+'</div></div>';
+    topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
+      +'<div class="pack-info"><div class="pack-name">'+esc(pack.name)+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
     if(isActive){
       const badge=document.createElement('span');
       badge.style.cssText='font-size:10px;color:var(--green);font-family:var(--pixel);letter-spacing:.5px;flex-shrink:0';
@@ -1509,7 +1513,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.1';
+const MM_VERSION = '1.1.1';
 // Set this to your own PHP API endpoint to enable short server share codes (see README "API Setup").
 // Leave blank to use local MM- encoded share codes only.
 const API_URL = '';
@@ -1597,14 +1601,14 @@ function openPrivacyModal(){
     row.className='priv-loc-row';
     const uid='priv_'+loc.id;
     row.innerHTML=`
-      <div class="priv-loc-emoji">${loc.emoji}</div>
+      <div class="priv-loc-emoji">${esc(loc.emoji)}</div>
       <div class="priv-loc-info">
-        <div class="priv-loc-name">${loc.name}${isPersonal?'':''}</div>
+        <div class="priv-loc-name">${esc(loc.name)}</div>
         <div class="priv-loc-coords">${coordStr}${pinCount>1?" (+"+( pinCount-1)+" more)":""}</div>
       </div>
       ${isPersonal?'<div class="priv-warn-icon" title="Personal location — consider removing">'+ic('alert','ic-sm')+'</div>':''}
       <label class="priv-toggle" title="Toggle off to exclude from share">
-        <input type="checkbox" id="${uid}" ${isPersonal?'':'checked'}>
+        <input type="checkbox" id="${esc(uid)}" ${isPersonal?'':'checked'}>
         <div class="priv-toggle-track"></div>
         <div class="priv-toggle-thumb"></div>
       </label>`;
@@ -1979,7 +1983,7 @@ function renderTrackList(){
     item.appendChild(numEl);
     const infoEl=document.createElement('div');
     infoEl.className='track-info';
-    infoEl.innerHTML='<div class="track-title">'+t.title+'</div><div class="track-game">'+fmt(t.dur)+'</div>';
+    infoEl.innerHTML='<div class="track-title">'+esc(t.title)+'</div><div class="track-game">'+fmt(t.dur)+'</div>';
     item.appendChild(infoEl);
     const actEl=document.createElement('div');
     actEl.className='track-actions';
@@ -2024,7 +2028,7 @@ function updatePinStatus(){
   const pack=getActivePack();
   const el=document.getElementById('pinStatus');
   const allT=getAllPackTracks(pack);
-  if(pinned!==undefined&&allT[pinned]){el.innerHTML=ic('bookmark','ic-sm')+` ${allT[pinned].title}`;}
+  if(pinned!==undefined&&allT[pinned]){el.innerHTML=ic('bookmark','ic-sm')+` ${esc(allT[pinned].title)}`;}
   else el.textContent='';
 }
 
@@ -2399,7 +2403,7 @@ function renderLePinList(){
     const coordsDiv=document.createElement('div');
     coordsDiv.className='pin-row-coords';
     coordsDiv.innerHTML=pin.lat.toFixed(5)+', '+pin.lon.toFixed(5)
-      +'<div class="pin-row-radius">'+pin.radius+'m radius</div>';
+      +'<div class="pin-row-radius">'+esc(pin.radius)+'m radius</div>';
     // Radius input
     const radInput=document.createElement('input');
     radInput.type='number';
@@ -2499,7 +2503,7 @@ function renderHiddenTracks(){
         const t=allTracks[tIdx];
         const item=document.createElement('div');
         item.className='track-item';
-        item.innerHTML='<div class="track-info"><div class="track-title">'+t.title+'</div><div class="track-game">'+(ov.emoji||b.emoji)+' '+name+'</div></div>';
+        item.innerHTML='<div class="track-info"><div class="track-title">'+esc(t.title)+'</div><div class="track-game">'+esc(ov.emoji||b.emoji)+' '+esc(name)+'</div></div>';
         const restBtn=document.createElement('button');
         restBtn.className='pill-btn';
         restBtn.textContent='Restore';
@@ -2602,14 +2606,14 @@ function renderCustomPins(){
     // Emoji marker
     const icon=L.divIcon({
       className:'',
-      html:`<div class="mm-marker" title="${loc.name}">${loc.emoji}</div>`,
+      html:`<div class="mm-marker" title="${esc(loc.name)}">${esc(loc.emoji)}</div>`,
       iconSize:[30,30],iconAnchor:[15,15]
     });
     const marker=L.marker([loc.lat,loc.lon],{icon}).addTo(leafletMap);
     const popupDiv=document.createElement('div');
     popupDiv.style.cssText='font-family:sans-serif;min-width:140px';
-    popupDiv.innerHTML='<div style="font-size:15px;font-weight:600;margin-bottom:3px">'+loc.emoji+' '+loc.name+'</div>'
-      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+radius+'m radius</div>';
+    popupDiv.innerHTML='<div style="font-size:15px;font-weight:600;margin-bottom:3px">'+esc(loc.emoji)+' '+esc(loc.name)+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+esc(radius)+'m radius</div>';
     const playPop=document.createElement('button');
     playPop.innerHTML=ic('play','ic-sm')+' Play this biome';
     playPop.style.cssText='width:100%;padding:6px 10px;border-radius:7px;border:none;background:'+color+';color:#fff;cursor:pointer;font-size:12px;font-weight:600';
@@ -2725,7 +2729,7 @@ async function pollLocation(isFirstPoll){
       try{
         const locName=await revGeo(lat,lon);
         document.getElementById('locationPill').textContent=locName||`${lat.toFixed(3)}, ${lon.toFixed(3)}`;
-        setTrackingUI(true,`${ic('mapPin','ic-sm')} ${locName||'Located'} · ${moved>0?(moved>MOVE_THRESHOLD?'driving':'walking'):'standing by'}`);
+        setTrackingUI(true,`${ic('mapPin','ic-sm')} ${esc(locName||'Located')} · ${moved>0?(moved>MOVE_THRESHOLD?'driving':'walking'):'standing by'}`);
         document.getElementById('nearBadge').style.display='none';
       }catch(e){}
       // On first poll, do an immediate biome classify to set initial biome
@@ -3018,7 +3022,7 @@ function renderPeVideoList(){
     const header = document.createElement('div');
     header.className = 'pe-video-section-header';
     const infoDiv = document.createElement('div');
-    infoDiv.innerHTML = '<div class="pe-video-id">' + v.id + '</div>'
+    infoDiv.innerHTML = '<div class="pe-video-id">' + esc(v.id) + '</div>'
       + '<div class="pe-video-track-count">' + (v.tracks||[]).length + ' tracks imported</div>';
     const delBtn = document.createElement('button');
     delBtn.className = 'pill-btn';
@@ -3065,7 +3069,7 @@ function renderPeVideoList(){
       if(parsedForThis.length > 0){
         countDiv.textContent = parsedForThis.length + ' TRACKS DETECTED';
         trackDiv.innerHTML = parsedForThis.slice(0,6).map(t =>
-          '<div>' + fmt(t.start) + ' — ' + t.title + ' (' + fmt(t.dur) + ')</div>'
+          '<div>' + fmt(t.start) + ' — ' + esc(t.title) + ' (' + fmt(t.dur) + ')</div>'
         ).join('') + (parsedForThis.length > 6 ? '<div style="opacity:.5">…and ' + (parsedForThis.length-6) + ' more</div>' : '');
         previewDiv.classList.add('visible');
         importBtn.disabled = false;
@@ -3225,7 +3229,7 @@ function parseTsPreview(){
   }
   document.getElementById('tsParseCount').textContent = tsParsedTracks.length + ' TRACKS DETECTED';
   document.getElementById('tsTrackPreview').innerHTML = tsParsedTracks.slice(0,8).map(t =>
-    '<div>' + fmt(t.start) + ' — ' + t.title + ' (' + fmt(t.dur) + ')</div>'
+    '<div>' + fmt(t.start) + ' — ' + esc(t.title) + ' (' + fmt(t.dur) + ')</div>'
   ).join('') + (tsParsedTracks.length > 8 ? '<div style="opacity:.5">…and ' + (tsParsedTracks.length-8) + ' more</div>' : '');
   result.classList.add('visible');
   btn.disabled = false;
@@ -3471,7 +3475,7 @@ function renderMiVideoList(){
     const hdr=document.createElement('div');
     hdr.className='pe-video-section-header';
     const info=document.createElement('div');
-    info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'Playlist: ':'')+v.title+'</div>'
+    info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'Playlist: ':'')+esc(v.title)+'</div>'
       +'<div class="pe-video-track-count">'+(v.type==='playlist'?'Playlist · '+(v.tracks.length||0)+' tracks imported':v.videoId+' · '+(v.tracks.length||0)+' tracks')+'</div>';
     const del=document.createElement('button');
     del.className='pill-btn'; del.style.color='var(--red)'; del.innerHTML=ic('trash','ic-sm')+' Remove';
@@ -3520,7 +3524,7 @@ function renderMiVideoList(){
       if(parsed.length>0){
         countD.textContent=parsed.length+' TRACKS DETECTED';
         trackD.innerHTML=parsed.slice(0,5).map(t=>
-          '<div>'+(t.isPlaylistItem?'🎵':'⏱ '+fmt(t.start))+' — '+t.title+'</div>'
+          '<div>'+(t.isPlaylistItem?'🎵':'⏱ '+fmt(t.start))+' — '+esc(t.title)+'</div>'
         ).join('')+(parsed.length>5?'<div style="opacity:.5">…and '+(parsed.length-5)+' more</div>':'');
         preview.classList.add('visible');
         importBtn.disabled=false;
@@ -3979,7 +3983,7 @@ Rules:
   </div>
 </div>
 <div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.1</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.1.1</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">This was generated with assistance from AI<br>by <span style="color:rgba(255,255,255,.5)">Jongle</span></div>
 </div>
 </div><!-- #geovibes-app -->
