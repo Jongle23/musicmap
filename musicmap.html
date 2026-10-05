@@ -211,7 +211,14 @@ body{background:var(--bg)}
 .pack-card-top{display:flex;align-items:center;gap:12px}
 .pack-icon{font-size:28px;flex-shrink:0}
 .pack-info{flex:1;min-width:0}
-.pack-name{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:.5px;margin-bottom:4px}
+.pack-name{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pack-name-row{display:flex;align-items:center;gap:7px;margin-bottom:4px;min-width:0}
+/* Where a pack's music plays from (YouTube / Spotify / other) — see packSources() */
+.pack-sources{display:inline-flex;align-items:center;gap:3px;flex-shrink:0}
+.src-ic{width:15px;height:15px;display:block;flex-shrink:0}
+.src-ic.other{color:var(--muted)}
+.np-source{display:inline-flex;vertical-align:-3px;margin-right:5px}
+.np-source:empty{display:none}
 .pack-meta{font-size:11px;color:var(--muted)}
 .pack-actions{display:flex;gap:6px;border-top:1px solid var(--border);padding-top:10px}
 .pack-action-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .15s}
@@ -463,7 +470,7 @@ body{background:var(--bg)}
       <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-np-track" id="npTrack">Route 104</div>
     </div>
-    <div class="hero-np-game" id="npGame">Pokémon Ruby &amp; Sapphire</div>
+    <div class="hero-np-game"><span class="np-source" id="npSource"></span><span id="npGame">Pokémon Ruby &amp; Sapphire</span></div>
     <div class="hero-progress">
       <span class="hero-progress-time" id="progressTime">0:00</span>
       <div class="hero-progress-bg"><div class="hero-progress-fill" id="progressFill"></div></div>
@@ -475,7 +482,6 @@ body{background:var(--bg)}
       <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()" aria-label="Play / pause" title="Play / pause"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
       <button class="hero-ctrl-btn" onclick="nextTrack()" aria-label="Next track" title="Next"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></button>
       <button class="hero-ctrl-btn ghost" id="npYtBtn" aria-label="Open on YouTube" title="Open on YouTube"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
-      <span id="spNowPlayingBadge" style="display:none;font-size:9px;padding:3px 8px;border-radius:100px;background:rgba(30,180,90,.18);color:#1DB954;font-family:var(--pixel);letter-spacing:.5px;border:1px solid rgba(30,180,90,.3)">SPOTIFY</span>
     </div>
   </div>
 </div>
@@ -1257,6 +1263,32 @@ function ensurePackEditable(packId){
 }
 
 // Get all tracks across all videos in a pack (flat, with videoIdx + trackIdx)
+// ── TRACK / PACK SOURCES ──
+// A track plays from Spotify if it has a spotifyUri, otherwise YouTube if it has a videoId.
+const SOURCE_ORDER=['youtube','spotify','other'];
+const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',other:'Other source'};
+const SOURCE_ICONS={
+  youtube:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg>',
+  spotify:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  other:'<svg class="src-ic other" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
+};
+function trackSource(t){
+  if(t&&t.spotifyUri) return 'spotify';
+  if(t&&t.videoId) return 'youtube';
+  return 'other';
+}
+function packSources(pack){
+  const found=new Set(getAllPackTracks(pack).map(trackSource));
+  if(!found.size && (pack?.videoId||pack?.videos?.length)) found.add('youtube'); // empty pack, but has a video set up
+  return SOURCE_ORDER.filter(s=>found.has(s));
+}
+function sourceIconsHtml(sources){
+  if(!sources.length) return '';
+  const label='Plays from '+sources.map(s=>SOURCE_LABELS[s]).join(' + ');
+  return '<span class="pack-sources" role="img" aria-label="'+esc(label)+'" title="'+esc(label)+'">'
+    +sources.map(s=>SOURCE_ICONS[s]).join('')+'</span>';
+}
+
 function getAllPackTracks(pack){
   if(!pack) return [];
   // Legacy packs: single videoId + tracks array
@@ -1354,7 +1386,8 @@ function currentTracks(){return getLocTracks(getPackId(),currentLocId);}
 // ═══════════════════════════════════════════
 async function init(){
   // Handle Spotify OAuth callback before anything else
-  if(window.location.search.includes('code=')||window.location.search.includes('error=')){
+  const qs=new URLSearchParams(window.location.search);
+  if(qs.has('state') && (qs.has('code')||qs.has('error')) && sessionStorage.getItem('sp_state')){
     await handleSpotifyCallback();
   }
   renderPacksList();
@@ -1482,7 +1515,7 @@ function renderPacksList(){
     const topRow=document.createElement('div');
     topRow.className='pack-card-top';
     topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
-      +'<div class="pack-info"><div class="pack-name">'+esc(pack.name)+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
+      +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
     if(isActive){
       const badge=document.createElement('span');
       badge.style.cssText='font-size:10px;color:var(--green);font-family:var(--pixel);letter-spacing:.5px;flex-shrink:0';
@@ -2108,6 +2141,7 @@ function updateNowPlaying(){
   if(trackIdxs.length===0){
     document.getElementById('npTrack').textContent='No tracks';
     document.getElementById('npGame').textContent='Add tracks below ↓';
+    setNowPlayingSource(null);
     {const yb=document.getElementById('npYtBtn');yb.onclick=null;yb.disabled=true;}
     resetProgress();return;
   }
@@ -2117,6 +2151,7 @@ function updateNowPlaying(){
   if(!t)return;
   document.getElementById('npTrack').textContent=t.title;
   document.getElementById('npGame').textContent=pack?.source||pack?.name||'';
+  setNowPlayingSource(t);
   const ytVid=t.videoId||pack?.videoId;
   {const yb=document.getElementById('npYtBtn');yb.disabled=false;yb.onclick=()=>window.open('https://www.youtube.com/watch?v='+encodeURIComponent(ytVid)+'&t='+(parseInt(t.start,10)||0),'_blank','noopener');}
   resetProgress();
@@ -2142,12 +2177,12 @@ async function playCurrentTrack(useFade){
       spotifyActive=true;
       setPlayIcon(true);startProgress(t.dur||180);
       document.getElementById('playingBars').style.display='flex';
-      updateSpotifyNowPlaying(true);
+      updateSpotifyNowPlaying(true, t);
       return;
     }
   }
   spotifyActive=false;
-  updateSpotifyNowPlaying(false);
+  updateSpotifyNowPlaying(false, t);
   // YouTube fallback
   const src=getTrackSrc(pack,t,true);
   if(useFade){crossfadeTo(src);}else{hardSwitchTo(src);}
@@ -2238,7 +2273,7 @@ function startProgress(dur){
     progressSeconds=Math.min(elapsed,dur);
     document.getElementById('progressFill').style.width=(progressSeconds/dur*100)+'%';
     document.getElementById('progressTime').textContent=fmt(progressSeconds);
-    if(progressSeconds>=dur) nextTrack();
+    if(progressSeconds>=dur && !spotifyActive) nextTrack();
   },500); // 500ms ticks for smoother bar
 }
 function pauseProgress(){
@@ -3877,7 +3912,12 @@ async function handleSpotifyCallback(){
   const params=new URLSearchParams(window.location.search);
   const code=params.get('code');
   const error=params.get('error');
+  const state=params.get('state');
+  const expected=sessionStorage.getItem('sp_state');
   cleanSpotifyUrlParams();
+  sessionStorage.removeItem('sp_state');
+  // Reject replies we didn't ask for (login CSRF) before touching the code
+  if(!expected || state!==expected){ spotifyShowSnack('Spotify sign-in did not match. Please try again.'); return; }
   if(error||!code) return;
   const verifier=sessionStorage.getItem('sp_verifier');
   const clientId=gs('spotifyClientId','');
@@ -3993,7 +4033,7 @@ async function spotifyPlayUri(uri){
   const token=await getValidSpotifyToken();
   if(!token||!spotifyDeviceId) return false;
   try{
-    const resp=await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${spotifyDeviceId}`,{
+    const resp=await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(spotifyDeviceId)}`,{
       method:'PUT',
       headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({uris:[uri]})
@@ -4004,11 +4044,27 @@ async function spotifyPlayUri(uri){
 async function spotifyPausePlayback(){ if(spotifyPlayer) try{ await spotifyPlayer.pause(); }catch(e){} }
 async function spotifyResumePlayback(){ if(spotifyPlayer) try{ await spotifyPlayer.resume(); }catch(e){} }
 
-function updateSpotifyNowPlaying(active){
-  const badge=document.getElementById('spNowPlayingBadge');
-  const ytBtn=document.getElementById('npYtBtn');
-  if(badge) badge.style.display=active?'inline-flex':'none';
-  if(ytBtn) ytBtn.style.display=active?'none':'';
+// Small source icon before the album/game line. Spotify only counts while it's really playing
+// through the SDK — otherwise the track falls back to YouTube.
+function setNowPlayingSource(t, viaSpotify){
+  const el=document.getElementById('npSource');
+  if(!el) return;
+  const src=!t?null:(viaSpotify?'spotify':(trackSource(t)==='spotify'?'other':trackSource(t)));
+  el.innerHTML=src?SOURCE_ICONS[src]:'';
+  el.title=src?'Playing from '+SOURCE_LABELS[src]:'';
+}
+function updateSpotifyNowPlaying(active, t){
+  setNowPlayingSource(t, active);
+  const btn=document.getElementById('npYtBtn');
+  if(!btn) return;
+  const id=active&&t?.spotifyUri?String(t.spotifyUri).split(':').pop():'';
+  if(id && /^[A-Za-z0-9]{22}$/.test(id)){
+    btn.disabled=false;
+    btn.setAttribute('aria-label','Open in Spotify'); btn.title='Open in Spotify';
+    btn.onclick=()=>window.open('https://open.spotify.com/track/'+id,'_blank','noopener');
+  } else {
+    btn.setAttribute('aria-label','Open on YouTube'); btn.title='Open on YouTube';
+  }
 }
 
 function updateSpotifySettingsUI(){
@@ -4078,16 +4134,17 @@ function renderSpotifyPickerResults(items){
   items.forEach(item=>{
     const dur=Math.round(item.duration_ms/1000);
     const artists=item.artists.map(a=>a.name).join(', ');
+    const art=String(item.album?.images?.[2]?.url||'');
     const div=document.createElement('div');
     div.className='modal-track-item';
     div.style.cursor='pointer';
     div.innerHTML=`
       <span class="modal-track-add" style="color:var(--accent2)">＋</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.name}</div>
-        <div style="font-size:11px;color:var(--muted)">${artists} · ${fmt(dur)}</div>
+        <div style="font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(artists)} · ${fmt(dur)}</div>
       </div>
-      ${item.album?.images?.[2]?.url?`<img src="${item.album.images[2].url}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;flex-shrink:0">`:''}
+      ${/^https:\/\/i\.scdn\.co\//.test(art)?`<img src="${esc(art)}" alt="" style="width:36px;height:36px;border-radius:4px;object-fit:cover;flex-shrink:0">`:''}
     `;
     div.onclick=()=>addSpotifyTrackToPack(item,div);
     listEl.appendChild(div);
