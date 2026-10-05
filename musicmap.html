@@ -219,6 +219,18 @@ body{background:var(--bg)}
 .src-ic.other{color:var(--muted)}
 .np-source{display:inline-flex;vertical-align:-3px;margin-right:5px}
 .np-source:empty{display:none}
+/* Spotify settings: pre-sign-in warning / access-denied notice + own-app setup */
+.sp-notice{border:1px solid rgba(250,204,21,.4);background:rgba(250,204,21,.1);border-radius:12px;padding:12px;margin-bottom:10px;font-size:12px;line-height:1.55;color:#fef3c7}
+.sp-notice[data-kind=denied]{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.1);color:#fee2e2}
+.sp-notice[hidden]{display:none}
+.sp-notice-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.sp-notice-actions .pill-btn{font-size:11px;padding:6px 12px}
+.sp-notice-actions .sp-go{background:rgba(29,185,84,.2);border-color:rgba(29,185,84,.55);color:#bbf7d0}
+.sp-own{font-size:11px;color:var(--muted)}
+.sp-own summary{cursor:pointer;color:var(--accent2);padding:4px 0;list-style-position:inside}
+.sp-steps{margin:8px 0 10px 18px;line-height:1.6}
+.sp-steps a{color:var(--accent2)}
+.sp-steps code{font-size:10px;background:rgba(0,0,0,.35);padding:1px 5px;border-radius:4px;color:#fff;word-break:break-all}
 .pack-meta{font-size:11px;color:var(--muted)}
 .pack-actions{display:flex;gap:6px;border-top:1px solid var(--border);padding-top:10px}
 .pack-action-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .15s}
@@ -556,11 +568,27 @@ body{background:var(--bg)}
         <span id="spotifyStatus" style="font-size:12px;color:var(--muted)">● Not connected</span>
         <button id="spotifyConnectBtn" class="pill-btn" style="font-size:11px;padding:5px 14px" onclick="spotifyLogin()">Connect</button>
       </div>
-      <div>
-        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Spotify Client ID &nbsp;<a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener" style="color:var(--accent2)">(?)</a></label>
-        <input id="spotifyClientIdInput" class="form-input" placeholder="paste your client ID…" style="font-size:11px;width:100%" oninput="ss('spotifyClientId',this.value.trim())"/>
-        <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5">Register a free app at developer.spotify.com → add your page URL as a Redirect URI.</div>
+      <!-- Shown before sign-in (warn) or after Spotify refuses the account (denied) — see showSpotifyNotice() -->
+      <div class="sp-notice" id="spotifyNotice" role="status" hidden>
+        <div class="sp-notice-text" id="spotifyNoticeText"></div>
+        <div class="sp-notice-actions" id="spotifyNoticeActions">
+          <button class="pill-btn sp-go" type="button" onclick="spotifyLogin(true)">Continue to Spotify</button>
+          <button class="pill-btn" type="button" onclick="openSpotifyOwnApp()">Use my own Client ID</button>
+        </div>
       </div>
+      <details class="sp-own" id="spotifyOwnApp">
+        <summary>Use my own Spotify app</summary>
+        <ol class="sp-steps">
+          <li>Create a free app at <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>, ticking <b>Web API</b> and <b>Web Playback SDK</b>.</li>
+          <li>Add this exact Redirect URI: <code id="spRedirectUri"></code></li>
+          <li>Paste the app's Client ID below. You never need the Client Secret.</li>
+        </ol>
+        <div style="display:flex;gap:8px">
+          <input id="spotifyClientIdInput" class="form-input" placeholder="32-character Client ID" autocomplete="off" spellcheck="false" maxlength="32" style="font-size:11px;flex:1;min-width:0"/>
+          <button class="pill-btn" type="button" style="font-size:11px;padding:5px 12px" onclick="saveOwnSpotifyClientId()">Save</button>
+        </div>
+        <div id="spotifyClientIdMsg" style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5"></div>
+      </details>
     </div>
     <div class="section" style="margin-top:20px">
       <div class="section-header"><div class="section-title">DATA</div></div>
@@ -1400,8 +1428,7 @@ async function init(){
   // Restore Spotify SDK if previously connected
   if(isSpotifyConnected()) initSpotifySdk();
   updateSpotifySettingsUI();
-  const cidInput=document.getElementById('spotifyClientIdInput');
-  if(cidInput) cidInput.value=gs('spotifyClientId','');
+  syncSpotifyOwnAppUI();
 }
 
 function importSharedPack(pack, silent){
@@ -1451,8 +1478,7 @@ function switchTab(id){
   if(id==='settings'){
     renderHiddenTracks();
     updateSpotifySettingsUI();
-    const cidInput=document.getElementById('spotifyClientIdInput');
-    if(cidInput) cidInput.value=gs('spotifyClientId','');
+    syncSpotifyOwnAppUI();
   }
   if(id==='map'){
     // Init Leaflet on first open (Leaflet needs the container visible)
@@ -3874,7 +3900,7 @@ function setSpotifyTokens(access, refresh, expiresIn){
   ss('spotifyExpiry', Date.now() + expiresIn*1000 - 60000);
 }
 function clearSpotifyTokens(){
-  ss('spotifyToken',null); ss('spotifyRefreshToken',null); ss('spotifyExpiry',0);
+  ss('spotifyToken',null); ss('spotifyRefreshToken',null); ss('spotifyExpiry',0); ss('spotifyTokenClientId',null);
 }
 function spotifyRedirectUri(){
   return window.location.origin + window.location.pathname;
@@ -3890,17 +3916,75 @@ async function spotifyCodeChallenge(verifier){
   return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 
-async function spotifyLogin(){
-  const clientId=gs('spotifyClientId','');
-  if(!clientId){
-    spotifyShowSnack('Enter your Spotify Client ID in Settings first.');
-    switchTab('settings'); return;
+// MusicMap's shared Spotify app. A Client ID is public (it's in every login link); the
+// Client Secret is never used — PKCE login doesn't need it. Spotify Development Mode only
+// lets accounts invited in the dashboard use this app, so others can bring their own.
+const SPOTIFY_SHARED_CLIENT_ID='bc016b83d9a147428d49e5e9c84a0c5d';
+const SPOTIFY_CLIENT_ID_RE=/^[0-9a-f]{32}$/i;
+function ownSpotifyClientId(){
+  const id=String(gs('spotifyClientId','')||'').trim();
+  return SPOTIFY_CLIENT_ID_RE.test(id)?id:'';
+}
+function spotifyClientId(){ return ownSpotifyClientId()||SPOTIFY_SHARED_CLIENT_ID; }
+function usingSharedSpotifyApp(){ return !ownSpotifyClientId(); }
+
+function showSpotifyNotice(kind){
+  const box=document.getElementById('spotifyNotice');
+  const text=document.getElementById('spotifyNoticeText');
+  const actions=document.getElementById('spotifyNoticeActions');
+  if(!box) return;
+  if(!kind){ box.hidden=true; return; }
+  box.dataset.kind=kind;
+  if(kind==='warn'){
+    text.textContent="Heads up: Spotify only lets invited testers use MusicMap's shared Spotify app, and playback needs Spotify Premium. If you haven't been invited, sign-in will fail unless you use your own free Spotify developer Client ID.";
+    actions.hidden=false;
+  } else if(kind==='denied'){
+    text.textContent="Spotify didn't let this account use MusicMap's shared Spotify app (it's limited to invited testers). To use Spotify, create your own free Spotify developer app and paste its Client ID below.";
+    actions.hidden=true;
+  } else if(kind==='premium'){
+    text.textContent="You're signed in, but in-browser Spotify playback needs a Spotify Premium account. Tracks will keep playing from YouTube.";
+    actions.hidden=true;
   }
+  box.hidden=false;
+}
+function openSpotifyOwnApp(){
+  const d=document.getElementById('spotifyOwnApp');
+  if(d){ d.open=true; document.getElementById('spotifyClientIdInput')?.focus(); }
+}
+function saveOwnSpotifyClientId(){
+  const input=document.getElementById('spotifyClientIdInput');
+  const msg=document.getElementById('spotifyClientIdMsg');
+  const id=input.value.trim();
+  if(id && !SPOTIFY_CLIENT_ID_RE.test(id)){ msg.textContent="That doesn't look like a Client ID. It should be 32 letters and numbers."; return; }
+  if(id!==ownSpotifyClientId()){
+    if(isSpotifyConnected()) spotifyDisconnect(); // tokens belong to the app that issued them
+    ss('spotifyClientId',id);
+  }
+  msg.textContent=id?'Saved. Tap Connect to sign in with your own app.':"Cleared. Using MusicMap's shared Spotify app.";
+  showSpotifyNotice(null);
+}
+function syncSpotifyOwnAppUI(){
+  const input=document.getElementById('spotifyClientIdInput');
+  if(input) input.value=ownSpotifyClientId();
+  const uri=document.getElementById('spRedirectUri');
+  if(uri) uri.textContent=spotifyRedirectUri();
+}
+
+async function spotifyLogin(confirmed){
+  // Warn before sending people off to Spotify with the shared app, unless it already worked for them
+  if(usingSharedSpotifyApp() && confirmed!==true && !gs('spotifySharedOk',false)){
+    switchTab('settings');
+    showSpotifyNotice('warn');
+    document.getElementById('spotifyNotice')?.scrollIntoView({block:'center',behavior:'smooth'});
+    return;
+  }
+  const clientId=spotifyClientId();
   const verifier=spotifyRandStr(64);
   const challenge=await spotifyCodeChallenge(verifier);
   const state=spotifyRandStr(16);
   sessionStorage.setItem('sp_verifier',verifier);
   sessionStorage.setItem('sp_state',state);
+  sessionStorage.setItem('sp_client',clientId); // the callback must use the same app
   const params=new URLSearchParams({
     response_type:'code', client_id:clientId, scope:SPOTIFY_SCOPES,
     redirect_uri:spotifyRedirectUri(), state, code_challenge_method:'S256', code_challenge:challenge
@@ -3918,10 +4002,15 @@ async function handleSpotifyCallback(){
   sessionStorage.removeItem('sp_state');
   // Reject replies we didn't ask for (login CSRF) before touching the code
   if(!expected || state!==expected){ spotifyShowSnack('Spotify sign-in did not match. Please try again.'); return; }
-  if(error||!code) return;
+  const clientId=sessionStorage.getItem('sp_client')||'';
+  sessionStorage.removeItem('sp_client');
+  if(error||!code){
+    // access_denied: cancelled, or the account isn't allowed on this app
+    if(error && clientId===SPOTIFY_SHARED_CLIENT_ID){ switchTab('settings'); showSpotifyNotice('denied'); openSpotifyOwnApp(); }
+    return;
+  }
   const verifier=sessionStorage.getItem('sp_verifier');
-  const clientId=gs('spotifyClientId','');
-  if(!verifier||!clientId) return;
+  if(!verifier||!SPOTIFY_CLIENT_ID_RE.test(clientId)) return;
   try{
     const resp=await fetch('https://accounts.spotify.com/api/token',{
       method:'POST',
@@ -3934,18 +4023,42 @@ async function handleSpotifyCallback(){
     if(!resp.ok) throw new Error(await resp.text());
     const data=await resp.json();
     setSpotifyTokens(data.access_token, data.refresh_token, data.expires_in);
+    ss('spotifyTokenClientId',clientId);
     sessionStorage.removeItem('sp_verifier');
-    sessionStorage.removeItem('sp_state');
+    await checkSpotifyAccess(clientId);
   }catch(e){
     console.error('Spotify token exchange failed:',e);
     spotifyShowSnack('Spotify connection failed. Check your Client ID.');
   }
 }
 
+// After sign-in: does Spotify let this account use the app, and is it Premium?
+async function checkSpotifyAccess(clientId){
+  try{
+    const r=await fetch('https://api.spotify.com/v1/me',{headers:{'Authorization':'Bearer '+gs('spotifyToken','')}});
+    if(r.status===403){
+      // Development Mode: account isn't on this app's user list
+      clearSpotifyTokens();
+      switchTab('settings');
+      if(clientId===SPOTIFY_SHARED_CLIENT_ID) showSpotifyNotice('denied');
+      else spotifyShowSnack('Spotify refused this account. Add it under Users and Access in your Spotify app.');
+      openSpotifyOwnApp();
+      return false;
+    }
+    if(r.ok){
+      const me=await r.json();
+      if(clientId===SPOTIFY_SHARED_CLIENT_ID) ss('spotifySharedOk',true);
+      if(me.product && me.product!=='premium'){ switchTab('settings'); showSpotifyNotice('premium'); }
+      else showSpotifyNotice(null);
+    }
+    return r.ok;
+  }catch(e){ return false; }
+}
+
 async function spotifyRefreshAccessToken(){
   const refresh=gs('spotifyRefreshToken',null);
-  const clientId=gs('spotifyClientId','');
-  if(!refresh||!clientId) return false;
+  const clientId=gs('spotifyTokenClientId','')||spotifyClientId(); // refresh with the app that issued the token
+  if(!refresh||!SPOTIFY_CLIENT_ID_RE.test(clientId)) return false;
   try{
     const resp=await fetch('https://accounts.spotify.com/api/token',{
       method:'POST',
@@ -4008,7 +4121,7 @@ async function initSpotifySdk(){
       });
       spotifyPlayer.addListener('initialization_error',()=>resolve());
       spotifyPlayer.addListener('authentication_error',()=>{ clearSpotifyTokens(); updateSpotifySettingsUI(); resolve(); });
-      spotifyPlayer.addListener('account_error',()=>{ spotifyShowSnack('Spotify Premium required for playback.'); resolve(); });
+      spotifyPlayer.addListener('account_error',()=>{ spotifyShowSnack('Spotify Premium required for playback.'); showSpotifyNotice('premium'); resolve(); });
       spotifyPlayer.connect();
     };
     const existing=document.querySelector('script[src*="spotify-player"]');
