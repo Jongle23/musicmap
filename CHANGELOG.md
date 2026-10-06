@@ -1,6 +1,20 @@
 # MusicMap Changelog
 
-## v1.2.1 — Current
+## v1.3 — Current
+**Release date:** 2026-10-05
+
+### Added
+- **Local Listening mode**, switched with the new **Biome Packs | Local Listening** control right above the player
+- A draggable listening pin on the Map (or tap the map to move it); **Listen to World** live tracking moves it as you go
+- Channels for the pin's location: **Local Radio** works now (stations near the pin from the free Radio Browser directory, plays with the screen off); **Popular** (labelled with the country, since charts are country-wide), **Made Here** and **Genre Mixes** are marked coming soon
+- Lock-screen / notification controls for radio via the Media Session API (also groundwork for the Android and iOS apps)
+
+### Security
+- Radio directory data is user-submitted: only HTTPS streams, valid station ids and plain-text names are used, and websites open with `noopener`
+
+---
+
+## v1.2.1
 **Release date:** 2026-10-05
 
 ### Added

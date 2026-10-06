@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MusicMap v1.2.1</title>
+<title>MusicMap v1.3</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -384,6 +384,38 @@ body{background:var(--bg)}
 .mi-tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
 .mi-pane{display:none}
 .mi-pane.active{display:block}
+/* ── Mode: Biome Packs vs Local Listening (class on #geovibes-app) ── */
+#geovibes-app.mode-local .packs-only{display:none!important}
+#geovibes-app.mode-packs .local-only{display:none!important}
+#geovibes-app.mode-local #ytContainer{display:none!important}
+.mode-switch{display:flex;gap:4px;width:100%;max-width:520px;box-sizing:border-box;padding:4px;margin:0 0 12px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);position:relative;z-index:1}
+.mode-opt{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;min-height:44px;border:none;border-radius:12px;background:none;color:rgba(255,255,255,.7);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mode-opt .ic{width:18px;height:18px}
+.mode-opt.active{background:#fff;color:#111}
+.mode-opt:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.local-row{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;max-width:520px;padding:0 16px;box-sizing:border-box;position:relative;z-index:1;margin-bottom:8px;text-align:center}
+.local-place{display:flex;align-items:center;justify-content:center;gap:8px;max-width:100%;font-family:var(--pixel);font-size:clamp(10px,2.8vw,14px);color:#fff;text-shadow:2px 2px 0 rgba(0,0,0,.5);line-height:1.6}
+.local-place span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.local-place-sub{font-size:12px;color:rgba(255,255,255,.7);min-height:16px}
+.local-pin-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 14px;border-radius:100px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.3);color:#fff;font-size:12px;cursor:pointer}
+.channel-chips{display:flex;gap:8px;overflow-x:auto;max-width:100%;padding:4px 2px 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.channel-chips::-webkit-scrollbar{display:none}
+.channel-chip{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:6px 14px;border-radius:100px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.3);color:rgba(255,255,255,.85);font-size:12px;cursor:pointer;white-space:nowrap}
+.channel-chip.active{background:#fff;color:#111;border-color:#fff}
+.channel-chip .soon{font-size:9px;padding:2px 6px;border-radius:100px;background:rgba(255,255,255,.18);letter-spacing:.3px}
+.channel-chip.active .soon{background:rgba(0,0,0,.12)}
+.local-list{display:flex;flex-direction:column;gap:6px}
+.local-item{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);text-align:left;cursor:pointer}
+.local-item.active{border-color:var(--accent2);background:rgba(255,255,255,.06)}
+.local-item-ic{flex-shrink:0;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);color:var(--accent2)}
+.local-item-main{flex:1;min-width:0}
+.local-item-name{font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.local-item-sub{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.local-note{font-size:12px;color:var(--muted);line-height:1.6;padding:12px;border:1px dashed var(--border2);border-radius:12px}
+.hero-progress.live .hero-progress-fill{width:100%!important;opacity:.35;transition:none}
+.hero-progress.live #progressTime{color:#fca5a5;font-weight:600}
+.mm-listen-marker{width:38px;height:38px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:#fff;border:3px solid var(--accent,#7c3aed);box-shadow:0 4px 14px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+.mm-listen-marker svg{transform:rotate(45deg);width:18px;height:18px;color:#111}
 /* AI prompt switcher (separate from .mi-tab, which miSwitchTab indexes) */
 .ai-tabs{display:flex;gap:6px;margin-bottom:10px}
 .ai-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:9px;border:1px solid var(--border2);background:none;color:var(--muted);font-size:12px;cursor:pointer}
@@ -465,7 +497,7 @@ body{background:var(--bg)}
         <span id="heroDetectSub" style="font-size:6px;opacity:0.65;letter-spacing:.5px;font-family:var(--pixel)">DETECT MY LOCATION</span>
       </span>
     </button>
-    <div class="hero-btn pack-eyebrow-name" onclick="goToPacks()" role="button" tabindex="0">
+    <div class="hero-btn pack-eyebrow-name packs-only" onclick="goToPacks()" role="button" tabindex="0">
       <span id="packEyebrowIcon" style="font-size:18px;line-height:1">🌿</span>
       <span style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">
         <span id="packEyebrowName" style="font-size:8px;letter-spacing:1px">HOENN PACK</span>
@@ -475,7 +507,7 @@ body{background:var(--bg)}
     </div>
   </div>
   <!-- BIOME ROW -->
-  <div class="hero-biome-row">
+  <div class="hero-biome-row packs-only">
     <span class="hero-biome-emoji" id="biomeEmoji">🌊</span>
     <div class="hero-biome-info">
       <div class="hero-biome-name" id="biomeName">Coastal Route</div>
@@ -485,8 +517,20 @@ body{background:var(--bg)}
       <div class="loc-status" id="locStatus" role="status" aria-live="polite"></div>
     </div>
   </div>
+  <!-- LOCAL LISTENING ROW: where the listening pin is + channels -->
+  <div class="local-row local-only" id="localRow">
+    <div class="local-place"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg><span id="localPlaceName">Choose a spot</span></div>
+    <div class="local-place-sub" id="localPlaceSub" role="status" aria-live="polite"></div>
+    <button class="local-pin-btn" type="button" onclick="openLocalPinOnMap()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg> Move pin</button>
+    <div class="channel-chips" id="channelChips" role="tablist" aria-label="Channels"></div>
+  </div>
   <!-- DIVIDER -->
   <div class="hero-divider"></div>
+  <!-- MODE SWITCH (next to the player) -->
+  <div class="mode-switch" role="tablist" aria-label="Listening mode">
+    <button class="mode-opt active" id="modeBtnPacks" type="button" role="tab" aria-selected="true" onclick="setAppMode('packs')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>Biome Packs</button>
+    <button class="mode-opt" id="modeBtnLocal" type="button" role="tab" aria-selected="false" onclick="setAppMode('local')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>Local Listening</button>
+  </div>
   <!-- NOW PLAYING (integrated) -->
   <div class="hero-player">
     <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe><div class="sp-art" id="spArt" hidden><img class="sp-art-bg" id="spArtBg" alt="" aria-hidden="true"><img class="sp-art-img" id="spArtImg" alt=""></div></div>
@@ -513,7 +557,7 @@ body{background:var(--bg)}
 <div id="mainContent">
 
   <div class="tab-bar">
-    <button class="tab-btn" onclick="switchTab('player')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Biomes</button>
+    <button class="tab-btn" onclick="switchTab('player')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg><span id="tabLabelPlayer">Biomes</span></button>
     <button class="tab-btn active" onclick="switchTab('packs')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><line x1="12" y1="13" x2="12" y2="21"/></svg>Packs</button>
     <button class="tab-btn" onclick="switchTab('map')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>Map</button>
     <button class="tab-btn" onclick="switchTab('settings')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Settings</button>
@@ -521,13 +565,19 @@ body{background:var(--bg)}
 
   <!-- PLAYER TAB -->
   <div id="tab-player" class="tab-pane">
-    <div class="section">
+    <div class="section local-only">
+      <div class="section-header">
+        <div class="section-title" id="localListTitle">CHANNEL</div>
+      </div>
+      <div class="local-list" id="localList"></div>
+    </div>
+    <div class="section packs-only">
       <div class="section-header">
         <div class="section-title">LOCATIONS</div>
       </div>
       <div class="loc-grid" id="locGrid"></div>
     </div>
-    <div class="section">
+    <div class="section packs-only">
       <div class="section-header">
         <div class="section-title" id="trackListLabel">TRACKS</div>
         <div class="pin-status" id="pinStatus"></div>
@@ -1804,10 +1854,11 @@ function ensurePackEditable(packId){
 // ── TRACK / PACK SOURCES ──
 // A track plays from Spotify if it has a spotifyUri, otherwise YouTube if it has a videoId.
 const SOURCE_ORDER=['youtube','spotify','other'];
-const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',other:'Other source'};
+const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',radio:'Local radio',other:'Other source'};
 const SOURCE_ICONS={
   youtube:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg>',
   spotify:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  radio:'<svg class="src-ic" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2" fill="#fca5a5"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>',
   other:'<svg class="src-ic other" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 };
 function trackSource(t){
@@ -1940,6 +1991,8 @@ async function init(){
   updateSpotifySettingsUI();
   syncSpotifyOwnAppUI();
   resumePendingSpotifyLink();
+  applyModeUI();
+  if(appMode==='local') enterLocalMode(false);
 }
 
 function importSharedPack(pack, silent){
@@ -1997,6 +2050,7 @@ function switchTab(id){
       initLeafletMap();
       renderCustomPins();
       if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
+      renderListenPin(true);
     },50);
   }
   if(id==='packs')renderPacksList();
@@ -2155,7 +2209,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.2.1';
+const MM_VERSION = '1.3';
 // Set this to your own PHP API endpoint to enable short server share codes (see README "API Setup").
 // Leave blank to use local MM- encoded share codes only.
 const API_URL = '';
@@ -2754,6 +2808,7 @@ async function pauseTrack(){
   document.getElementById('playingBars').style.display='none';
 }
 async function togglePlay(){
+  if(appMode==='local') return localTogglePlay();
   if(isPlaying){
     isPlaying=false;
     await pauseTrack();
@@ -2772,6 +2827,7 @@ async function togglePlay(){
   }
 }
 function nextTrack(){
+  if(appMode==='local') return localStep(1);
   // Apply pending biome change at track boundary
   if(pendingBiomeId && pendingBiomeId !== currentLocId){
     const bid=pendingBiomeId;
@@ -2791,6 +2847,7 @@ function nextTrack(){
   renderTrackList();updateNowPlaying();if(isPlaying)playCurrentTrack(true);
 }
 function prevTrack(){
+  if(appMode==='local') return localStep(-1);
   const t=currentTracks();
   currentTrackPlayIdx=(currentTrackPlayIdx-1+t.length)%t.length;
   renderTrackList();updateNowPlaying();if(isPlaying)playCurrentTrack(true);
@@ -3243,6 +3300,7 @@ function initLeafletMap(){
   // Click to drop a pin
   leafletMap.on('click', e=>{
     const {lat,lng}=e.latlng;
+    if(appMode==='local'){ moveListenPinTo(lat,lng); return; }
     openLocEdit(null,true,lat,lng);
   });
 
@@ -3251,6 +3309,7 @@ function initLeafletMap(){
 
   // If we already have a location, go there
   if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
+  renderListenPin();
 }
 
 // Accent colours per biome cssClass for radius circles
@@ -3409,6 +3468,13 @@ async function pollLocation(isFirstPoll){
 
     // Update map pin
     updateMapPin(lat,lon);
+
+    // Local Listening: the GPS fix moves the listening pin; biomes don't apply
+    if(appMode==='local'){
+      setListenPoint(lat,lon,'gps',{autoplay:isFirstPoll});
+      if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), nextPoll);
+      return;
+    }
 
     // Custom locations ALWAYS override default biomes — checked first
     const nearby=getAllCustomLocs().find(l=>{
@@ -5151,6 +5217,370 @@ function spotifyShowSnack(msg){
   snack._t=setTimeout(()=>snack.style.opacity='0',3000);
 }
 
+// ═══════════════════════════════════════════
+// LOCAL LISTENING MODE
+// Channels for wherever the listening pin is. The pin is dragged on the map or follows
+// live tracking. Built on web APIs that also work in Android/iOS WebViews (Capacitor):
+// <audio>, Media Session, Geolocation, localStorage via gs/ss.
+// ═══════════════════════════════════════════
+let appMode=gs('appMode','packs')==='local'?'local':'packs';
+let localPoint=null;      // {lat,lon,source:'pin'|'gps',place:{city,region,country,cc}}
+let localChannel='radio';
+let localStations=[], localIdx=-1, localPlaying=false, radioAudio=null;
+let localLoadToken=0, localGeoTimer=null, lastNominatimAt=0, listenMarker=null;
+const localPlaceCache={};
+
+(function restoreLocalPoint(){
+  const p=gs('localPoint',null);
+  if(p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180) localPoint=p;
+  const c=gs('localChannel','radio');
+  localChannel=['popular','made','genres','radio'].includes(c)?c:'radio';
+})();
+
+const LOCAL_CHANNELS=[
+  {id:'popular', label:'Popular', soon:true},
+  {id:'made',    label:'Made Here', soon:true},
+  {id:'genres',  label:'Genre Mixes', soon:true},
+  {id:'radio',   label:'Local Radio'},
+];
+
+function placeLabel(pl){ return pl?[pl.city,pl.region].filter(Boolean).join(', ')||pl.country||'':''; }
+
+// ── Mode switching ──
+function applyModeUI(){
+  const root=document.getElementById('geovibes-app');
+  if(root){ root.classList.toggle('mode-local',appMode==='local'); root.classList.toggle('mode-packs',appMode!=='local'); }
+  [['modeBtnPacks','packs'],['modeBtnLocal','local']].forEach(([id,m])=>{
+    const b=document.getElementById(id); if(!b) return;
+    b.classList.toggle('active',appMode===m); b.setAttribute('aria-selected',appMode===m);
+  });
+  const tl=document.getElementById('tabLabelPlayer'); if(tl) tl.textContent=appMode==='local'?'Channels':'Biomes';
+  const vb=document.getElementById('videoToggleBtn'); if(vb) vb.disabled=appMode==='local';
+}
+async function setAppMode(mode){
+  mode=mode==='local'?'local':'packs';
+  if(mode===appMode) return;
+  appMode=mode; ss('appMode',mode);
+  applyModeUI();
+  if(mode==='local'){
+    // stop pack playback (YouTube or Spotify) before radio takes over
+    if(isPlaying){ isPlaying=false; await pauseTrack(); pauseProgress(); }
+    getActiveIframe().src='';
+    enterLocalMode(true);
+  } else {
+    stopRadio();
+    clearMediaSession();
+    document.querySelector('.hero-progress')?.classList.remove('live');
+    renderListenPin();
+    updateNowPlaying(); renderLocGrid(); renderTrackList();
+  }
+}
+function enterLocalMode(fromSwitch){
+  renderLocalHeader(); renderListenPin();
+  if(localPoint){
+    // never leave pack text in the player while the channel loads
+    setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+(placeLabel(localPoint.place)||'near the pin'));
+    loadLocalChannel();
+  }
+  else {
+    setLocalNowPlaying('Pick a spot to listen','Drag the pin on the Map or turn on live tracking');
+    renderLocalNote('Choose where to listen: tap <b>Move pin</b> and drop the pin anywhere, or tap <b>Listen to World</b> to follow your location.');
+    if(fromSwitch && lastLat!==null) setListenPoint(lastLat,lastLon,trackingActive?'gps':'pin');
+  }
+}
+
+// ── Listening pin ──
+function setListenPoint(lat,lon,source,opts){
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
+  const prev=localPoint;
+  const moved=prev?dist(prev.lat,prev.lon,lat,lon):Infinity;
+  localPoint={lat:+lat.toFixed(5), lon:+lon.toFixed(5), source:source==='gps'?'gps':'pin', place:moved<1500?prev.place:null};
+  ss('localPoint',localPoint);
+  renderListenPin(); renderLocalHeader();
+  clearTimeout(localGeoTimer);
+  // wait for the pin to settle before looking anything up (Nominatim allows ~1 request/second)
+  localGeoTimer=setTimeout(async()=>{
+    const pt=localPoint;
+    if(!pt.place) pt.place=await localGeocode(pt.lat,pt.lon);
+    if(localPoint!==pt) return;
+    ss('localPoint',pt); renderLocalHeader();
+    // channels only need refreshing when the pin really moved
+    if(appMode==='local' && (moved>2000 || !localStations.length || opts?.force)) loadLocalChannel(opts);
+  },700);
+}
+function moveListenPinTo(lat,lon){
+  if(trackingActive){ stopTracking(); spotifyShowSnack('Live tracking off. Listening from the pin.'); }
+  setListenPoint(lat,lon,'pin',{force:true});
+}
+function renderListenPin(fly){
+  if(!leafletMap||typeof L==='undefined') return;
+  if(appMode!=='local'||!localPoint){ if(listenMarker){ leafletMap.removeLayer(listenMarker); listenMarker=null; } return; }
+  if(!listenMarker){
+    const icon=L.divIcon({className:'',iconSize:[38,38],iconAnchor:[19,38],
+      html:'<div class="mm-listen-marker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>'});
+    listenMarker=L.marker([localPoint.lat,localPoint.lon],{icon,draggable:true,zIndexOffset:2000,keyboard:true,title:'Listening pin (drag to move)'}).addTo(leafletMap);
+    listenMarker.on('dragend',()=>{ const ll=listenMarker.getLatLng(); moveListenPinTo(ll.lat,ll.lng); });
+  } else listenMarker.setLatLng([localPoint.lat,localPoint.lon]);
+  if(fly) leafletMap.flyTo([localPoint.lat,localPoint.lon],Math.max(leafletMap.getZoom(),10),{duration:1});
+}
+function openLocalPinOnMap(){
+  switchTab('map');
+  setTimeout(()=>{
+    if(!localPoint){
+      const c=leafletMap?.getCenter();
+      if(lastLat!==null) setListenPoint(lastLat,lastLon,'pin',{force:true});
+      else if(c) setListenPoint(c.lat,c.lng,'pin',{force:true});
+    }
+    renderListenPin(true);
+    spotifyShowSnack('Drag the pin or tap the map to choose where to listen.');
+  },120);
+}
+
+// ── Place names (OpenStreetMap Nominatim, cached, ≤1 request/second) ──
+async function localGeocode(lat,lon){
+  const key=lat.toFixed(2)+','+lon.toFixed(2);
+  if(localPlaceCache[key]) return localPlaceCache[key];
+  const wait=lastNominatimAt+1100-Date.now();
+  if(wait>0) await new Promise(r=>setTimeout(r,wait));
+  lastNominatimAt=Date.now();
+  try{
+    const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1&accept-language=en&lat='+encodeURIComponent(lat)+'&lon='+encodeURIComponent(lon));
+    if(!r.ok) return null;
+    const a=(await r.json()).address||{};
+    const place={
+      city:String(a.city||a.town||a.village||a.municipality||a.county||'').slice(0,60),
+      region:String(a.state||a.region||'').slice(0,60),
+      country:String(a.country||'').slice(0,60),
+      cc:/^[a-z]{2}$/i.test(a.country_code||'')?a.country_code.toLowerCase():''
+    };
+    localPlaceCache[key]=place;
+    return place;
+  }catch(e){ return null; }
+}
+
+// ── Header + channel chips ──
+function renderLocalHeader(){
+  const nameEl=document.getElementById('localPlaceName'), subEl=document.getElementById('localPlaceSub');
+  if(!nameEl) return;
+  const pl=localPoint?.place;
+  nameEl.textContent=!localPoint?'Choose a spot':(placeLabel(pl)||'Finding place…');
+  subEl.textContent=!localPoint?'':
+    [pl?.country||'', localPoint.source==='gps'?'Live tracking':'Pinned spot'].filter(Boolean).join(' · ');
+  const chips=document.getElementById('channelChips');
+  chips.innerHTML='';
+  LOCAL_CHANNELS.forEach(ch=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='channel-chip'+(ch.id===localChannel?' active':'');
+    b.setAttribute('role','tab'); b.setAttribute('aria-selected',ch.id===localChannel);
+    // Popular is country-level: always say which country
+    const label=ch.id==='popular'
+      ? (pl?.country?'Popular in '+pl.country:'Popular in your country')
+      : ch.label;
+    b.append(label);
+    if(ch.soon){ const s=document.createElement('span'); s.className='soon'; s.textContent='SOON'; b.append(s); }
+    b.onclick=()=>selectLocalChannel(ch.id);
+    chips.appendChild(b);
+  });
+}
+function selectLocalChannel(id){
+  if(!LOCAL_CHANNELS.some(c=>c.id===id)) return;
+  localChannel=id; ss('localChannel',id);
+  renderLocalHeader(); loadLocalChannel();
+}
+
+// ── Channel content ──
+function renderLocalNote(html){
+  const list=document.getElementById('localList'); if(!list) return;
+  list.innerHTML='<div class="local-note">'+html+'</div>'; // only ever called with app-written text
+}
+async function loadLocalChannel(opts){
+  const title=document.getElementById('localListTitle');
+  const pl=localPoint?.place;
+  const where=esc(placeLabel(pl)||'this spot');
+  const country=esc(pl?.country||'this country');
+  if(localChannel!=='radio'){
+    title.textContent=localChannel==='popular'?('POPULAR IN '+(pl?.country||'YOUR COUNTRY').toUpperCase()):LOCAL_CHANNELS.find(c=>c.id===localChannel).label.toUpperCase();
+    const notes={
+      popular:'The most-played songs in <b>'+country+'</b>. Charts are country-wide, so this channel changes when the pin crosses a border. Coming next: it needs free Last.fm and YouTube API keys on the server.',
+      made:'Artists from around <b>'+where+'</b>, ranked by how well known they are. Coming soon (no key needed).',
+      genres:'Playlists built from the top genres around <b>'+where+'</b>. Coming after Popular.'
+    };
+    renderLocalNote(notes[localChannel]);
+    if(!localPlaying) setLocalNowPlaying(LOCAL_CHANNELS.find(c=>c.id===localChannel).label+' is coming soon','Try Local Radio for now');
+    return;
+  }
+  // Local Radio
+  title.textContent='STATIONS NEAR '+(pl?.city||'THE PIN').toUpperCase();
+  if(!localPoint){ renderLocalNote('Choose a spot first: tap <b>Move pin</b>.'); return; }
+  const token=++localLoadToken;
+  renderLocalNote('Finding stations near <b>'+where+'</b>…');
+  const stations=await fetchStationsNear(localPoint.lat,localPoint.lon);
+  if(token!==localLoadToken) return; // the pin moved again meanwhile
+  // Keep the selected station (playing or still buffering) when the list refreshes
+  const current=localIdx>=0&&radioAudio?.getAttribute('src')?localStations[localIdx]:null;
+  localStations=stations||[];
+  localIdx=current?localStations.findIndex(s=>s.uuid===current.uuid):-1;
+  if(current&&localIdx<0){ localStations.unshift(current); localIdx=0; } // moved away: keep it listed while it plays
+  if(stations===null){ renderLocalNote('Could not reach the radio directory. Check your connection and try again.'); return; }
+  if(!localStations.length){ renderLocalNote('No stations found within 200 km of <b>'+where+'</b>. Try moving the pin.'); return; }
+  renderLocalList();
+  if(!localPlaying) setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station');
+  if(opts?.autoplay && !localPlaying) playStation(0);
+}
+function renderLocalList(){
+  const list=document.getElementById('localList'); if(!list) return;
+  list.innerHTML='';
+  localStations.forEach((st,i)=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='local-item'+(i===localIdx?' active':'');
+    const icon=document.createElement('span'); icon.className='local-item-ic'; icon.innerHTML=SOURCE_ICONS.radio;
+    const main=document.createElement('span'); main.className='local-item-main';
+    const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=st.name;
+    const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+    sub.textContent=[st.km==null?'':st.km<1?'<1 km':Math.round(st.km)+' km', st.tags].filter(Boolean).join(' · ');
+    main.append(name,sub); b.append(icon,main);
+    if(i===localIdx&&localPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
+    b.onclick=()=>playStation(i);
+    list.appendChild(b);
+  });
+}
+
+// ── Radio Browser (free, open, no key). Several community servers; try them in turn. ──
+const RADIO_SERVERS=['de1','de2','fi1'];
+const RADIO_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const RADIO_SKIP=/\b(weather|noaa|police|scanner|fire ?dept|aviation|atc|traffic)\b/i;
+let radioServer=null;
+async function radioGet(path){
+  const order=radioServer?[radioServer,...RADIO_SERVERS.filter(s=>s!==radioServer)]:RADIO_SERVERS.slice().sort(()=>Math.random()-.5);
+  for(const s of order){
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),8000);
+    try{
+      const r=await fetch('https://'+s+'.api.radio-browser.info'+path,{signal:ctl.signal});
+      clearTimeout(t);
+      if(r.ok){ radioServer=s; return await r.json(); }
+    }catch(e){ clearTimeout(t); }
+  }
+  return null;
+}
+async function fetchStationsNear(lat,lon){
+  let found=[];
+  for(const radius of [50000,200000]){
+    const rows=await radioGet('/json/stations/search?geo_lat='+lat.toFixed(4)+'&geo_long='+lon.toFixed(4)+'&geo_distance='+radius+'&hidebroken=true&is_https=true&order=clickcount&reverse=true&limit=80');
+    if(rows===null) return null;
+    found=cleanStations(rows,lat,lon);
+    if(found.length>=6) break;
+  }
+  return found.slice(0,40);
+}
+// Directory data is user-submitted: keep only well-formed fields, HTTPS streams, no duplicates
+function cleanStations(rows,lat,lon){
+  const seen=new Set(), out=[];
+  for(const r of (Array.isArray(rows)?rows:[])){
+    const url=String(r.url_resolved||'');
+    const name=String(r.name||'').replace(/\s+/g,' ').trim().slice(0,80);
+    if(!RADIO_UUID.test(r.stationuuid||'') || !/^https:\/\//i.test(url) || !name) continue;
+    if(RADIO_SKIP.test(name+' '+(r.tags||''))) continue;
+    const k=name.toLowerCase(); if(seen.has(k)) continue; seen.add(k);
+    const slat=Number(r.geo_lat), slon=Number(r.geo_long);
+    const homepage=String(r.homepage||'');
+    out.push({
+      uuid:r.stationuuid, name, url,
+      tags:String(r.tags||'').split(',').map(t=>t.trim()).filter(Boolean).slice(0,3).join(', ').slice(0,60),
+      km:Number.isFinite(slat)&&Number.isFinite(slon)&&(slat||slon)?dist(lat,lon,slat,slon)/1000:null,
+      homepage:/^https?:\/\//i.test(homepage)?homepage:'',
+      favicon:/^https:\/\//i.test(r.favicon||'')?String(r.favicon):''
+    });
+  }
+  return out;
+}
+
+// ── Radio playback: plain <audio>, so it keeps playing with the screen off ──
+function ensureRadioAudio(){
+  if(radioAudio) return radioAudio;
+  radioAudio=new Audio(); radioAudio.preload='none';
+  radioAudio.addEventListener('playing',()=>{ localPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; updateLocalSub(); renderLocalList(); });
+  radioAudio.addEventListener('waiting',()=>updateLocalSub('Buffering…'));
+  radioAudio.addEventListener('pause',()=>{ localPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderLocalList(); });
+  radioAudio.addEventListener('error',()=>{
+    if(!radioAudio.getAttribute('src')) return;
+    localPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none';
+    updateLocalSub('This station isn’t working right now. Try the next one.');
+    renderLocalList();
+  });
+  return radioAudio;
+}
+function playStation(i){
+  const st=localStations[i]; if(!st) return;
+  localIdx=i;
+  const a=ensureRadioAudio();
+  a.src=st.url;
+  a.play().catch(()=>{ updateLocalSub('Tap play to start'); });
+  setLocalNowPlaying(st.name,'Local Radio · '+(placeLabel(localPoint?.place)||'near the pin'));
+  const yb=document.getElementById('npYtBtn');
+  yb.disabled=!st.homepage; yb.title='Station website'; yb.setAttribute('aria-label','Station website');
+  yb.onclick=st.homepage?()=>window.open(st.homepage,'_blank','noopener'):null;
+  setRadioMediaSession(st);
+  renderLocalList();
+  // Radio Browser asks apps to report plays (it also keeps its popularity ranking honest)
+  if(radioServer) fetch('https://'+radioServer+'.api.radio-browser.info/json/url/'+st.uuid,{keepalive:true}).catch(()=>{});
+}
+function stopRadio(){
+  if(!radioAudio) return;
+  radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load();
+  localPlaying=false;
+}
+function localTogglePlay(){
+  if(localChannel!=='radio'){ selectLocalChannel('radio'); return; }
+  if(localPlaying){ radioAudio?.pause(); return; }
+  if(localIdx>=0&&radioAudio?.getAttribute('src')){ radioAudio.play().catch(()=>{}); return; }
+  if(localStations.length) playStation(Math.max(0,localIdx));
+  else if(localPoint) loadLocalChannel({autoplay:true});
+  else openLocalPinOnMap();
+}
+function localStep(dir){
+  if(!localStations.length) return;
+  playStation(((localIdx<0?0:localIdx+dir)%localStations.length+localStations.length)%localStations.length);
+}
+
+// ── Now playing in Local Listening ──
+function setLocalNowPlaying(title,sub){
+  document.getElementById('npTrack').textContent=title;
+  document.getElementById('npGame').textContent=sub||'';
+  const src=document.getElementById('npSource'); src.innerHTML=SOURCE_ICONS.radio; src.title='Local radio';
+  stopProgress();
+  const prog=document.querySelector('.hero-progress'); prog.classList.add('live');
+  document.getElementById('progressTime').textContent='● LIVE';
+  document.getElementById('progressDur').textContent='';
+  setPlayIcon(localPlaying);
+}
+function updateLocalSub(msg){
+  const st=localStations[localIdx];
+  document.getElementById('npGame').textContent=msg||('Local Radio · '+(placeLabel(localPoint?.place)||'near the pin')+(st?.tags?' · '+st.tags:''));
+}
+
+// ── Lock-screen / notification controls (Media Session; also used by the native app later) ──
+function setRadioMediaSession(st){
+  if(!('mediaSession' in navigator)) return;
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({
+      title:st.name, artist:'Local Radio', album:placeLabel(localPoint?.place)||'MusicMap',
+      artwork:st.favicon?[{src:st.favicon,sizes:'256x256'}]:[]
+    });
+    navigator.mediaSession.setActionHandler('play',()=>localTogglePlay());
+    navigator.mediaSession.setActionHandler('pause',()=>radioAudio?.pause());
+    navigator.mediaSession.setActionHandler('nexttrack',()=>localStep(1));
+    navigator.mediaSession.setActionHandler('previoustrack',()=>localStep(-1));
+  }catch(e){}
+}
+function clearMediaSession(){
+  if(!('mediaSession' in navigator)) return;
+  try{
+    navigator.mediaSession.metadata=null;
+    ['play','pause','nexttrack','previoustrack'].forEach(a=>navigator.mediaSession.setActionHandler(a,null));
+  }catch(e){}
+}
+
+
 init();
 </script>
 <!-- SHARE PACK MODAL -->
@@ -5437,7 +5867,7 @@ Rules:
   </div>
 </div>
 <div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.2.1</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.3</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a></div>
 </div>
 </div><!-- #geovibes-app -->

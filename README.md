@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.2.1
+# 🎵 MusicMap v1.3
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -73,7 +73,7 @@ To enable 6-character share codes:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.2.1"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.3"}`
 5. In `musicmap.html`, find `const API_URL` and set it to `'https://yoursite.com/?mm_action='`
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -113,9 +113,11 @@ AIs can't open Spotify links, so the Spotify prompt sorts songs you already have
 
 ## 🔜 Coming Soon: Local Music Vibes Mode
 
-A second mode, switched from the menu, that plays real-world music from wherever you are instead of game packs. Drag the pin anywhere on the map, or turn on live tracking and let it follow you:
+**Started in v1.3:** the **Biome Packs | Local Listening** switch sits above the player. Local Listening has a draggable pin and live tracking, and the **Local Radio** channel works today. The other channels are next.
 
-- **Popular Here** — the most-played songs in that country right now
+A second mode that plays real-world music from wherever you are instead of game packs. Drag the pin anywhere on the map, or turn on live tracking and let it follow you:
+
+- **Popular** — the most-played songs in that country right now (always labelled with the country)
 - **Made Here** — artists from that city or nearby, ranked by how well known they are
 - **Genre Mixes** — playlists built from the area's top genres
 - **Local Radio** — live stations broadcasting near the pin, which keep playing with the screen off
