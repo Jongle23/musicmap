@@ -113,13 +113,14 @@ AIs can't open Spotify links, so the Spotify prompt sorts songs you already have
 
 ## 🔜 Coming Soon: Local Music Vibes Mode
 
-A second mode, switched from the menu, that plays real-world music from wherever you are instead of game packs:
+A second mode, switched from the menu, that plays real-world music from wherever you are instead of game packs. Drag the pin anywhere on the map, or turn on live tracking and let it follow you:
 
-- **Made Here** — artists who originated in your city, region or country
-- **Most Popular Here** — your country's charts
-- **Genre Popular Songs** — genre playlists built from local top artists
+- **Popular Here** — the most-played songs in that country right now
+- **Made Here** — artists from that city or nearby, ranked by how well known they are
+- **Genre Mixes** — playlists built from the area's top genres
+- **Local Radio** — live stations broadcasting near the pin, which keep playing with the screen off
 
-It will run on the same `musicmap-api.php`, extended with routes that look up music from MusicBrainz, Last.fm and YouTube. An early prototype lives in `alpha/` and isn't part of the live app yet.
+It will use free data sources only (Apple Music charts, Last.fm, Wikidata, MusicBrainz, Radio Browser, YouTube's free quota), looked up through the same `musicmap-api.php` with server-side caching. Most-popular charts are country-level, because no free source has city-level charts; Made Here and Local Radio are city-level. An early prototype lives in `alpha/` and isn't part of the live app yet.
 
 ---
 
