@@ -1,6 +1,17 @@
 # MusicMap Changelog
 
-## v1.2 — Current
+## v1.2.1 — Current
+**Release date:** 2026-10-05
+
+### Added
+- Album art while Spotify plays: Spotify gives apps no video, so the video button shows the album cover (over a blurred copy) in the same 16:9 slot
+
+### Fixed
+- Spotify album art from `image-cdn-*.spotifycdn.com` was blocked; both of Spotify's image hosts are now allowed
+
+---
+
+## v1.2
 **Release date:** 2026-10-05
 
 ### Added

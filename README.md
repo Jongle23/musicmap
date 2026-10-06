@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.2
+# 🎵 MusicMap v1.2.1
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -73,7 +73,7 @@ To enable 6-character share codes:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.2"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.2.1"}`
 5. In `musicmap.html`, find `const API_URL` and set it to `'https://yoursite.com/?mm_action='`
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).

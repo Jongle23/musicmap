@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MusicMap v1.2</title>
+<title>MusicMap v1.2.1</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -80,6 +80,12 @@ body{background:var(--bg)}
 /* nowPlayingCard removed — now inside heroBanner */
 #ytContainer{display:none;width:100%;border-radius:12px;overflow:hidden;background:#000;margin-bottom:14px}
 #ytContainer iframe{width:100%;aspect-ratio:16/9;height:auto;border:none;display:block}
+/* Spotify has no video for apps — show the album art in the same 16:9 slot instead */
+#ytContainer.sp-mode iframe{display:none}
+.sp-art{position:relative;aspect-ratio:16/9;overflow:hidden;background:#000}
+.sp-art[hidden]{display:none}
+.sp-art-bg{position:absolute;inset:-10%;width:120%;height:120%;object-fit:cover;filter:blur(22px) brightness(.5);transform:scale(1.05)}
+.sp-art-img{position:relative;display:block;height:86%;aspect-ratio:1;object-fit:cover;margin:3.5% auto 0;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.55)}
 
 /* hero player section */
 /* Mobile-first: one circular button family, 44px+ touch targets, symmetric row:
@@ -477,7 +483,7 @@ body{background:var(--bg)}
   <div class="hero-divider"></div>
   <!-- NOW PLAYING (integrated) -->
   <div class="hero-player">
-    <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe></div>
+    <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe><div class="sp-art" id="spArt" hidden><img class="sp-art-bg" id="spArtBg" alt="" aria-hidden="true"><img class="sp-art-img" id="spArtImg" alt=""></div></div>
     <div class="hero-np-head">
       <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-np-track" id="npTrack">Route 104</div>
@@ -2142,7 +2148,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.2';
+const MM_VERSION = '1.2.1';
 // Set this to your own PHP API endpoint to enable short server share codes (see README "API Setup").
 // Leave blank to use local MM- encoded share codes only.
 const API_URL = '';
@@ -2789,8 +2795,15 @@ function toggleVideo(){
   const btn=document.getElementById('videoToggleBtn');
   btn.classList.toggle('active',videoVisible);
   btn.setAttribute('aria-pressed',videoVisible);
-  btn.setAttribute('aria-label',videoVisible?'Hide video':'Show video');
-  btn.title=videoVisible?'Hide video':'Show video';
+  updateVideoToggleLabel();
+}
+// The same button shows YouTube video, or album art while Spotify plays
+function updateVideoToggleLabel(){
+  const btn=document.getElementById('videoToggleBtn');
+  if(!btn) return;
+  const what=spotifyActive?'album art':'video';
+  const label=(videoVisible?'Hide ':'Show ')+what;
+  btn.setAttribute('aria-label',label); btn.title=label;
 }
 let progressTrackStart=0; // wall-clock ms when track started playing
 let progressTrackDur=0;
@@ -4648,6 +4661,8 @@ async function initSpotifySdk(){
       spotifyPlayer.addListener('not_ready',()=>{ spotifyReady=false; updateSpotifySettingsUI(); });
       spotifyPlayer.addListener('player_state_changed',state=>{
         if(!state||!spotifyActive) return;
+        const cur=state.track_window?.current_track;
+        if(cur) setSpotifyArt(cur.album?.images, cur.album?.name);
         if(state.paused && state.position===0 && !state.loading){ nextTrack(); }
       });
       // e.g. no Widevine/DRM (some embedded or privacy browsers) — say so instead of "Connecting…" forever
@@ -4702,8 +4717,28 @@ function setNowPlayingSource(t, viaSpotify){
   el.innerHTML=src?SOURCE_ICONS[src]:'';
   el.title=src?'Playing from '+SOURCE_LABELS[src]:'';
 }
+// Album art from the Spotify SDK's player state. Only Spotify's own image host is accepted.
+const SPOTIFY_ART_RE=/^https:\/\/(?:i\.scdn\.co|image-cdn-[a-z]{2}\.spotifycdn\.com)\/image\/[A-Za-z0-9]+$/;
+function setSpotifyArt(images, albumName){
+  const imgs=(Array.isArray(images)?images:[]).filter(i=>SPOTIFY_ART_RE.test(String(i?.url||'')));
+  if(!imgs.length) return;
+  // biggest image up to 640px (the SDK lists sizes; 640 is plenty for this slot)
+  const pick=imgs.filter(i=>(i.width||i.size||0)<=640).sort((a,b)=>(b.width||0)-(a.width||0))[0]||imgs[0];
+  const small=imgs.slice().sort((a,b)=>(a.width||0)-(b.width||0))[0];
+  const img=document.getElementById('spArtImg'), bg=document.getElementById('spArtBg');
+  if(img.src!==pick.url){ img.src=pick.url; bg.src=small.url; }
+  img.alt=albumName?'Album art: '+albumName:'Album art';
+}
+function showSpotifyArtMode(on){
+  document.getElementById('ytContainer')?.classList.toggle('sp-mode',on);
+  const art=document.getElementById('spArt');
+  if(art) art.hidden=!on;
+  if(!on){ const img=document.getElementById('spArtImg'); if(img){ img.removeAttribute('src'); document.getElementById('spArtBg').removeAttribute('src'); } }
+  updateVideoToggleLabel();
+}
 function updateSpotifyNowPlaying(active, t){
   setNowPlayingSource(t, active);
+  showSpotifyArtMode(!!active);
   const btn=document.getElementById('npYtBtn');
   if(!btn) return;
   const id=active&&t?.spotifyUri?String(t.spotifyUri).split(':').pop():'';
@@ -4869,7 +4904,7 @@ function renderSpotifyPickerResults(items){
         <div style="font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</div>
         <div style="font-size:11px;color:var(--muted)">${esc(artists)} · ${fmt(dur)}</div>
       </div>
-      ${/^https:\/\/i\.scdn\.co\//.test(art)?`<img src="${esc(art)}" alt="" style="width:36px;height:36px;border-radius:4px;object-fit:cover;flex-shrink:0">`:''}
+      ${SPOTIFY_ART_RE.test(art)?`<img src="${esc(art)}" alt="" style="width:36px;height:36px;border-radius:4px;object-fit:cover;flex-shrink:0">`:''}
     `;
     div.onclick=()=>addSpotifyTrackToPack(item,div);
     listEl.appendChild(div);
@@ -5202,7 +5237,7 @@ Rules:
   </div>
 </div>
 <div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.2</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.2.1</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a></div>
 </div>
 </div><!-- #geovibes-app -->
