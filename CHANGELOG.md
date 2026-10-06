@@ -6,10 +6,14 @@
 ### Added
 - Spotify links work in **Make a Pack** just like YouTube links: paste a Spotify playlist, album or track link and every song comes in automatically. The link box tells you what it detected; without Spotify connected it warns about Premium + a developer Client ID, and after sign-in the link is waiting for you
 - Packs can mix YouTube videos and Spotify links
+- Two AI prompts in Import: **YouTube** builds a pack from links + timestamps (now including Home/Work/School/Gym), **Spotify** writes a pack's song list into a prompt so an AI can sort the songs into places; paste the answer back to apply it
 - Album art while Spotify plays: Spotify gives apps no video, so the video button shows the album cover (over a blurred copy) in the same 16:9 slot
 
 ### Changed
 - The separate Spotify import tab is gone; Spotify links go in the same box as YouTube links
+
+### Security
+- AI answers are treated as untrusted: only valid YouTube ids, cleaned track fields, known places and in-range song numbers are kept
 
 ### Fixed
 - Spotify songs in multi-video packs no longer inherit a YouTube video id

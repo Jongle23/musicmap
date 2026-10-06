@@ -95,15 +95,19 @@ Spotify tracks play in the browser through Spotify's Web Playback SDK, which nee
 
 ## 🤖 AI Pack Builder
 
-MusicMap includes a built-in prompt for generating packs with any AI assistant:
+MusicMap includes two built-in prompts for any AI assistant (ChatGPT, Claude, Gemini…), under **Packs → Make or Import Pack → Import**:
 
+**YouTube — build a pack**
 1. Find a full game OST on YouTube
-2. Open **Packs → Make or Import Pack → Import**
-3. Tap **Copy prompt**, fill in the YouTube URL and timestamps
-4. Paste into ChatGPT, Claude, Gemini or any AI
-5. Paste the JSON response back into the Import box
+2. Choose **YouTube**, tap **Copy YouTube prompt**, fill in the URL(s) and timestamps
+3. Paste the AI's JSON answer back into the Import box
 
-The AI format supports multiple videos and playlists.
+**Spotify — sort a pack's songs into places**
+1. Add a Spotify playlist, album or track link in **Make a Pack** and save it
+2. Choose **Spotify**, pick the pack, tap **Copy Spotify prompt** (it includes the song list)
+3. Paste the AI's JSON answer back into the Import box; it replaces that pack's places
+
+AIs can't open Spotify links, so the Spotify prompt sorts songs you already have instead of inventing new ones. Both formats cover the 9 biomes plus Home, Work, School and Gym.
 
 ---
 

@@ -384,6 +384,11 @@ body{background:var(--bg)}
 .mi-tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
 .mi-pane{display:none}
 .mi-pane.active{display:block}
+/* AI prompt switcher (separate from .mi-tab, which miSwitchTab indexes) */
+.ai-tabs{display:flex;gap:6px;margin-bottom:10px}
+.ai-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:9px;border:1px solid var(--border2);background:none;color:var(--muted);font-size:12px;cursor:pointer}
+.ai-tab.active{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3)}
+.ai-help{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5}
 
 /* playlist resolve status */
 .url-resolve-row{display:flex;align-items:flex-start;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px}
@@ -4035,6 +4040,7 @@ function openMakeImportModal(){
   document.getElementById('miImportInput').value = '';
   document.getElementById('miImportPreview').classList.remove('visible');
   document.getElementById('miImportFlash').textContent = '';
+  miAiTab('yt');
   renderMiEmojiPicker();
   renderMiVideoList();
   miSwitchTab('make');
@@ -4323,6 +4329,16 @@ function miPreviewImport(){
   if(raw.startsWith('{')){
     try{
       const j=JSON.parse(raw);
+      const sort=parseAiSort(j);
+      if(sort){
+        if(sort.error){ nameEl.textContent='⚠ '+sort.error; metaEl.textContent=''; }
+        else {
+          nameEl.textContent='AI sort for '+sort.pack.name;
+          metaEl.textContent=sort.placed+' of '+sort.total+' songs placed across '+sort.used+' places ('+(sort.total-sort.placed)+' left out). Importing replaces this pack\'s current places.';
+        }
+        preview.classList.add('visible');
+        return;
+      }
       // Handle multi-video AI format
       const pack=miNormaliseAiJson(j);
       if(pack){
@@ -4356,8 +4372,20 @@ async function miDoImport(){
   let pack=null;
 
   if(raw.startsWith('{')){
-    try{const j=JSON.parse(raw);pack=miNormaliseAiJson(j);}
-    catch(e){flash.textContent='❌ Invalid JSON';return;}
+    let j;
+    try{ j=JSON.parse(raw); }catch(e){flash.textContent='❌ Invalid JSON';return;}
+    const sort=parseAiSort(j);
+    if(sort){
+      if(sort.error){ flash.textContent='❌ '+sort.error; return; }
+      applyAiSort(sort);
+      flash.textContent='✓ Sorted '+sort.placed+' songs in "'+sort.pack.name+'"';
+      document.getElementById('miImportInput').value='';
+      document.getElementById('miImportPreview').classList.remove('visible');
+      document.getElementById('makeImportOverlay').classList.remove('open');
+      setTimeout(()=>flash.textContent='',3000);
+      return;
+    }
+    pack=miNormaliseAiJson(j);
     if(!pack){flash.textContent='❌ Missing required fields';return;}
   } else if(!raw.startsWith('MM-')&&API_URL){
     try{pack=await ShareBackend.loadFromServer(raw);}
@@ -4395,36 +4423,141 @@ function miNormaliseAiJson(j){
   const BN={beach:'Beach',city:'City',forest:'Forest',mountain:'Mountain',desert:'Desert',town:'Town',ocean:'Ocean',shopping:'Shopping',port:'Port'};
 
   // Multi-video format (new) or legacy single-video
+  // AI output is untrusted: keep only well-formed video ids, tracks and indices
+  const YT_ID=/^[A-Za-z0-9_-]{11}$/;
+  const vidOf=v=>{ const id=String(v?.videoId||'').trim(); if(YT_ID.test(id)) return id;
+    const m=String(v?.url||'').match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/); return m?m[1]:''; };
+  const cleanTracks=arr=>(Array.isArray(arr)?arr:[]).filter(t=>t&&t.title).map(t=>({
+    title:String(t.title).slice(0,200),
+    start:Math.max(0,Math.floor(Number(t.start)||0)),
+    dur:Math.min(3600,Math.max(1,Math.floor(Number(t.dur)||300)))
+  }));
   let videos=[], allTracks=[];
   if(j.videos&&Array.isArray(j.videos)){
-    videos=j.videos.map(v=>({id:v.videoId||v.url?.match(/([A-Za-z0-9_-]{11})/)?.[1]||'',tracks:v.tracks||[]}));
+    videos=j.videos.map(v=>({id:vidOf(v),tracks:cleanTracks(v.tracks)})).filter(v=>v.id);
     allTracks=videos.flatMap(v=>v.tracks);
-  } else if(j.tracks&&j.videoId){
-    videos=[{id:j.videoId,tracks:j.tracks}];
-    allTracks=j.tracks;
+  } else if(j.tracks&&j.videoId&&YT_ID.test(String(j.videoId))){
+    videos=[{id:String(j.videoId),tracks:cleanTracks(j.tracks)}];
+    allTracks=videos[0].tracks;
   } else return null;
+  if(!videos.length||!allTracks.length) return null;
 
-  const biomes=Object.entries(j.biomes||{}).map(([id,tracks])=>({
-    id, name:BN[id]||id, emoji:BD[id]?.emoji||'📍',
-    cssClass:BD[id]?.cssClass||'biome-custom',
-    keywords:BD[id]?.keywords||[], defaultTracks:Array.isArray(tracks)?tracks:[],
+  const n=allTracks.length;
+  const idx=arr=>[...new Set((Array.isArray(arr)?arr:[]).filter(i=>Number.isInteger(i)&&i>=0&&i<n))];
+  const src=(j.biomes&&typeof j.biomes==='object')?j.biomes:{};
+  const biomes=Object.keys(BN).map(id=>({
+    id, name:BN[id], emoji:BD[id].emoji, cssClass:BD[id].cssClass,
+    keywords:BD[id].keywords, defaultTracks:idx(src[id]),
   }));
+  // Home/Work/School/Gym aren't pack biomes; importSharedPack stores _locTracks as the pack's place lists
+  const presets={};
+  ['home','work','school','gym'].forEach(id=>{ if(src[id]!==undefined) presets[id]=idx(src[id]); });
 
   return{
-    id:'ai_'+Date.now(), name:j.name, subtitle:j.subtitle||'',
-    icon:j.icon||'🎵', videoId:videos[0]?.id||'',
-    source:j.subtitle||'Custom Pack', builtin:false,
+    id:'ai_'+Date.now(), name:String(j.name).slice(0,60), subtitle:String(j.subtitle||'').slice(0,60),
+    icon:String(j.icon||'🎵').slice(0,8), videoId:videos[0].id,
+    source:String(j.subtitle||'Custom Pack').slice(0,60), builtin:false,
     videos, tracks:allTracks, biomes,
+    ...(Object.keys(presets).length?{_locTracks:presets}:{}),
   };
 }
 
-function miCopyPrompt(){
-  const txt=document.getElementById('miAiPrompt').textContent;
+function miCopyPrompt(id){
+  const box=document.getElementById(id||'miAiPrompt');
+  const txt=box?.textContent||'';
+  const el=document.getElementById('miPromptFlash');
+  if(!txt||box.dataset.empty){ el.textContent='Nothing to copy yet.'; return; }
   navigator.clipboard.writeText(txt).then(()=>{
-    const el=document.getElementById('miPromptFlash');
     el.textContent='✓ Prompt copied!';
     setTimeout(()=>el.textContent='',2500);
-  });
+  }).catch(()=>{ el.textContent='Copy failed. Select the prompt and copy it manually.'; });
+}
+
+// ── AI prompts: YouTube (build a pack) / Spotify (sort an existing pack's songs) ──
+const AI_PLACES=[
+  ['beach','sunny, breezy, summery'],['city','busy, night lights, club'],['forest','calm, natural, organic'],
+  ['mountain','epic, climbing, heavy'],['desert','dry, hypnotic, hazy'],['town','friendly, everyday, singalong'],
+  ['ocean','vast, flowing, spacious'],['shopping','upbeat, catchy, playful'],['port','industrial, gritty, mechanical'],
+  ['home','cozy, soft, relaxed'],['work','focused, instrumental'],['school','light, youthful, nerdy'],['gym','high energy, hype']
+];
+const AI_PRESETS=['home','work','school','gym'];
+function miAiTab(which){
+  const yt=which!=='sp';
+  document.getElementById('aiPaneYt').hidden=!yt;
+  document.getElementById('aiPaneSp').hidden=yt;
+  document.getElementById('aiTabYt').classList.toggle('active',yt);
+  document.getElementById('aiTabSp').classList.toggle('active',!yt);
+  document.getElementById('aiTabYt').setAttribute('aria-selected',yt);
+  document.getElementById('aiTabSp').setAttribute('aria-selected',!yt);
+  if(!yt) miFillSpotifyPackSelect();
+}
+function packsWithSpotify(){ return getAllPacks().filter(p=>getAllPackTracks(p).some(t=>t.spotifyUri)); }
+function miFillSpotifyPackSelect(){
+  const sel=document.getElementById('miAiSpPack');
+  const keep=sel.value;
+  sel.innerHTML='';
+  const packs=packsWithSpotify();
+  packs.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name+' ('+getAllPackTracks(p).length+' songs)'; sel.appendChild(o); });
+  if(packs.some(p=>p.id===keep)) sel.value=keep;
+  else if(packs.some(p=>p.id===getPackId())) sel.value=getPackId();
+  sel.disabled=!packs.length;
+  miBuildSpotifyPrompt();
+}
+function miBuildSpotifyPrompt(){
+  const box=document.getElementById('miAiPromptSp');
+  const pack=packsWithSpotify().find(p=>p.id===document.getElementById('miAiSpPack').value);
+  if(!pack){
+    box.textContent='No packs with Spotify songs yet. Add a Spotify playlist, album or track link in Make a Pack first.';
+    box.dataset.empty='1'; return;
+  }
+  delete box.dataset.empty;
+  const tracks=getAllPackTracks(pack);
+  const minPer=Math.max(1,Math.min(10,Math.floor(tracks.length/AI_PLACES.length)));
+  const example='{\n  "musicmapSort": 1,\n  "packId": '+JSON.stringify(pack.id)+',\n  "places": {\n'
+    +AI_PLACES.map(([id],i)=>'    "'+id+'": ['+(i*3)+','+(i*3+1)+','+(i*3+2)+']').join(',\n')+'\n  }\n}';
+  box.textContent=[
+    'Sort these songs into MusicMap places.',
+    '',
+    'MusicMap plays music that matches where the listener is. Put each song in the place whose mood fits it best:',
+    AI_PLACES.map(([id,mood])=>'- '+id+': '+mood).join('\n'),
+    '',
+    'Pack: '+pack.name,
+    'Songs (index. title — artist):',
+    tracks.map((t,i)=>i+'. '+String(t.title).replace(/\s+/g,' ')).join('\n'),
+    '',
+    'Rules:',
+    '- Put each song in exactly one place. If a song doesn\'t clearly fit anywhere, leave it out.',
+    '- Aim for at least '+minPer+' songs in every place.',
+    '- Use only the index numbers listed above (0 to '+(tracks.length-1)+').',
+    '- Keep "packId" exactly as shown.',
+    '',
+    'Return ONLY valid JSON, no explanation:',
+    example
+  ].join('\n');
+}
+
+// ── Applying an AI sort answer ({"musicmapSort":1,"packId":…,"places":{…}}) ──
+// The answer is untrusted text: only known places and in-range integer indices are kept.
+function parseAiSort(j){
+  if(!j || j.musicmapSort===undefined || typeof j.places!=='object' || !j.places) return null;
+  const pack=getAllPacks().find(p=>p.id===j.packId);
+  if(!pack) return {error:'That answer is for a pack that isn\'t on this device.'};
+  const n=getAllPackTracks(pack).length;
+  const places={}; const seen=new Set();
+  for(const [id] of AI_PLACES){
+    const arr=Array.isArray(j.places[id])?j.places[id]:[];
+    places[id]=[...new Set(arr.filter(i=>Number.isInteger(i)&&i>=0&&i<n))];
+    places[id].forEach(i=>seen.add(i));
+  }
+  return {pack, places, placed:seen.size, total:n, used:Object.values(places).filter(a=>a.length).length};
+}
+function applyAiSort(sort){
+  const key=packKey(sort.pack.id,'locTracks');
+  const ov=gs(key,{});
+  for(const [id] of AI_PLACES) ov[id]=sort.places[id];
+  ss(key,ov);
+  activatePack(sort.pack.id);
+  renderLocGrid();
 }
 
 // ── REDIRECT old entry points ──
@@ -5115,14 +5248,22 @@ init();
         <button class="btn-primary" style="width:100%;margin-bottom:14px" onclick="miDoImport()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Import Pack</button>
         <div class="copy-flash" id="miImportFlash" style="margin-bottom:10px"></div>
 
-        <!-- AI prompt -->
+        <!-- AI prompts: YouTube builds a pack, Spotify sorts an existing pack's songs -->
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
-          <div style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1px;margin-bottom:8px"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5Z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></svg> AI PACK BUILDER PROMPT</div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">Ask any AI (ChatGPT, Claude, Gemini) to generate a pack. Fill in the URL(s) and timestamps, then paste the JSON back here.</div>
-          <div id="miAiPrompt" style="background:rgba(0,0,0,.4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:rgba(255,255,255,.75);font-family:'Courier New',monospace;line-height:1.7;white-space:pre-wrap;cursor:pointer;user-select:all;margin-bottom:8px" onclick="miCopyPrompt()">Convert this YouTube OST into MusicMap JSON.
+          <div style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1px;margin-bottom:10px"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5Z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></svg> AI PACK BUILDER PROMPTS</div>
+          <div class="ai-tabs" role="tablist">
+            <button class="ai-tab active" id="aiTabYt" type="button" role="tab" aria-selected="true" onclick="miAiTab('yt')"><svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg> YouTube</button>
+            <button class="ai-tab" id="aiTabSp" type="button" role="tab" aria-selected="false" onclick="miAiTab('sp')"><svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg> Spotify</button>
+          </div>
+          <div id="aiPaneYt">
+            <div class="ai-help">Ask any AI (ChatGPT, Claude, Gemini) to build a pack. Fill in the YouTube link(s) and timestamps, then paste the JSON answer in the box above.</div>
+            <div id="miAiPrompt" style="background:rgba(0,0,0,.4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:rgba(255,255,255,.75);font-family:'Courier New',monospace;line-height:1.7;white-space:pre-wrap;cursor:pointer;user-select:all;margin-bottom:8px;max-height:240px;overflow:auto" onclick="miCopyPrompt('miAiPrompt')">Convert this YouTube soundtrack into a MusicMap pack.
 
 Videos / Playlists: [PASTE ONE OR MORE URLS]
 Timestamps: [PASTE CHAPTER LIST — one per video if multiple]
+
+MusicMap plays music that matches where the listener is. Sort the tracks into these places by mood:
+beach (sunny, breezy) · city (busy, night lights) · forest (calm, natural) · mountain (epic, climbing) · desert (dry, hypnotic) · town (friendly, everyday) · ocean (vast, flowing) · shopping (upbeat, playful) · port (industrial, gritty) · home (cozy) · work (focused) · school (light, youthful) · gym (high energy)
 
 Return ONLY valid JSON, no explanation:
 {
@@ -5131,8 +5272,7 @@ Return ONLY valid JSON, no explanation:
   "icon": "emoji",
   "videos": [
     {
-      "url": "https://youtube.com/watch?v=...",
-      "videoId": "abc123",
+      "videoId": "abc123def45",
       "tracks": [
         {"title": "Track Name", "start": 0, "dur": 120}
       ]
@@ -5141,17 +5281,27 @@ Return ONLY valid JSON, no explanation:
   "biomes": {
     "beach": [0,3], "city": [1,4], "forest": [2,5],
     "mountain": [6], "desert": [8], "town": [9,10],
-    "ocean": [11], "shopping": [12], "port": [13]
+    "ocean": [11], "shopping": [12], "port": [13],
+    "home": [7], "work": [14], "school": [15], "gym": [16]
   }
 }
 
 Rules:
+- videoId = the 11-character id from the YouTube URL
 - Each playlist video = one track (title = video title, start=0, dur=300)
 - "start" = seconds from video start
 - "dur" = seconds to next track (max 300)
 - biome arrays = track indices across ALL videos combined (0-based, flat)
+- Prefer one place per track; give every place at least one track
 - icon = single emoji for the game/music theme</div>
-          <button class="pill-btn" style="width:100%;padding:9px" onclick="miCopyPrompt()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg> Copy prompt</button>
+            <button class="pill-btn" style="width:100%;padding:9px" type="button" onclick="miCopyPrompt('miAiPrompt')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg> Copy YouTube prompt</button>
+          </div>
+          <div id="aiPaneSp" hidden>
+            <div class="ai-help">An AI can't open Spotify links, so this prompt sorts songs you've already added. Pick a pack with Spotify songs (add a Spotify link in Make a Pack first), copy the prompt, then paste the AI's JSON answer in the box above to place the songs in biomes.</div>
+            <select class="form-input" id="miAiSpPack" style="margin-bottom:8px" onchange="miBuildSpotifyPrompt()"></select>
+            <div id="miAiPromptSp" style="background:rgba(0,0,0,.4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:rgba(255,255,255,.75);font-family:'Courier New',monospace;line-height:1.7;white-space:pre-wrap;cursor:pointer;user-select:all;margin-bottom:8px;max-height:240px;overflow:auto" onclick="miCopyPrompt('miAiPromptSp')"></div>
+            <button class="pill-btn" id="miAiSpCopy" style="width:100%;padding:9px" type="button" onclick="miCopyPrompt('miAiPromptSp')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg> Copy Spotify prompt</button>
+          </div>
           <div class="copy-flash" id="miPromptFlash" style="margin-top:6px"></div>
         </div>
         <div style="padding-bottom:16px"></div>
