@@ -1265,7 +1265,8 @@ async function init(){
   resumePendingSpotifyLink();
   applyModeUI();
   if(appMode==='local'){
-    if(document.getElementById('tab-packs')?.classList.contains('active')) switchTab('saved');
+    // opening in Local Listening: start on the channel list (the default Packs tab doesn't apply)
+    if(document.getElementById('tab-packs')?.classList.contains('active')) switchTab('player');
     enterLocalMode(false);
   }
 }
@@ -1318,6 +1319,7 @@ function switchTab(id){
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   if(id==='settings'){
+    syncDistUnitsSelect();
     renderCredits();
     renderHiddenTracks();
     updateSpotifySettingsUI();
@@ -1330,6 +1332,7 @@ function switchTab(id){
       renderCustomPins();
       if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
       renderListenPin(true);
+      renderMapLegend();
     },50);
   }
   if(id==='packs')renderPacksList();
@@ -2427,14 +2430,14 @@ function renderLePinList(){
     const coordsDiv=document.createElement('div');
     coordsDiv.className='pin-row-coords';
     coordsDiv.innerHTML=pin.lat.toFixed(5)+', '+pin.lon.toFixed(5)
-      +'<div class="pin-row-radius">'+esc(pin.radius)+'m radius</div>';
+      +'<div class="pin-row-radius">'+esc(fmtRadius(pin.radius))+' radius</div>';
     // Radius input
     const radInput=document.createElement('input');
     radInput.type='number';
     radInput.value=pin.radius;
     radInput.min=50;radInput.max=5000;radInput.step=50;
     radInput.style.cssText='width:70px;background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:4px 7px;color:#fff;font-size:12px;text-align:center;outline:none';
-    radInput.oninput=function(){ editingPins[i].radius=parseInt(this.value)||200; coordsDiv.querySelector('.pin-row-radius').textContent=editingPins[i].radius+'m radius'; };
+    radInput.oninput=function(){ editingPins[i].radius=parseInt(this.value)||200; coordsDiv.querySelector('.pin-row-radius').textContent=fmtRadius(editingPins[i].radius)+' radius'; };
     const delBtn=document.createElement('button');
     delBtn.className='pin-row-del';
     delBtn.innerHTML=ic('x','ic-sm');
@@ -2618,6 +2621,8 @@ function renderCustomPins(){
   radiusCircles.forEach(c=>leafletMap.removeLayer(c));
   customPinMarkers=[];
   radiusCircles=[];
+  renderMapLegend();
+  if(isLocalMode()) return; // saved places belong to Biome Packs
 
   getAllCustomLocs().filter(l=>l.lat&&l.lon).forEach(loc=>{
     const color=BIOME_COLORS[loc.cssClass||'biome-custom']||'#8b5cf6';
@@ -2645,7 +2650,7 @@ function renderCustomPins(){
     const popupDiv=document.createElement('div');
     popupDiv.style.cssText='font-family:sans-serif;min-width:140px';
     popupDiv.innerHTML='<div style="font-size:15px;font-weight:600;margin-bottom:3px">'+esc(loc.emoji)+' '+esc(loc.name)+'</div>'
-      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+esc(radius)+'m radius</div>';
+      +'<div style="font-size:11px;color:#888;margin-bottom:8px">Custom &middot; '+esc(fmtRadius(radius))+' radius</div>';
     const playPop=document.createElement('button');
     playPop.innerHTML=ic('play','ic-sm')+' Play this biome';
     playPop.style.cssText='width:100%;padding:6px 10px;border-radius:7px;border:none;background:'+color+';color:#fff;cursor:pointer;font-size:12px;font-weight:600';
@@ -3343,7 +3348,7 @@ function mapPickerPlacePin(lat,lng){
 
 function updateMapPickerRadius(){
   const radius=parseInt(document.getElementById('mapPickerRadiusSlider').value)||200;
-  document.getElementById('mapPickerRadiusVal').textContent=radius+'m';
+  document.getElementById('mapPickerRadiusVal').textContent=fmtRadius(radius);
   if(mapPickerCircle) mapPickerCircle.setRadius(radius);
 }
 
@@ -4527,7 +4532,7 @@ const LOCAL_CHANNELS=[
   {id:'popular', label:'Popular', soon:true},
   {id:'made',    label:'Made Here', soon:true},
   {id:'genres',  label:'Genre Mixes', soon:true},
-  {id:'radio',   label:'Local Radio'},
+  {id:'radio',   label:'Radio'},
 ];
 
 function placeLabel(pl){ return pl?[pl.city,pl.region].filter(Boolean).join(', ')||pl.country||'':''; }
@@ -4542,6 +4547,7 @@ function applyModeUI(){
   });
   const tl=document.getElementById('tabLabelPlayer'); if(tl) tl.textContent=appMode==='local'?'Channels':'Biomes';
   syncVideoBtnForMode();
+  renderCustomPins(); renderMapLegend();
 }
 // In Local Listening the video button saves the current station instead
 let videoBtnPacksHtml=null;
@@ -4613,7 +4619,14 @@ function setListenPoint(lat,lon,source,opts){
 }
 function moveListenPinTo(lat,lon){
   if(trackingActive){ stopTracking(); spotifyShowSnack('Live tracking off. Listening from the pin.'); }
-  setListenPoint(lat,lon,'pin',{force:true});
+  const prev=localPoint?{...localPoint}:null;
+  // switchNow: play the new spot straight away, or explain and put the pin back if nothing is there
+  setListenPoint(lat,lon,'pin',{force:true, switchNow:true, prev});
+}
+function revertListenPoint(prev){
+  if(!prev) return;
+  localPoint=prev; ss('localPoint',prev);
+  renderListenPin(); renderLocalHeader(); updateSaveSpotBtn();
 }
 function renderListenPin(fly){
   if(!leafletMap||typeof L==='undefined') return;
@@ -4669,21 +4682,25 @@ function renderLocalHeader(){
   nameEl.textContent=!localPoint?'Choose a spot':(placeLabel(pl)||'Finding place…');
   subEl.textContent=!localPoint?'':
     [pl?.country||'', localPoint.source==='gps'?'Live tracking':'Pinned spot'].filter(Boolean).join(' · ');
-  const chips=document.getElementById('channelChips');
+  renderChannelTabs();
+}
+// Channel sub-menu at the top of the Channels tab
+function renderChannelTabs(){
+  const pl=localPoint?.place;
+  const chips=document.getElementById('channelChips'); if(!chips) return;
   chips.innerHTML='';
   LOCAL_CHANNELS.forEach(ch=>{
     const b=document.createElement('button');
-    b.type='button'; b.className='channel-chip'+(ch.id===localChannel?' active':'');
+    b.type='button'; b.className='channel-tab'+(ch.id===localChannel?' active':'');
     b.setAttribute('role','tab'); b.setAttribute('aria-selected',ch.id===localChannel);
-    // Popular is country-level: always say which country
-    const label=ch.id==='popular'
-      ? (pl?.country?'Popular in '+pl.country:'Popular in your country')
-      : ch.label;
-    b.append(label);
+    // Popular is country-level: the list title says which country; the tooltip does too
+    if(ch.id==='popular') b.title=pl?.country?'Popular in '+pl.country:'Popular in your country';
+    b.append(ch.label);
     if(ch.soon){ const s=document.createElement('span'); s.className='soon'; s.textContent='SOON'; b.append(s); }
     b.onclick=()=>selectLocalChannel(ch.id);
     chips.appendChild(b);
   });
+  chips.querySelector('.active')?.scrollIntoView({block:'nearest',inline:'nearest'});
 }
 function selectLocalChannel(id){
   if(!LOCAL_CHANNELS.some(c=>c.id===id)) return;
@@ -4702,6 +4719,13 @@ async function loadLocalChannel(opts){
   const where=esc(placeLabel(pl)||'this spot');
   const country=esc(pl?.country||'this country');
   if(localChannel!=='radio'){
+    if(opts?.switchNow){
+      const label=LOCAL_CHANNELS.find(c=>c.id===localChannel).label;
+      showLocalAlert(label+' isn\u2019t available yet',
+        label+' is coming soon, so there\u2019s nothing to play here on it. Radio is available now.',
+        [{label:'Play Radio here', primary:true, fn:()=>{ localChannel='radio'; ss('localChannel','radio'); renderChannelTabs(); loadLocalChannel({switchNow:true, prev:opts.prev}); }},
+         {label:'OK'}]);
+    }
     title.textContent=localChannel==='popular'?('POPULAR IN '+(pl?.country||'YOUR COUNTRY').toUpperCase()):LOCAL_CHANNELS.find(c=>c.id===localChannel).label.toUpperCase();
     const notes={
       popular:'The most-played songs in <b>'+country+'</b>. Charts are country-wide, so this channel changes when the pin crosses a border. Coming next: it needs free Last.fm and YouTube API keys on the server.',
@@ -4719,13 +4743,31 @@ async function loadLocalChannel(opts){
   renderLocalNote('Finding stations near <b>'+where+'</b>…');
   const stations=await fetchStationsNear(localPoint.lat,localPoint.lon);
   if(token!==localLoadToken) return; // the pin moved again meanwhile
+  if(opts?.switchNow){
+    if(!stations||!stations.length){
+      // Nothing to switch to: say so, put the pin back, keep whatever was playing
+      const nowName=localPlaying?localStations[localIdx]?.name:'';
+      showLocalAlert(stations?'No radio here':'Can\u2019t reach the radio directory',
+        (stations?'No radio stations found within '+fmtDist(200)+' of '+(placeLabel(pl)||'that spot')+'.':'Check your connection and try again.')
+          +(nowName?' Still playing '+nowName+'.':''),
+        [{label:'OK', primary:true}]);
+      revertListenPoint(opts.prev);
+      title.textContent='STATIONS NEAR '+(localPoint?.place?.city||'THE PIN').toUpperCase();
+      if(localStations.length) renderLocalList(); else renderLocalNote('Choose a spot with radio nearby: tap <b>Move pin</b>.');
+      return;
+    }
+    localStations=stations; localIdx=-1;
+    renderLocalList();
+    playStation(0);
+    return;
+  }
   // Keep the selected station (playing or still buffering) when the list refreshes
   const current=localIdx>=0&&radioAudio?.getAttribute('src')?localStations[localIdx]:null;
   localStations=stations||[];
   localIdx=current?localStations.findIndex(s=>s.uuid===current.uuid):-1;
   if(current&&localIdx<0){ localStations.unshift(current); localIdx=0; } // moved away: keep it listed while it plays
   if(stations===null){ renderLocalNote('Could not reach the radio directory. Check your connection and try again.'); return; }
-  if(!localStations.length){ renderLocalNote('No stations found within 200 km of <b>'+where+'</b>. Try moving the pin.'); return; }
+  if(!localStations.length){ renderLocalNote('No stations found within '+fmtDist(200)+' of <b>'+where+'</b>. Try moving the pin.'); return; }
   renderLocalList();
   if(!localPlaying) setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station');
   if(opts?.autoplay && !localPlaying) playStation(0);
@@ -4741,7 +4783,7 @@ function renderLocalList(){
     const main=document.createElement('span'); main.className='local-item-main';
     const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=st.name;
     const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
-    sub.textContent=[st.km==null?'':st.km<1?'<1 km':Math.round(st.km)+' km', st.tags].filter(Boolean).join(' · ');
+    sub.textContent=[st.km==null?'':fmtDist(st.km), st.tags].filter(Boolean).join(' · ');
     main.append(name,sub); b.append(icon,main);
     if(i===localIdx&&localPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
     b.onclick=()=>playStation(i);
@@ -5041,6 +5083,97 @@ function openCredits(e){
   if(e) e.preventDefault();
   switchTab('settings');
   setTimeout(()=>document.getElementById('creditsSection')?.scrollIntoView({block:'start',behavior:'smooth'}),60);
+}
+
+
+// ── Units: miles where people use miles (by the visitor's locale), overridable in Settings ──
+const MILE_REGIONS=['US','GB','LR','MM'];
+function autoDistUnits(){
+  const tag=(navigator.languages&&navigator.languages[0])||navigator.language||'';
+  let region='';
+  try{ region=new Intl.Locale(tag).maximize().region||''; }catch(e){ region=(tag.split('-')[1]||'').toUpperCase(); }
+  return MILE_REGIONS.includes(region)?'mi':'km';
+}
+function distUnits(){
+  const pref=gs('distUnits','auto');
+  return pref==='mi'||pref==='km'?pref:autoDistUnits();
+}
+function fmtDist(km){                 // station distances, search radius
+  if(distUnits()==='mi'){ const mi=km*0.621371; return mi<1?'<1 mi':Math.round(mi)+' mi'; }
+  return km<1?'<1 km':Math.round(km)+' km';
+}
+function fmtRadius(m){                 // small radii of saved places (metres in storage)
+  m=Number(m)||0;
+  if(distUnits()==='mi'){ const ft=m*3.28084; return ft<1000?Math.round(ft/10)*10+' ft':(m/1609.344).toFixed(1)+' mi'; }
+  return m<1000?Math.round(m)+' m':(m/1000).toFixed(1)+' km';
+}
+function setDistUnits(v){
+  ss('distUnits',['mi','km'].includes(v)?v:'auto');
+  if(localStations.length) renderLocalList();
+  renderCustomPins();
+  if(typeof updateMapPickerRadius==='function'&&document.getElementById('mapPickerRadiusVal')) updateMapPickerRadius();
+}
+function syncDistUnitsSelect(){
+  const sel=document.getElementById('distUnitsSelect'); if(!sel) return;
+  sel.value=gs('distUnits','auto');
+  sel.options[0].textContent='Automatic ('+(autoDistUnits()==='mi'?'miles':'kilometres')+')';
+}
+
+// ── Alert pop-up for Local Listening ──
+function showLocalAlert(title,msg,actions){
+  document.getElementById('localAlertTitle').textContent=title;
+  document.getElementById('localAlertMsg').textContent=msg;
+  const box=document.getElementById('localAlertActions'); box.innerHTML='';
+  (actions&&actions.length?actions:[{label:'OK',primary:true}]).forEach(a=>{
+    const b=document.createElement('button'); b.type='button';
+    b.className=a.primary?'btn-primary':'pill-btn'; b.style.flex='1'; b.textContent=a.label;
+    b.onclick=()=>{ closeLocalAlert(); a.fn&&a.fn(); };
+    box.appendChild(b);
+  });
+  document.getElementById('localAlertOverlay').classList.add('open');
+  box.querySelector('button')?.focus();
+}
+function closeLocalAlert(){ document.getElementById('localAlertOverlay').classList.remove('open'); }
+
+// ── Map key: only what is actually drawn on the map ──
+function renderMapLegend(){
+  const el=document.getElementById('mapLegend'), hint=document.getElementById('mapHint');
+  if(!el) return;
+  el.innerHTML='';
+  const item=(sw,label,sub)=>{
+    const d=document.createElement('div'); d.className='legend-item';
+    const swEl=document.createElement('span'); swEl.className='legend-sw'; swEl.innerHTML=sw; // app-written markup only
+    const t=document.createElement('span'); t.className='legend-text';
+    const l=document.createElement('span'); l.className='legend-label'; l.textContent=label;
+    const s2=document.createElement('span'); s2.className='legend-sub'; s2.textContent=sub;
+    t.append(l,s2); d.append(swEl,t); el.appendChild(d);
+  };
+  const YOU='<span class="mm-user-marker"></span>';
+  const youSub=trackingActive?'Your live location':'Appears while Listen to World is on';
+  if(isLocalMode()){
+    hint.textContent='Tap the map to listen there (it switches right away) · Pinch or scroll to zoom';
+    item('<span class="mm-listen-marker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></span>',
+      'Listening pin', localPoint?('Listening near '+(placeLabel(localPoint.place)||'this spot')+'. Drag it or tap the map.'):'Tap the map to drop it');
+    item(YOU,'You',youSub);
+    return;
+  }
+  hint.textContent='Tap the map to add a saved place (Home, Gym…) · Pinch or scroll to zoom';
+  item(YOU,'You',youSub);
+  const places=getAllCustomLocs().filter(l=>l.lat&&l.lon);
+  if(!places.length) item('<span style="font-size:18px">📍</span>','No saved places yet','Tap the map to add one; each gets its own music and a dashed circle showing its range');
+  places.forEach(loc=>{
+    const color=BIOME_COLORS[loc.cssClass||'biome-custom']||'#8b5cf6';
+    item('<span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:2px dashed '+color+';font-size:16px">'+esc(loc.emoji||'📍')+'</span>',
+      loc.name, 'Saved place · plays its own tracks within '+fmtRadius((loc.pins&&loc.pins[0]?.radius)||loc.radius||200));
+  });
+  // Biomes aren't drawn: say how they work and which one is active
+  const pack=getActivePack();
+  const cur=pack?.biomes?.find(b=>b.id===currentLocId);
+  const curOv=cur?{...cur,...getBiomeOverride(getPackId(),cur.id)}:null;
+  const note=document.createElement('div'); note.className='legend-note';
+  note.textContent='Biomes aren’t drawn on the map: MusicMap reads the map data where you are and picks the closest match (beach, city, forest…).'
+    +(curOv?' Right now: '+(curOv.emoji||'')+' '+curOv.name+'.':'');
+  el.appendChild(note);
 }
 
 // ── Lock-screen / notification controls (Media Session; also used by the native app later) ──

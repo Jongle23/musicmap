@@ -26,6 +26,11 @@
 - Removed the old offline service worker, which browsers never registered
 
 ### Changed
+- Channel picker moved from the header into a sub-menu at the top of the Channels tab: **Popular · Made Here · Genre Mixes · Radio** (Popular's list title still names the country)
+- Tapping the map or dragging the pin in Local Listening switches playback to that spot immediately; if there's nothing to play there, a pop-up explains why, the pin goes back and the current station keeps playing
+- Distances use miles for visitors in the US (and the UK, Liberia, Myanmar), kilometres elsewhere, with an override under Settings → Display; saved-place radii show in feet/miles or metres
+- The map key was rebuilt to match what the map actually shows: you, the listening pin, and your saved places with their range — plus a note that biomes aren't drawn and which one is active. Saved places are hidden on the map in Local Listening
+- Local Listening opens on the Channels tab
 - Removed Tracks moved to the bottom of Settings, collapsed by default with a count (Biome Packs only)
 
 ### Security
