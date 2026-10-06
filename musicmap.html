@@ -411,6 +411,16 @@ body{background:var(--bg)}
 .local-item-main{flex:1;min-width:0}
 .local-item-name{font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .local-item-sub{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.local-row-wrap{display:flex;gap:6px;align-items:stretch}
+.local-row-wrap .local-item{flex:1;min-width:0}
+.heart-btn{flex-shrink:0;width:52px;min-height:56px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.heart-btn .ic{width:20px;height:20px}
+.heart-btn.on{color:#f472b6;border-color:rgba(244,114,182,.45)}
+.heart-btn.on svg path{fill:currentColor}
+.hero-ctrl-btn.ghost.saved{color:#f472b6}
+.hero-ctrl-btn.ghost.saved svg path{fill:currentColor}
+.local-pin-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.local-pin-btn.on{border-color:rgba(244,114,182,.6);color:#fbcfe8}
 .local-note{font-size:12px;color:var(--muted);line-height:1.6;padding:12px;border:1px dashed var(--border2);border-radius:12px}
 .hero-progress.live .hero-progress-fill{width:100%!important;opacity:.35;transition:none}
 .hero-progress.live #progressTime{color:#fca5a5;font-weight:600}
@@ -521,7 +531,10 @@ body{background:var(--bg)}
   <div class="local-row local-only" id="localRow">
     <div class="local-place"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg><span id="localPlaceName">Choose a spot</span></div>
     <div class="local-place-sub" id="localPlaceSub" role="status" aria-live="polite"></div>
-    <button class="local-pin-btn" type="button" onclick="openLocalPinOnMap()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg> Move pin</button>
+    <div class="local-pin-actions">
+      <button class="local-pin-btn" type="button" onclick="openLocalPinOnMap()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg> Move pin</button>
+      <button class="local-pin-btn" id="saveSpotBtn" type="button" onclick="toggleSaveSpot()" aria-pressed="false"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg> <span>Save spot</span></button>
+    </div>
     <div class="channel-chips" id="channelChips" role="tablist" aria-label="Channels"></div>
   </div>
   <!-- DIVIDER -->
@@ -545,7 +558,7 @@ body{background:var(--bg)}
       <span class="hero-progress-time" id="progressDur">0:00</span>
     </div>
     <div class="hero-controls">
-      <button class="hero-ctrl-btn ghost" id="videoToggleBtn" onclick="toggleVideo()" aria-label="Show video" aria-pressed="false" title="Show video"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
+      <button class="hero-ctrl-btn ghost" id="videoToggleBtn" onclick="onVideoBtn()" aria-label="Show video" aria-pressed="false" title="Show video"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
       <button class="hero-ctrl-btn" onclick="prevTrack()" aria-label="Previous track" title="Previous"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></button>
       <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()" aria-label="Play / pause" title="Play / pause"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
       <button class="hero-ctrl-btn" onclick="nextTrack()" aria-label="Next track" title="Next"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></button>
@@ -558,7 +571,7 @@ body{background:var(--bg)}
 
   <div class="tab-bar">
     <button class="tab-btn" onclick="switchTab('player')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg><span id="tabLabelPlayer">Biomes</span></button>
-    <button class="tab-btn active" onclick="switchTab('packs')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><line x1="12" y1="13" x2="12" y2="21"/></svg>Packs</button>
+    <button class="tab-btn active" onclick="switchTab(isLocalMode()?'saved':'packs')"><svg class="tab-icon packs-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/><line x1="12" y1="13" x2="12" y2="21"/></svg><svg class="tab-icon local-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg><span class="packs-only">Packs</span><span class="local-only">Saved</span></button>
     <button class="tab-btn" onclick="switchTab('map')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>Map</button>
     <button class="tab-btn" onclick="switchTab('settings')"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Settings</button>
   </div>
@@ -586,6 +599,18 @@ body{background:var(--bg)}
       <button class="add-track-btn" onclick="openTrackPicker()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add tracks</button>
     </div>
 
+  </div>
+
+  <!-- SAVED TAB (Local Listening) — favourite stations and spots; songs/channels can join later -->
+  <div id="tab-saved" class="tab-pane">
+    <div class="section">
+      <div class="section-header"><div class="section-title">SAVED STATIONS</div></div>
+      <div class="local-list" id="savedStations"></div>
+    </div>
+    <div class="section">
+      <div class="section-header"><div class="section-title">SAVED SPOTS</div></div>
+      <div class="local-list" id="savedSpots"></div>
+    </div>
   </div>
 
   <!-- PACKS TAB -->
@@ -1992,7 +2017,10 @@ async function init(){
   syncSpotifyOwnAppUI();
   resumePendingSpotifyLink();
   applyModeUI();
-  if(appMode==='local') enterLocalMode(false);
+  if(appMode==='local'){
+    if(document.getElementById('tab-packs')?.classList.contains('active')) switchTab('saved');
+    enterLocalMode(false);
+  }
 }
 
 function importSharedPack(pack, silent){
@@ -2034,8 +2062,11 @@ function goToPacks(){
 }
 
 function switchTab(id){
+  const order=isLocalMode()?['player','saved','map','settings']:['player','packs','map','settings'];
+  if(isLocalMode()&&id==='packs') id='saved';      // Packs don't apply in Local Listening
+  if(!isLocalMode()&&id==='saved') id='packs';
   document.querySelectorAll('.tab-btn').forEach((b,i)=>{
-    b.classList.toggle('active',['player','packs','map','settings'][i]===id);
+    b.classList.toggle('active',order[i]===id);
   });
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
@@ -2054,7 +2085,10 @@ function switchTab(id){
     },50);
   }
   if(id==='packs')renderPacksList();
+  if(id==='saved')renderSavedList();
 }
+// Safe to call before the Local Listening section has initialised
+function isLocalMode(){ try{ return appMode==='local'; }catch(e){ return false; } }
 
 // ═══════════════════════════════════════════
 // PACKS
@@ -5255,13 +5289,30 @@ function applyModeUI(){
     b.classList.toggle('active',appMode===m); b.setAttribute('aria-selected',appMode===m);
   });
   const tl=document.getElementById('tabLabelPlayer'); if(tl) tl.textContent=appMode==='local'?'Channels':'Biomes';
-  const vb=document.getElementById('videoToggleBtn'); if(vb) vb.disabled=appMode==='local';
+  syncVideoBtnForMode();
 }
+// In Local Listening the video button saves the current station instead
+let videoBtnPacksHtml=null;
+const SAVE_BTN_HTML='<svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
+function syncVideoBtnForMode(){
+  const vb=document.getElementById('videoToggleBtn'); if(!vb) return;
+  if(videoBtnPacksHtml===null) videoBtnPacksHtml=vb.innerHTML;
+  if(appMode==='local'){
+    vb.innerHTML=SAVE_BTN_HTML; vb.classList.remove('active'); updateSaveStationBtn();
+  } else {
+    vb.innerHTML=videoBtnPacksHtml; vb.disabled=false; vb.classList.remove('saved');
+    vb.classList.toggle('active',videoVisible); vb.setAttribute('aria-pressed',videoVisible);
+    updateVideoToggleLabel();
+  }
+}
+function onVideoBtn(){ if(isLocalMode()) toggleSaveCurrentStation(); else toggleVideo(); }
 async function setAppMode(mode){
   mode=mode==='local'?'local':'packs';
   if(mode===appMode) return;
   appMode=mode; ss('appMode',mode);
   applyModeUI();
+  const onPacksTab=document.getElementById('tab-packs')?.classList.contains('active')||document.getElementById('tab-saved')?.classList.contains('active');
+  if(onPacksTab) switchTab(mode==='local'?'saved':'packs');
   if(mode==='local'){
     // stop pack playback (YouTube or Spotify) before radio takes over
     if(isPlaying){ isPlaying=false; await pauseTrack(); pauseProgress(); }
@@ -5276,7 +5327,7 @@ async function setAppMode(mode){
   }
 }
 function enterLocalMode(fromSwitch){
-  renderLocalHeader(); renderListenPin();
+  renderLocalHeader(); renderListenPin(); updateSaveSpotBtn();
   if(localPoint){
     // never leave pack text in the player while the channel loads
     setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+(placeLabel(localPoint.place)||'near the pin'));
@@ -5296,7 +5347,7 @@ function setListenPoint(lat,lon,source,opts){
   const moved=prev?dist(prev.lat,prev.lon,lat,lon):Infinity;
   localPoint={lat:+lat.toFixed(5), lon:+lon.toFixed(5), source:source==='gps'?'gps':'pin', place:moved<1500?prev.place:null};
   ss('localPoint',localPoint);
-  renderListenPin(); renderLocalHeader();
+  renderListenPin(); renderLocalHeader(); updateSaveSpotBtn();
   clearTimeout(localGeoTimer);
   // wait for the pin to settle before looking anything up (Nominatim allows ~1 request/second)
   localGeoTimer=setTimeout(async()=>{
@@ -5431,6 +5482,7 @@ function renderLocalList(){
   const list=document.getElementById('localList'); if(!list) return;
   list.innerHTML='';
   localStations.forEach((st,i)=>{
+    const row=document.createElement('div'); row.className='local-row-wrap';
     const b=document.createElement('button');
     b.type='button'; b.className='local-item'+(i===localIdx?' active':'');
     const icon=document.createElement('span'); icon.className='local-item-ic'; icon.innerHTML=SOURCE_ICONS.radio;
@@ -5441,7 +5493,8 @@ function renderLocalList(){
     main.append(name,sub); b.append(icon,main);
     if(i===localIdx&&localPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
     b.onclick=()=>playStation(i);
-    list.appendChild(b);
+    row.append(b, heartButton(st));
+    list.appendChild(row);
   });
 }
 
@@ -5520,7 +5573,7 @@ function playStation(i){
   yb.disabled=!st.homepage; yb.title='Station website'; yb.setAttribute('aria-label','Station website');
   yb.onclick=st.homepage?()=>window.open(st.homepage,'_blank','noopener'):null;
   setRadioMediaSession(st);
-  renderLocalList();
+  renderLocalList(); updateSaveStationBtn();
   // Radio Browser asks apps to report plays (it also keeps its popularity ranking honest)
   if(radioServer) fetch('https://'+radioServer+'.api.radio-browser.info/json/url/'+st.uuid,{keepalive:true}).catch(()=>{});
 }
@@ -5552,10 +5605,142 @@ function setLocalNowPlaying(title,sub){
   document.getElementById('progressTime').textContent='● LIVE';
   document.getElementById('progressDur').textContent='';
   setPlayIcon(localPlaying);
+  document.getElementById('playingBars').style.display=localPlaying?'flex':'none';
 }
 function updateLocalSub(msg){
   const st=localStations[localIdx];
   document.getElementById('npGame').textContent=msg||('Local Radio · '+(placeLabel(localPoint?.place)||'near the pin')+(st?.tags?' · '+st.tags:''));
+}
+
+
+// ── Saved (Local Listening favourites) ──
+// Stored with gs/ss so it carries over to the native app. Re-validated on every read,
+// since localStorage can be edited by hand or by an old version.
+const SAVED_KEY='localSaved';
+function validSavedStation(st){ return st&&RADIO_UUID.test(st.uuid||'')&&/^https:\/\//i.test(st.url||'')&&typeof st.name==='string'&&st.name; }
+function validSavedSpot(sp){ return sp&&Number.isFinite(sp.lat)&&Number.isFinite(sp.lon)&&Math.abs(sp.lat)<=90&&Math.abs(sp.lon)<=180; }
+function getSaved(){
+  const d=gs(SAVED_KEY,{})||{};
+  return {
+    stations:(Array.isArray(d.stations)?d.stations:[]).filter(validSavedStation),
+    spots:(Array.isArray(d.spots)?d.spots:[]).filter(validSavedSpot)
+  };
+}
+function putSaved(d){ ss(SAVED_KEY,d); }
+function isStationSaved(uuid){ return getSaved().stations.some(s=>s.uuid===uuid); }
+function toggleStationSaved(st){
+  if(!st) return;
+  const d=getSaved();
+  const had=d.stations.some(s=>s.uuid===st.uuid);
+  d.stations=had?d.stations.filter(s=>s.uuid!==st.uuid)
+    :[{uuid:st.uuid,name:String(st.name).slice(0,80),url:st.url,tags:String(st.tags||'').slice(0,60),homepage:st.homepage||'',favicon:st.favicon||'',where:placeLabel(localPoint?.place)||st.where||''},...d.stations];
+  putSaved(d);
+  spotifyShowSnack(had?'Removed from Saved':'Saved: '+st.name);
+  renderLocalList(); updateSaveStationBtn();
+  if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
+}
+function toggleSaveCurrentStation(){
+  const st=localStations[localIdx];
+  if(!st){ spotifyShowSnack('Pick a station first, then save it.'); return; }
+  toggleStationSaved(st);
+}
+function heartButton(st){
+  const on=isStationSaved(st.uuid);
+  const h=document.createElement('button');
+  h.type='button'; h.className='heart-btn'+(on?' on':'');
+  h.setAttribute('aria-pressed',on); h.setAttribute('aria-label',(on?'Remove ':'Save ')+st.name);
+  h.innerHTML=SAVE_BTN_HTML;
+  h.onclick=()=>toggleStationSaved(st);
+  return h;
+}
+function updateSaveStationBtn(){
+  const vb=document.getElementById('videoToggleBtn');
+  if(!vb||!isLocalMode()) return;
+  const st=localStations[localIdx];
+  const on=!!st&&isStationSaved(st.uuid);
+  vb.disabled=!st;
+  vb.classList.toggle('saved',on);
+  vb.setAttribute('aria-pressed',on);
+  const label=!st?'Save station':(on?'Remove station from Saved':'Save station');
+  vb.setAttribute('aria-label',label); vb.title=label;
+}
+function nearbySavedSpot(){
+  if(!localPoint) return null;
+  return getSaved().spots.find(sp=>dist(sp.lat,sp.lon,localPoint.lat,localPoint.lon)<300)||null;
+}
+function toggleSaveSpot(){
+  if(!localPoint){ openLocalPinOnMap(); return; }
+  const d=getSaved(), near=nearbySavedSpot();
+  if(near){ d.spots=d.spots.filter(sp=>sp!==near&&!(sp.lat===near.lat&&sp.lon===near.lon)); spotifyShowSnack('Spot removed'); }
+  else {
+    d.spots=[{lat:localPoint.lat,lon:localPoint.lon,place:localPoint.place||null,channel:localChannel},...d.spots].slice(0,50);
+    spotifyShowSnack('Saved spot: '+(placeLabel(localPoint.place)||'this pin'));
+  }
+  putSaved(d); updateSaveSpotBtn();
+  if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
+}
+function updateSaveSpotBtn(){
+  const b=document.getElementById('saveSpotBtn'); if(!b) return;
+  const on=!!nearbySavedSpot();
+  b.classList.toggle('on',on); b.setAttribute('aria-pressed',on);
+  b.querySelector('span').textContent=on?'Saved spot':'Save spot';
+}
+function renderSavedList(){
+  const d=getSaved();
+  const stEl=document.getElementById('savedStations'), spEl=document.getElementById('savedSpots');
+  if(!stEl||!spEl) return;
+  stEl.innerHTML=''; spEl.innerHTML='';
+  if(!d.stations.length) stEl.innerHTML='<div class="local-note">No saved stations yet. Tap the heart next to a station, or the heart in the player.</div>';
+  d.stations.forEach(st=>{
+    const row=document.createElement('div'); row.className='local-row-wrap';
+    const b=document.createElement('button'); b.type='button';
+    const playingThis=localPlaying&&localStations[localIdx]?.uuid===st.uuid;
+    b.className='local-item'+(playingThis?' active':'');
+    const icon=document.createElement('span'); icon.className='local-item-ic'; icon.innerHTML=SOURCE_ICONS.radio;
+    const main=document.createElement('span'); main.className='local-item-main';
+    const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=st.name;
+    const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+    sub.textContent=[st.where,st.tags].filter(Boolean).join(' · ');
+    main.append(name,sub); b.append(icon,main);
+    b.onclick=()=>playSavedStation(st);
+    row.append(b, heartButton(st));
+    stEl.appendChild(row);
+  });
+  if(!d.spots.length) spEl.innerHTML='<div class="local-note">No saved spots yet. Move the pin somewhere you like and tap <b>Save spot</b>.</div>';
+  d.spots.forEach(sp=>{
+    const row=document.createElement('div'); row.className='local-row-wrap';
+    const b=document.createElement('button'); b.type='button'; b.className='local-item';
+    const icon=document.createElement('span'); icon.className='local-item-ic';
+    icon.innerHTML='<svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Z"/><circle cx="12" cy="9" r="2.5"/></svg>';
+    const main=document.createElement('span'); main.className='local-item-main';
+    const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block';
+    name.textContent=placeLabel(sp.place)||(sp.lat.toFixed(3)+', '+sp.lon.toFixed(3));
+    const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+    sub.textContent=[sp.place?.country, (LOCAL_CHANNELS.find(c=>c.id===sp.channel)||{}).label].filter(Boolean).join(' · ');
+    main.append(name,sub); b.append(icon,main);
+    b.onclick=()=>goToSavedSpot(sp);
+    const del=document.createElement('button'); del.type='button'; del.className='heart-btn on';
+    del.setAttribute('aria-label','Remove saved spot '+name.textContent);
+    del.innerHTML='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>';
+    del.onclick=()=>{ const dd=getSaved(); dd.spots=dd.spots.filter(x=>!(x.lat===sp.lat&&x.lon===sp.lon)); putSaved(dd); renderSavedList(); updateSaveSpotBtn(); };
+    row.append(b,del);
+    spEl.appendChild(row);
+  });
+}
+function playSavedStation(st){
+  if(!validSavedStation(st)) return;
+  if(localChannel!=='radio'){ localChannel='radio'; ss('localChannel','radio'); renderLocalHeader(); }
+  let i=localStations.findIndex(s=>s.uuid===st.uuid);
+  if(i<0){ localStations.unshift({...st,km:null}); i=0; }
+  playStation(i);
+}
+function goToSavedSpot(sp){
+  if(trackingActive) stopTracking();
+  if(['popular','made','genres','radio'].includes(sp.channel)){ localChannel=sp.channel; ss('localChannel',sp.channel); }
+  setListenPoint(sp.lat,sp.lon,'pin',{force:true});
+  if(sp.place&&localPoint){ localPoint.place=sp.place; ss('localPoint',localPoint); }
+  renderLocalHeader(); updateSaveSpotBtn();
+  switchTab('player');
 }
 
 // ── Lock-screen / notification controls (Media Session; also used by the native app later) ──
