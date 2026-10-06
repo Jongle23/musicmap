@@ -411,6 +411,11 @@ body{background:var(--bg)}
 .local-item-main{flex:1;min-width:0}
 .local-item-name{font-size:13px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .local-item-sub{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-collapse>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;-webkit-tap-highlight-color:transparent}
+.settings-collapse>summary::-webkit-details-marker{display:none}
+.settings-collapse-count{font-size:11px;color:var(--muted)}
+.settings-collapse-chev{margin-left:auto;color:var(--muted);transition:transform .2s}
+.settings-collapse[open] .settings-collapse-chev{transform:rotate(180deg)}
 .local-row-wrap{display:flex;gap:6px;align-items:stretch}
 .local-row-wrap .local-item{flex:1;min-width:0}
 .heart-btn{flex-shrink:0;width:52px;min-height:56px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -644,10 +649,6 @@ body{background:var(--bg)}
 
     <!-- SETTINGS TAB -->
   <div id="tab-settings" class="tab-pane">
-    <div class="section">
-      <div class="section-header"><div class="section-title">REMOVED TRACKS</div></div>
-      <div class="track-list" id="hiddenTrackList"></div>
-    </div>
     <div class="section" style="margin-top:20px">
       <div class="section-header"><div class="section-title">SPOTIFY</div></div>
       <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">Connect a Spotify Premium account for full in-browser playback. Tracks with a Spotify URI in custom packs will play via Spotify automatically.</div>
@@ -683,6 +684,11 @@ body{background:var(--bg)}
       <div class="settings-row" onclick="clearAllData()"><div><div class="settings-row-label" style="color:var(--red)"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Clear all data</div><div class="settings-row-sub">Resets everything</div></div></div>
       <div style="margin-top:9px;font-size:11px;color:var(--muted);line-height:1.7" id="cacheStatus"></div>
     </div>
+    <!-- Removed tracks: rarely needed, so last and collapsed by default (Biome Packs only) -->
+    <details class="section settings-collapse packs-only" id="removedTracksBox" style="margin-top:20px">
+      <summary class="section-header"><span class="section-title">REMOVED TRACKS</span><span class="settings-collapse-count" id="removedTracksCount"></span><svg class="ic ic-sm settings-collapse-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></summary>
+      <div class="track-list" id="hiddenTrackList"></div>
+    </details>
   </div>
 </div>
 
@@ -3258,7 +3264,7 @@ function deleteCustomLoc(){
 // ═══════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════
-function renderHiddenTracks(){
+function renderHiddenTracksList(){
   const list=document.getElementById('hiddenTrackList');
   if(!list)return;
   list.innerHTML='';
@@ -3289,6 +3295,12 @@ function renderHiddenTracks(){
   });
   if(!any)list.innerHTML='<div class="empty-state">No removed tracks.</div>';
 }
+function renderHiddenTracks(){
+  renderHiddenTracksList();
+  const n=document.querySelectorAll('#hiddenTrackList .track-item').length;
+  const c=document.getElementById('removedTracksCount'); if(c) c.textContent=n?'('+n+')':'(none)';
+}
+
 function restoreTrack(locId,tIdx){
   const packId=getPackId();
   const tracks=getLocTracks(packId,locId);

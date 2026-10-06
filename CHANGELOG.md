@@ -10,6 +10,9 @@
 - Lock-screen / notification controls for radio via the Media Session API (also groundwork for the Android and iOS apps)
 - In Local Listening the **Packs** tab becomes **Saved**: favourite stations (heart on each station, or the heart in the player, which replaces the video button in this mode) and saved spots (**Save spot** next to Move pin; tapping one jumps the pin back there with its channel)
 
+### Changed
+- Removed Tracks moved to the bottom of Settings, collapsed by default with a count (Biome Packs only)
+
 ### Security
 - Radio directory data is user-submitted: only HTTPS streams, valid station ids and plain-text names are used, and websites open with `noopener`
 
