@@ -57,7 +57,7 @@ Each pack card shows where it plays from (YouTube, Spotify or both). Game packs 
 - **Spotify (optional)** — play Spotify tracks in the browser with Premium, import your own playlists as packs
 - **OSM-powered biome detection** — uses real map data, not just address guessing
 - **Custom location pins** — drop multiple pins per location with individual proximity radii
-- **Pack builder** — add any YouTube video or playlist as a custom pack
+- **Pack builder** — add YouTube videos/playlists and Spotify playlists/albums/tracks to a custom pack
 - **Timestamp importer** — paste YouTube chapter lists to populate tracks instantly
 - **AI pack builder** — use the built-in prompt with any AI to generate packs from any OST
 - **Share codes** — share custom packs with a 6-character code
@@ -88,7 +88,7 @@ Spotify tracks play in the browser through Spotify's Web Playback SDK, which nee
 
 - **Connect:** Settings → Spotify → Connect. MusicMap's shared Spotify app is in Spotify's Development Mode, so only accounts invited to it can sign in; the app warns you before you try.
 - **Your own Client ID:** anyone else can create a free app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) (Web API + Web Playback SDK), add the Redirect URI shown in Settings, and paste the Client ID under "Use my own Spotify app". No Client Secret is needed.
-- **Import a playlist:** Packs → Make or Import Pack → Spotify. Works for playlists you own or collaborate on.
+- **Add Spotify links:** Packs → Make or Import Pack → paste a Spotify playlist, album or track link in the same box as YouTube links. Playlists must be ones you own or collaborate on; any album or track works. Packs can mix YouTube and Spotify.
 - Spotify-only packs have no YouTube fallback; without Spotify connected, the app explains what's needed instead of playing.
 
 ---

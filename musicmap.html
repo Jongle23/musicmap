@@ -266,6 +266,7 @@ body{background:var(--bg)}
 .url-status{font-size:11px;margin-top:5px;min-height:16px;transition:color .2s}
 .url-status.ok{color:var(--green)}
 .url-status.err{color:var(--red)}
+.url-status.warn{color:#fde68a}
 .ts-import-area:focus{border-color:var(--accent)}
 .ts-import-area::placeholder{color:var(--muted);font-family:var(--sans)}
 .ts-parse-result{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:9px;padding:10px 13px;margin-top:8px;display:none}
@@ -1831,7 +1832,7 @@ function getAllPackTracks(pack){
   let result = [], offset = 0;
   pack.videos.forEach((v,vi) => {
     (v.tracks||[]).forEach((t,ti) => {
-      result.push({...t, videoId: v.id, videoIdx: vi, trackIdx: ti, globalIdx: offset+ti});
+      result.push({...t, videoId: ('videoId' in t) ? t.videoId : v.id, videoIdx: vi, trackIdx: ti, globalIdx: offset+ti});
     });
     offset += (v.tracks||[]).length;
   });
@@ -1933,6 +1934,7 @@ async function init(){
   if(isSpotifyConnected()) initSpotifySdk();
   updateSpotifySettingsUI();
   syncSpotifyOwnAppUI();
+  resumePendingSpotifyLink();
 }
 
 function importSharedPack(pack, silent){
@@ -4046,7 +4048,7 @@ function closeMakeImport(e){
 
 function miSwitchTab(tab){
   document.querySelectorAll('.mi-tab').forEach((b,i)=>{
-    b.classList.toggle('active',['make','spotify','import'][i]===tab);
+    b.classList.toggle('active',['make','import'][i]===tab);
   });
   document.querySelectorAll('.mi-pane').forEach(p=>p.classList.remove('active'));
   document.getElementById('mi-'+tab).classList.add('active');
@@ -4091,6 +4093,17 @@ function miOnUrlInput(){
   const raw=document.getElementById('miUrlInput').value.trim();
   const status=document.getElementById('miUrlStatus');
   if(!raw){status.textContent='';status.className='url-status';return;}
+  const sp=parseSpotifyLink(raw);
+  if(sp){
+    if(isSpotifyConnected()){
+      status.textContent='✓ Spotify '+sp.kind+' detected. Click Add to bring in its songs.';
+      status.className='url-status ok';
+    } else {
+      status.textContent='Spotify '+sp.kind+' detected. Spotify songs only play with Spotify Premium and a Spotify developer Client ID.';
+      status.className='url-status warn';
+    }
+    return;
+  }
   const vid=miExtractVideoId(raw);
   const pid=miExtractPlaylistId(raw);
   if(pid){
@@ -4100,7 +4113,7 @@ function miOnUrlInput(){
     status.textContent='✓ Video ID: '+vid;
     status.className='url-status ok';
   } else {
-    status.textContent='✗ Could not find a YouTube video or playlist ID';
+    status.textContent='✗ Not a YouTube or Spotify link';
     status.className='url-status err';
   }
 }
@@ -4110,10 +4123,13 @@ async function miAddUrl(){
   const status=document.getElementById('miUrlStatus');
   if(!raw) return;
 
+  const sp=parseSpotifyLink(raw);
+  if(sp) return miAddSpotify(sp, raw);
+
   const pid=miExtractPlaylistId(raw);
   const vid=miExtractVideoId(raw);
 
-  if(!pid&&!vid){status.textContent='✗ No valid YouTube URL found';status.className='url-status err';return;}
+  if(!pid&&!vid){status.textContent='✗ Not a YouTube or Spotify link';status.className='url-status err';return;}
 
   if(pid){
     // Playlist — resolve via oEmbed per video (no API key needed)
@@ -4160,12 +4176,17 @@ function renderMiVideoList(){
     const hdr=document.createElement('div');
     hdr.className='pe-video-section-header';
     const info=document.createElement('div');
+    if(v.type==='spotify'){
+      info.innerHTML='<div class="pe-video-id" style="display:flex;align-items:center;gap:6px">'+SOURCE_ICONS.spotify+'<span>'+esc(v.title)+'</span></div>'
+        +'<div class="pe-video-track-count">Spotify '+esc(v.kind)+' · '+v.tracks.length+' song'+(v.tracks.length!==1?'s':'')+'</div>';
+    } else
     info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'Playlist: ':'')+esc(v.title)+'</div>'
       +'<div class="pe-video-track-count">'+(v.type==='playlist'?'Playlist · '+(v.tracks.length||0)+' tracks imported':v.videoId+' · '+(v.tracks.length||0)+' tracks')+'</div>';
     const del=document.createElement('button');
     del.className='pill-btn'; del.style.color='var(--red)'; del.innerHTML=ic('trash','ic-sm')+' Remove';
     del.onclick=()=>{miVideos.splice(vi,1);renderMiVideoList();};
     hdr.appendChild(info); hdr.appendChild(del); sec.appendChild(hdr);
+    if(v.type==='spotify'){ list.appendChild(sec); return; } // songs come complete from Spotify
 
     // For playlists: each video = one track, but user can also paste timestamps
     // For regular videos: timestamp importer
@@ -4247,10 +4268,11 @@ function defaultPackBiomes(){
 }
 
 function miSavePack(){
-  const name=document.getElementById('miPackName').value.trim();
-  const subtitle=document.getElementById('miSubtitle').value.trim();
+  const firstSp=miVideos.find(v=>v.type==='spotify');
+  const name=document.getElementById('miPackName').value.trim()||(firstSp?String(firstSp.title).slice(0,32):'');
+  const subtitle=document.getElementById('miSubtitle').value.trim()||(firstSp?String(firstSp.owner||'').slice(0,60):'');
   if(!name){alert('Please enter a pack name.');return;}
-  if(miVideos.length===0){alert('Please add at least one YouTube video or playlist.');return;}
+  if(miVideos.length===0){alert('Please add at least one YouTube or Spotify link.');return;}
 
   // Check URL input for any unregistered video
   const rawUrl=document.getElementById('miUrlInput').value.trim();
@@ -4260,17 +4282,16 @@ function miSavePack(){
   }
 
   // Build flat tracks array across all videos
-  const videos=miVideos.map(v=>({
-    id:v.videoId||v.playlistId,
-    tracks:v.tracks||[]
-  }));
+  const videos=miVideos.map(v=>v.type==='spotify'
+    ? {id:null, spotify:{kind:v.kind,id:v.spotifyId}, tracks:v.tracks||[]}
+    : {id:v.videoId||v.playlistId, tracks:v.tracks||[]});
   const allTracks=videos.flatMap(v=>v.tracks);
 
   const newPack={
     id:'user_'+Date.now(),
     name, subtitle, icon:miSelectedEmoji,
-    videoId:videos[0].id,
-    source:subtitle||'Custom Pack', builtin:false,
+    videoId:(videos.find(v=>v.id)||{}).id||null,
+    source:subtitle||(firstSp?'Spotify':'Custom Pack'), builtin:false,
     videos, tracks:allTracks,
     biomes:[
       {id:'beach',  name:'Beach',   emoji:'🌊',cssClass:'biome-beach',  keywords:['beach','coast','sea','bay','shore'],defaultTracks:[]},
@@ -4284,6 +4305,8 @@ function miSavePack(){
       {id:'port',   name:'Port',    emoji:'⚓',cssClass:'biome-port',   keywords:['port','dock','pier','harbor'],defaultTracks:[]},
     ]
   };
+  const spIdx=allTracks.map((t,i)=>t.spotifyUri?i:-1).filter(i=>i>=0);
+  if(spIdx.length) newPack.biomes.forEach(b=>{ b.defaultTracks=[...new Set([...b.defaultTracks,...spIdx])]; });
   saveUserPacks([...getUserPacks(),newPack]);
   document.getElementById('makeImportOverlay').classList.remove('open');
   activatePack(newPack.id);
@@ -4772,77 +4795,120 @@ function updateSpotifySettingsUI(){
 }
 
 // ── "Needs Spotify" pop-up ──
-function openSpotifyNeeded(){ document.getElementById('spotifyNeededOverlay')?.classList.add('open'); }
+function openSpotifyNeeded(context){
+  const title=document.getElementById('spotifyNeededTitle');
+  const lead=document.getElementById('spotifyNeededLead');
+  if(title) title.textContent=context==='link'?'SPOTIFY LINKS NEED SPOTIFY':'THIS PACK PLAYS FROM SPOTIFY';
+  if(lead) lead.innerHTML=context==='link'
+    ? 'Spotify songs only play with <b>Spotify Premium</b>, signed in with your own free <b>Spotify developer Client ID</b>. Sign in first, then add the link again.'
+    : 'To play it you need <b>Spotify Premium</b> and to sign in with your own free <b>Spotify developer Client ID</b>.';
+  document.getElementById('spotifyNeededOverlay')?.classList.add('open');
+}
 function closeSpotifyNeeded(e){
   if(e && e.target!==e.currentTarget) return; // clicks inside the box don't close it
   document.getElementById('spotifyNeededOverlay')?.classList.remove('open');
 }
 function goSetUpSpotify(){
   closeSpotifyNeeded();
+  document.getElementById('makeImportOverlay')?.classList.remove('open');
   switchTab('settings');
   if(usingSharedSpotifyApp()) openSpotifyOwnApp();
   document.getElementById('spotifyOwnApp')?.scrollIntoView({block:'center',behavior:'smooth'});
 }
 
-// ── Import a Spotify playlist as a pack ──
-// Spotify Development Mode only returns items for playlists the signed-in user owns or collaborates on.
+// ── Spotify links in the Make a Pack box ──
+// Development Mode still allows: playlists the signed-in user owns or collaborates on,
+// any album, and single tracks (batch endpoints were removed in 2026).
 const SPOTIFY_IMPORT_MAX=1000;
-function parseSpotifyPlaylistId(raw){
-  const s=String(raw||'').trim();
-  const m=s.match(/(?:open\.spotify\.com\/(?:intl-[a-z-]+\/)?playlist\/|spotify:playlist:)([A-Za-z0-9]{22})/);
-  if(m) return m[1];
-  return /^[A-Za-z0-9]{22}$/.test(s)?s:null;
+function parseSpotifyLink(raw){
+  const m=String(raw||'').trim().match(/^(?:(?:https?:\/\/)?open\.spotify\.com\/(?:intl-[a-z-]+\/)?(playlist|album|track)\/|spotify:(playlist|album|track):)([A-Za-z0-9]{22})(?:[?#/].*)?$/);
+  return m?{kind:m[1]||m[2], id:m[3]}:null;
 }
 async function spotifyApiGet(path, token){
   const r=await fetch('https://api.spotify.com/v1'+path,{headers:{'Authorization':'Bearer '+token}});
   if(!r.ok){ const e=new Error('HTTP '+r.status); e.status=r.status; throw e; }
   return r.json();
 }
-async function miImportSpotifyPlaylist(){
-  const status=document.getElementById('miSpotifyStatus');
-  const btn=document.getElementById('miSpotifyBtn');
-  const id=parseSpotifyPlaylistId(document.getElementById('miSpotifyUrl').value);
-  if(!id){ status.textContent='Paste a Spotify playlist link (open.spotify.com/playlist/…).'; return; }
-  if(!isSpotifyConnected()){ status.textContent='Connect Spotify first.'; openSpotifyNeeded(); return; }
-  const token=await getValidSpotifyToken();
-  if(!token){ status.textContent='Your Spotify sign-in expired. Reconnect in Settings.'; return; }
-  btn.disabled=true; status.textContent='Reading playlist…';
-  try{
-    const info=await spotifyApiGet('/playlists/'+id+'?fields=name,owner(display_name)',token);
-    const tracks=[];
-    let path='/playlists/'+id+'/items?limit=50&offset=0';
-    while(path && tracks.length<SPOTIFY_IMPORT_MAX){
-      const page=await spotifyApiGet(path,token);
-      for(const row of (page.items||[])){
-        const tr=row.item||row.track; // 2026 API renamed track -> item
-        if(!tr || tr.type!=='track' || tr.is_local || !/^spotify:track:[A-Za-z0-9]{22}$/.test(tr.uri||'')) continue;
-        const artists=(tr.artists||[]).map(a=>a.name).filter(Boolean).join(', ');
-        tracks.push({title:artists?tr.name+' — '+artists:tr.name, start:0, dur:Math.round((tr.duration_ms||0)/1000)||180, spotifyUri:tr.uri, videoId:null});
-      }
-      status.textContent='Reading playlist… '+tracks.length+' songs';
-      // follow Spotify's own next link, but only on api.spotify.com
-      path=page.next&&String(page.next).startsWith('https://api.spotify.com/v1/')?String(page.next).slice('https://api.spotify.com/v1'.length):null;
+function spotifyToMmTrack(tr){
+  if(!tr || tr.type!=='track' || tr.is_local || !/^spotify:track:[A-Za-z0-9]{22}$/.test(tr.uri||'')) return null;
+  const artists=(tr.artists||[]).map(a=>a.name).filter(Boolean).join(', ');
+  return {title:artists?tr.name+' — '+artists:tr.name, start:0, dur:Math.round((tr.duration_ms||0)/1000)||180, spotifyUri:tr.uri, videoId:null};
+}
+// Follow Spotify's own paging links, but only on api.spotify.com
+function spotifyNextPath(next){
+  const base='https://api.spotify.com/v1/';
+  return next&&String(next).startsWith(base)?String(next).slice(base.length-1):null;
+}
+async function spotifyFetchLink(sp, token, progress){
+  const tracks=[]; let title='', owner='', path=null;
+  if(sp.kind==='track'){
+    const tr=await spotifyApiGet('/tracks/'+sp.id,token);
+    const t=spotifyToMmTrack(tr); if(t) tracks.push(t);
+    return {title:tr.name||'Spotify track', owner:(tr.artists||[]).map(a=>a.name).join(', '), tracks};
+  }
+  if(sp.kind==='album'){
+    const al=await spotifyApiGet('/albums/'+sp.id,token);
+    title=al.name; owner=(al.artists||[]).map(a=>a.name).join(', ');
+    path='/albums/'+sp.id+'/tracks?limit=50&offset=0';
+  } else {
+    const pl=await spotifyApiGet('/playlists/'+sp.id+'?fields=name,owner(display_name)',token);
+    title=pl.name; owner=pl.owner?.display_name||'';
+    path='/playlists/'+sp.id+'/items?limit=50&offset=0';
+  }
+  while(path && tracks.length<SPOTIFY_IMPORT_MAX){
+    const page=await spotifyApiGet(path,token);
+    for(const row of (page.items||[])){
+      const t=spotifyToMmTrack(row.item||row.track||row); // playlists wrap tracks (item/track), albums don't
+      if(t) tracks.push(t);
     }
-    if(!tracks.length){ status.textContent='No playable songs found in that playlist.'; return; }
-    const all=tracks.map((_,i)=>i);
-    const biomes=defaultPackBiomes().map(b=>({...b,defaultTracks:[...all]}));
-    const pack={
-      id:'spotify_'+id+'_'+Date.now(),
-      name:String(info.name||'Spotify playlist').slice(0,60),
-      subtitle:String(info.owner?.display_name||'').slice(0,60),
-      icon:'🎧', source:'Spotify playlist', builtin:false,
-      spotifyPlaylistId:id, tracks, biomes
-    };
-    saveUserPacks([...getUserPacks(),pack]);
-    status.textContent='Imported '+tracks.length+' songs'+(tracks.length>=SPOTIFY_IMPORT_MAX?' (limit reached)':'')+'.';
-    document.getElementById('makeImportOverlay').classList.remove('open');
-    activatePack(pack.id);
+    progress&&progress(tracks.length);
+    path=spotifyNextPath(page.next);
+  }
+  return {title:title||'Spotify '+sp.kind, owner, tracks};
+}
+async function miAddSpotify(sp, raw){
+  const status=document.getElementById('miUrlStatus');
+  if(!isSpotifyConnected()){
+    // Remember the link so it's waiting after Spotify sign-in sends the user back
+    try{ sessionStorage.setItem('mm_pending_link',raw); }catch(e){}
+    status.textContent='Spotify songs need Spotify Premium and a Spotify developer Client ID.';
+    status.className='url-status warn';
+    openSpotifyNeeded('link');
+    return;
+  }
+  if(miVideos.find(v=>v.type==='spotify'&&v.spotifyId===sp.id)){ status.textContent='Already added'; return; }
+  const token=await getValidSpotifyToken();
+  if(!token){ status.textContent='Your Spotify sign-in expired. Reconnect in Settings.'; status.className='url-status err'; return; }
+  status.textContent='Reading Spotify '+sp.kind+'…'; status.className='url-status';
+  try{
+    const got=await spotifyFetchLink(sp,token,n=>{ status.textContent='Reading Spotify '+sp.kind+'… '+n+' songs'; });
+    if(!got.tracks.length){ status.textContent='No playable songs found in that link.'; status.className='url-status err'; return; }
+    miVideos.push({type:'spotify', kind:sp.kind, spotifyId:sp.id, title:String(got.title).slice(0,80), owner:String(got.owner||'').slice(0,60), tracks:got.tracks});
+    const nameEl=document.getElementById('miPackName');
+    if(!nameEl.value.trim()) nameEl.value=String(got.title).slice(0,32);
+    if(miSelectedEmoji==='🎵'){ miSelectedEmoji='🎧'; renderMiEmojiPicker(); }
+    document.getElementById('miUrlInput').value='';
+    status.textContent='✓ Added '+got.tracks.length+' song'+(got.tracks.length!==1?'s':'')+(got.tracks.length>=SPOTIFY_IMPORT_MAX?' (limit reached)':'');
+    status.className='url-status ok';
+    renderMiVideoList();
   }catch(e){
-    status.textContent = e.status===403 ? 'Spotify only shares playlists you own or collaborate on, and only with accounts allowed on this Spotify app.'
-      : e.status===404 ? 'Playlist not found. It may be private or the link is wrong.'
+    status.className='url-status err';
+    status.textContent = e.status===403 ? (sp.kind==='playlist'
+        ? 'Spotify only shares playlists you own or collaborate on.'
+        : 'Spotify refused this request for your account.')
+      : e.status===404 ? 'Not found. It may be private or the link is wrong.'
       : e.status===401 ? 'Your Spotify sign-in expired. Reconnect in Settings.'
-      : 'Import failed. Please try again.';
-  }finally{ btn.disabled=false; }
+      : 'Could not read that Spotify link. Please try again.';
+  }
+}
+// After Spotify sign-in, reopen Make a Pack with the link the user was adding
+function resumePendingSpotifyLink(){
+  let raw=null;
+  try{ raw=sessionStorage.getItem('mm_pending_link'); sessionStorage.removeItem('mm_pending_link'); }catch(e){}
+  if(!raw || !isSpotifyConnected() || !parseSpotifyLink(raw)) return;
+  openMakeImportModal();
+  document.getElementById('miUrlInput').value=raw;
+  miOnUrlInput();
 }
 
 // ── Picker tab switching ──
@@ -4997,7 +5063,6 @@ init();
       <!-- TABS -->
       <div class="mi-tabs" style="margin-top:14px">
         <button class="mi-tab active" onclick="miSwitchTab('make')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M9 18V4l12-2v14"/></svg> Make a Pack</button>
-        <button class="mi-tab" onclick="miSwitchTab('spotify')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M7 9.5c3.3-1 6.8-.7 9.8.9M7.5 12.7c2.7-.8 5.5-.5 7.8.8M8 15.6c2.1-.5 4.2-.3 6 .6"/></svg> Spotify</button>
         <button class="mi-tab" onclick="miSwitchTab('import')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Import</button>
       </div>
 
@@ -5005,8 +5070,8 @@ init();
       <div class="mi-pane active" id="mi-make">
         <div class="guide-box" style="margin-bottom:14px">
           <div class="guide-box-title"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h7a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z"/><path d="M22 3h-7a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h8Z"/></svg> HOW IT WORKS</div>
-          <div class="guide-step"><div class="guide-num">1</div><div>Paste one or more YouTube video or playlist URLs below.</div></div>
-          <div class="guide-step"><div class="guide-num">2</div><div>Each video gets its own timestamp importer — copy chapter lists from YouTube descriptions.</div></div>
+          <div class="guide-step"><div class="guide-num">1</div><div>Paste YouTube video or playlist links, or Spotify playlist, album or track links.</div></div>
+          <div class="guide-step"><div class="guide-num">2</div><div>YouTube videos get a timestamp importer for chapter lists. Spotify links bring in every song automatically (needs Spotify Premium and a Spotify developer Client ID).</div></div>
           <div class="guide-step"><div class="guide-num">3</div><div>Name your pack, pick an icon, hit Save. Then assign tracks to biomes from 🌴 Biomes.</div></div>
         </div>
         <div class="form-row">
@@ -5022,9 +5087,9 @@ init();
           <div class="emoji-picker" id="miEmojiPicker"></div>
         </div>
         <div class="form-row">
-          <label class="form-label">Add YouTube video or playlist URL</label>
+          <label class="form-label">Add a YouTube or Spotify link</label>
           <div style="display:flex;gap:7px">
-            <input class="form-input" id="miUrlInput" placeholder="https://youtube.com/watch?v=… or /playlist?list=…" style="flex:1"
+            <input class="form-input" id="miUrlInput" placeholder="youtube.com/watch?v=… or open.spotify.com/playlist/…" style="flex:1"
               oninput="miOnUrlInput()" onpaste="setTimeout(miOnUrlInput,50)"/>
             <button class="pill-btn" style="white-space:nowrap;padding:8px 12px" onclick="miAddUrl()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add</button>
           </div>
@@ -5034,21 +5099,6 @@ init();
         <div style="padding-bottom:16px">
           <button class="btn-primary" style="width:100%" onclick="miSavePack()">Save Pack →</button>
         </div>
-      </div>
-
-      <!-- SPOTIFY PLAYLIST PANE -->
-      <div class="mi-pane" id="mi-spotify">
-        <div class="guide-box" style="margin:4px 0 14px">
-          <div class="guide-step"><div class="guide-num">1</div><div>Connect Spotify in Settings (Premium needed for playback).</div></div>
-          <div class="guide-step"><div class="guide-num">2</div><div>Paste a playlist you own or collaborate on. Spotify doesn't share other people's playlists with apps.</div></div>
-          <div class="guide-step"><div class="guide-num">3</div><div>Every song starts in every biome. Sort them from the Biomes tab.</div></div>
-        </div>
-        <div class="form-row">
-          <label class="form-label">Spotify playlist link</label>
-          <input class="form-input" id="miSpotifyUrl" placeholder="https://open.spotify.com/playlist/…" autocomplete="off" spellcheck="false"/>
-        </div>
-        <button class="btn-primary" id="miSpotifyBtn" style="width:100%;margin-bottom:10px" onclick="miImportSpotifyPlaylist()">Import playlist</button>
-        <div class="copy-flash" id="miSpotifyStatus" role="status" style="margin-bottom:16px;line-height:1.5"></div>
       </div>
 
       <!-- IMPORT PANE -->
@@ -5117,8 +5167,8 @@ Rules:
       <span class="np-source" style="margin:0"><svg class="src-ic" style="width:26px;height:26px" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg></span>
       <div class="modal-title" id="spotifyNeededTitle">THIS PACK PLAYS FROM SPOTIFY</div>
     </div>
-    <div style="font-size:13px;line-height:1.6;color:var(--text);margin-bottom:8px">To play it you need <b>Spotify Premium</b> and to sign in with your own free <b>Spotify developer Client ID</b>.</div>
-    <div style="font-size:12px;line-height:1.6;color:var(--muted);margin-bottom:16px">Spotify only lets invited testers use MusicMap's shared Spotify app, so most people need their own. Setup takes about 5 minutes and there's no YouTube version of this pack.</div>
+    <div id="spotifyNeededLead" style="font-size:13px;line-height:1.6;color:var(--text);margin-bottom:8px">To play it you need <b>Spotify Premium</b> and to sign in with your own free <b>Spotify developer Client ID</b>.</div>
+    <div style="font-size:12px;line-height:1.6;color:var(--muted);margin-bottom:16px">Spotify only lets invited testers use MusicMap's shared Spotify app, so most people need their own. Setup takes about 5 minutes. Spotify songs have no YouTube fallback.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-primary" style="flex:1" type="button" onclick="goSetUpSpotify()">Set up Spotify</button>
       <button class="pill-btn" style="flex:1" type="button" onclick="closeSpotifyNeeded()">Not now</button>

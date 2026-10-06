@@ -4,9 +4,15 @@
 **Release date:** 2026-10-05
 
 ### Added
+- Spotify links work in **Make a Pack** just like YouTube links: paste a Spotify playlist, album or track link and every song comes in automatically. The link box tells you what it detected; without Spotify connected it warns about Premium + a developer Client ID, and after sign-in the link is waiting for you
+- Packs can mix YouTube videos and Spotify links
 - Album art while Spotify plays: Spotify gives apps no video, so the video button shows the album cover (over a blurred copy) in the same 16:9 slot
 
+### Changed
+- The separate Spotify import tab is gone; Spotify links go in the same box as YouTube links
+
 ### Fixed
+- Spotify songs in multi-video packs no longer inherit a YouTube video id
 - Spotify album art from `image-cdn-*.spotifycdn.com` was blocked; both of Spotify's image hosts are now allowed
 
 ---
