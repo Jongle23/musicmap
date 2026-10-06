@@ -21,16 +21,19 @@ MusicMap is a geolocation-aware music player that detects your real-world enviro
 ### Play It
 Visit **[jongle.me/musicmap](https://jongle.me/musicmap)** — no install required. Works in any modern browser.
 
-### Embed It (WordPress / Elementor)
-1. Download `musicmap.html`
-2. In Elementor, drag an **HTML widget** onto your page
-3. Paste the full contents of `musicmap.html` into the widget
-4. Publish
+### WordPress Plugin (recommended)
+1. Build the plugin zip: `python tools/build_plugin.py --zip` (creates `dist/musicmap.zip`)
+2. In WP Admin go to **Plugins → Add New → Upload Plugin**, upload `musicmap.zip`, and activate it
+3. Add **`[musicmap]`** (or `[MusicMap]`) to any page or post — a Shortcode block works, and so does Elementor's Shortcode widget
+4. Open **MusicMap → Settings** for API keys, the contact email, an optional Spotify Client ID and share-code limits
+5. Open **MusicMap → Data** to view and delete share codes, cached lookups and rate-limit records
 
-### Self-Host
-MusicMap is a single HTML file with no build step. Drop it anywhere that serves HTML.
+The plugin serves the app, runs the share-code API (`?mm_action=` and `/wp-json/musicmap/v1/`) and stores everything in its own database tables. Keys stay on the server and are shown masked after saving. If you used the old snippet, turn it off after activating; the plugin copies its saved share codes into the database automatically.
 
-For share code functionality, deploy `musicmap-api.php` as a PHP snippet on your WordPress site (see API Setup below).
+For Spotify sign-in, add each page that shows MusicMap as a Redirect URI in your Spotify dashboard (for example `https://jongle.me/musicmap/`).
+
+### Self-Host (no WordPress)
+`musicmap.html` is a single file with no build step — drop it anywhere that serves HTML. It's also the source the plugin and the future Android/iOS apps are built from.
 
 ---
 
@@ -68,13 +71,15 @@ Each pack card shows where it plays from (YouTube, Spotify or both). Game packs 
 
 ## 🔧 API Setup (Share Codes)
 
-To enable 6-character share codes:
+**With the WordPress plugin there's nothing to set up** — share codes work as soon as it's activated. The steps below are for the older standalone snippet (`musicmap-api.php`), kept for sites that don't use the plugin.
+
+To enable 6-character share codes with the snippet:
 
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
 4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.3"}`
-5. In `musicmap.html`, find `const API_URL` and set it to `'https://yoursite.com/?mm_action='`
+5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
 
@@ -129,8 +134,10 @@ It will use free data sources only (Apple Music charts, Last.fm, Wikidata, Music
 ## 📁 File Structure
 
 ```
-musicmap.html       — The full app (single file, self-contained)
-musicmap-api.php    — PHP share code API (WordPress/PHP Snippets)
+musicmap.html       — The full app (single file, self-contained) — the source of truth
+wordpress-plugin/   — The MusicMap WordPress plugin ([musicmap] shortcode, settings, data, API)
+tools/              — build_plugin.py: builds the plugin's assets (and zip) from musicmap.html
+musicmap-api.php    — Legacy standalone share-code snippet (WPCode / PHP Snippets)
 CHANGELOG.md        — Version history
 LICENSE.md          — License terms
 README.md           — This file

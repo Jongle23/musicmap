@@ -10,6 +10,21 @@
 - Lock-screen / notification controls for radio via the Media Session API (also groundwork for the Android and iOS apps)
 - In Local Listening the **Packs** tab becomes **Saved**: favourite stations (heart on each station, or the heart in the player, which replaces the video button in this mode) and saved spots (**Save spot** next to Move pin; tapping one jumps the pin back there with its channel)
 
+### WordPress plugin
+- New **MusicMap plugin** (`wordpress-plugin/musicmap`): add `[musicmap]` to any page. It serves the app (styles scoped so they can't affect the theme), loads Leaflet with integrity checks, and passes only public settings to the page
+- **MusicMap → Settings**: Last.fm and YouTube keys (stored server-side, masked after saving, blank keeps the saved key), contact email, Spotify Client ID, rate limit, pack size, share-code expiry, cache length, and an opt-in "delete data on uninstall"
+- **MusicMap → Data**: browse, search, view and delete share codes (single or bulk), delete expired codes, view and clear cache and rate-limit records, and copy or delete the old snippet's files
+- Share codes move to a database table; the old snippet's files are copied in on activation (expired ones skipped), so existing codes keep working. The `?mm_action=` API is unchanged and also available at `/wp-json/musicmap/v1/`
+- Every admin change checks permissions and a security token; saves are rate-limited per hashed IP; all queries are prepared
+- `tools/build_plugin.py` builds the plugin's assets and zip from `musicmap.html`
+
+### Added
+- **Credits & Sources** in Settings (and a Credits link in the footer): every service and tool MusicMap uses, with links, logos and licences
+
+### Fixed
+- The app now starts after the whole page has loaded; dialogs placed after the script (like Make a Pack) were missing when it started
+- Removed the old offline service worker, which browsers never registered
+
 ### Changed
 - Removed Tracks moved to the bottom of Settings, collapsed by default with a count (Biome Packs only)
 
