@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.1.1
+# 🎵 MusicMap v1.2
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -36,7 +36,7 @@ For share code functionality, deploy `musicmap-api.php` as a PHP snippet on your
 
 ## 📦 Default Packs
 
-MusicMap ships with five built-in packs:
+MusicMap ships with six built-in packs:
 
 | Pack | Tracks | Source |
 |---|---|---|
@@ -45,14 +45,16 @@ MusicMap ships with five built-in packs:
 | 🍄 Super Mario Bros. 3 | 45 | Super Mario Bros. 3 (NES) |
 | 🪖 Halo Reach | 20 | Halo Reach OST |
 | ⛏️ Terraria | 90 | Terraria OST |
+| 🎧 PachiPatch | 474 | Jongle's Spotify playlist (needs Spotify, see below) |
 
-All music is streamed via YouTube. No audio files are bundled.
+Each pack card shows where it plays from (YouTube, Spotify or both). Game packs stream via YouTube; PachiPatch streams via Spotify. No audio files are bundled.
 
 ---
 
 ## 🎮 Features
 
-- **5 built-in game music packs** with verified track timestamps
+- **5 built-in game music packs** with verified track timestamps, plus the PachiPatch Spotify pack
+- **Spotify (optional)** — play Spotify tracks in the browser with Premium, import your own playlists as packs
 - **OSM-powered biome detection** — uses real map data, not just address guessing
 - **Custom location pins** — drop multiple pins per location with individual proximity radii
 - **Pack builder** — add any YouTube video or playlist as a custom pack
@@ -71,12 +73,23 @@ To enable 6-character share codes:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.1.1"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.2"}`
 5. In `musicmap.html`, find `const API_URL` and set it to `'https://yoursite.com/?mm_action='`
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
 
 If your site is behind Cloudflare or another proxy, set `$TRUSTED_IP_HEADER` in the snippet (e.g. `'HTTP_CF_CONNECTING_IP'`) so the save rate limit applies per visitor. Packs are stored in `wp-content/uploads/musicmap_packs/`; on nginx hosts, the `.htaccess` there is ignored, so add a server rule if you want to block direct downloads.
+
+---
+
+## 🎧 Spotify (Optional)
+
+Spotify tracks play in the browser through Spotify's Web Playback SDK, which needs **Spotify Premium**.
+
+- **Connect:** Settings → Spotify → Connect. MusicMap's shared Spotify app is in Spotify's Development Mode, so only accounts invited to it can sign in; the app warns you before you try.
+- **Your own Client ID:** anyone else can create a free app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) (Web API + Web Playback SDK), add the Redirect URI shown in Settings, and paste the Client ID under "Use my own Spotify app". No Client Secret is needed.
+- **Import a playlist:** Packs → Make or Import Pack → Spotify. Works for playlists you own or collaborate on.
+- Spotify-only packs have no YouTube fallback; without Spotify connected, the app explains what's needed instead of playing.
 
 ---
 

@@ -1,6 +1,30 @@
 # MusicMap Changelog
 
-## v1.1.1 — Current
+## v1.2 — Current
+**Release date:** 2026-10-05
+
+### Added
+- Spotify Premium playback in the browser (Web Playback SDK), with sign-in via PKCE — no Client Secret
+- MusicMap's shared Spotify Client ID built in; a warning before sign-in explains Spotify only allows invited testers, and anyone refused is guided to use their own free Client ID
+- Spotify search in the track picker, and **Import a Spotify playlist** as a pack (playlists you own or collaborate on)
+- **PachiPatch** built-in pack: 474 songs from Jongle's Spotify playlist, sorted one-per-place across the 9 biomes and Home/Work/School/Gym (33 left for you to place)
+- Source icons on every pack card and in now-playing (YouTube, Spotify, or other)
+
+### Changed
+- Spotify-only songs never fall back to an empty YouTube player; a pop-up explains what's needed instead
+- Clear message when a browser can't play Spotify (no DRM) instead of "Connecting…" forever
+
+### Security
+- Spotify search results are escaped (song and artist names are user-published), album art only loads from Spotify's image server
+- Spotify sign-in replies are checked against the saved state, and only treated as sign-in replies when a sign-in was started
+
+### Fixed
+- Spotify songs no longer skip twice at the end (the stopwatch and Spotify's own end event both advanced)
+- Spotify tracks in older-format packs no longer inherit the pack's YouTube video
+
+---
+
+## v1.1.1
 **Release date:** 2026-09-27
 
 ### Security
