@@ -1,6 +1,31 @@
 # MusicMap Changelog
 
-## v1.3 — Current
+## v1.4 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Popular**, **Made Here** and **Genre Mixes** channels are live:
+  - Popular: the country's 100 most-played songs (Apple Music charts), with album art
+  - Made Here: well-known artists born or formed near the pin (Wikidata), most famous first; only artists with a Spotify, YouTube or record-label presence
+  - Genre Mixes: the country's chart grouped into genre playlists (no Last.fm needed)
+- Songs play through YouTube's official player (the video shows while it plays; the next song starts when one ends); artists with a YouTube channel play their uploads without using any quota
+- A **Spotify** button on every song/artist row, shown only to visitors who connected Spotify
+- A **share** button on every channel row (stations, songs, artists, genre mixes): the link, built on tap, opens MusicMap at the same spot and channel with that item ready to play
+- Plugin routes `/wp-json/musicmap/v1/chart`, `/made` and `/resolve`, cached in the plugin's database for every visitor; a daily YouTube budget (Settings → YouTube usage shows today's use)
+- Credits list Apple Music charts and Wikidata
+
+### Changed
+- The game-pack mode is now called **Biome Beats**, a nod to MusicMap's original name
+- The map and the first Local Listening spot default to Tampa, FL
+- The bottom tab bar no longer shows a scrollbar
+
+### Security
+- All channel data is validated server-side (country codes, coordinates, text lengths), upstream hosts are fixed, artwork only loads from Apple's image host, and YouTube video IDs are checked; the YouTube key never leaves the server
+- Shared links are validated before use and removed from the address bar
+
+---
+
+## v1.3
 **Release date:** 2026-10-05
 
 ### Added

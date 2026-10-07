@@ -61,12 +61,12 @@
   <div class="hero-divider"></div>
   <!-- MODE SWITCH (next to the player) -->
   <div class="mode-switch" role="tablist" aria-label="Listening mode">
-    <button class="mode-opt active" id="modeBtnPacks" type="button" role="tab" aria-selected="true" onclick="setAppMode('packs')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>Biome Packs</button>
+    <button class="mode-opt active" id="modeBtnPacks" type="button" role="tab" aria-selected="true" onclick="setAppMode('packs')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>Biome Beats</button>
     <button class="mode-opt" id="modeBtnLocal" type="button" role="tab" aria-selected="false" onclick="setAppMode('local')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>Local Listening</button>
   </div>
   <!-- NOW PLAYING (integrated) -->
   <div class="hero-player">
-    <div id="ytContainer"><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe><div class="sp-art" id="spArt" hidden><img class="sp-art-bg" id="spArtBg" alt="" aria-hidden="true"><img class="sp-art-img" id="spArtImg" alt=""></div></div>
+    <div id="ytContainer"><div id="localYtWrap"><div id="localYtPlayer"></div></div><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe><div class="sp-art" id="spArt" hidden><img class="sp-art-bg" id="spArtBg" alt="" aria-hidden="true"><img class="sp-art-img" id="spArtImg" alt=""></div></div>
     <div class="hero-np-head">
       <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-np-track" id="npTrack">Route 104</div>
@@ -206,7 +206,7 @@
       <div class="credits-list" id="creditsList"></div>
       <div class="credits-note" id="creditsNote"></div>
     </div>
-    <!-- Removed tracks: rarely needed, so last and collapsed by default (Biome Packs only) -->
+    <!-- Removed tracks: rarely needed, so last and collapsed by default (Biome Beats only) -->
     <details class="section settings-collapse packs-only" id="removedTracksBox" style="margin-top:20px">
       <summary class="section-header"><span class="section-title">REMOVED TRACKS</span><span class="settings-collapse-count" id="removedTracksCount"></span><svg class="ic ic-sm settings-collapse-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></summary>
       <div class="track-list" id="hiddenTrackList"></div>
@@ -571,7 +571,7 @@ Rules:
   </div>
 </div>
 <div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.3</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.4</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a></div>
 </div>
 </div><!-- #geovibes-app -->

@@ -1264,6 +1264,7 @@ async function init(){
   syncSpotifyOwnAppUI();
   resumePendingSpotifyLink();
   applyModeUI();
+  if(readShareLink()){ appMode='local'; ss('appMode','local'); applyModeUI(); }
   if(appMode==='local'){
     // opening in Local Listening: start on the channel list (the default Packs tab doesn't apply)
     if(document.getElementById('tab-packs')?.classList.contains('active')) switchTab('player');
@@ -1494,7 +1495,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.3';
+const MM_VERSION = '1.4';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2574,13 +2575,15 @@ function updateCacheStatus(){
 // MAP
 // ═══════════════════════════════════════════
 // ── LEAFLET MAP ──
+// Where the map starts, and the first Local Listening spot, before any location is known
+const DEFAULT_SPOT={latlng:[27.9506,-82.4572], zoom:11, place:{city:'Tampa',region:'Florida',country:'United States',cc:'us'}};
 function initLeafletMap(){
   if(leafletMap) return; // already initialised
   const el=document.getElementById('leafletMap');
   if(!el||typeof L==='undefined') return;
 
   leafletMap=L.map('leafletMap',{
-    center:[20,0], zoom:2,
+    center:DEFAULT_SPOT.latlng, zoom:DEFAULT_SPOT.zoom, // Tampa, FL until we know where you are
     zoomControl:true,
     attributionControl:true
   });
@@ -2622,7 +2625,7 @@ function renderCustomPins(){
   customPinMarkers=[];
   radiusCircles=[];
   renderMapLegend();
-  if(isLocalMode()) return; // saved places belong to Biome Packs
+  if(isLocalMode()) return; // saved places belong to Biome Beats
 
   getAllCustomLocs().filter(l=>l.lat&&l.lon).forEach(loc=>{
     const color=BIOME_COLORS[loc.cssClass||'biome-custom']||'#8b5cf6';
@@ -4529,9 +4532,9 @@ const localPlaceCache={};
 })();
 
 const LOCAL_CHANNELS=[
-  {id:'popular', label:'Popular', soon:true},
-  {id:'made',    label:'Made Here', soon:true},
-  {id:'genres',  label:'Genre Mixes', soon:true},
+  {id:'popular', label:'Popular'},
+  {id:'made',    label:'Made Here'},
+  {id:'genres',  label:'Genre Mixes'},
   {id:'radio',   label:'Radio'},
 ];
 
@@ -4578,6 +4581,7 @@ async function setAppMode(mode){
     enterLocalMode(true);
   } else {
     stopRadio();
+    stopChanPlayback();
     clearMediaSession();
     document.querySelector('.hero-progress')?.classList.remove('live');
     renderListenPin();
@@ -4586,15 +4590,31 @@ async function setAppMode(mode){
 }
 function enterLocalMode(fromSwitch){
   renderLocalHeader(); renderListenPin(); updateSaveSpotBtn();
+  if(localPoint&&!localPoint.place){
+    // e.g. opened from a shared link: fill in the place name (channels that need the country wait for it)
+    const pt=localPoint;
+    localGeocode(pt.lat,pt.lon).then(place=>{
+      if(!place||localPoint!==pt||pt.place) return;
+      pt.place=place; ss('localPoint',pt); renderLocalHeader(); renderMapLegend();
+      if(localChannel==='made') document.getElementById('localListTitle').textContent='MADE AROUND '+(place.city||'THE PIN').toUpperCase();
+      if(localChannel==='radio') document.getElementById('localListTitle').textContent='STATIONS NEAR '+(place.city||'THE PIN').toUpperCase();
+    });
+  }
   if(localPoint){
     // never leave pack text in the player while the channel loads
     setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+(placeLabel(localPoint.place)||'near the pin'));
     loadLocalChannel();
   }
   else {
-    setLocalNowPlaying('Pick a spot to listen','Drag the pin on the Map or turn on live tracking');
-    renderLocalNote('Choose where to listen: tap <b>Move pin</b> and drop the pin anywhere, or tap <b>Listen to World</b> to follow your location.');
-    if(fromSwitch && lastLat!==null) setListenPoint(lastLat,lastLon,trackingActive?'gps':'pin');
+    // no spot yet: your location if we have it, otherwise start in Tampa (move the pin any time)
+    if(lastLat!==null) setListenPoint(lastLat,lastLon,trackingActive?'gps':'pin',{force:true});
+    else {
+      localPoint={lat:DEFAULT_SPOT.latlng[0], lon:DEFAULT_SPOT.latlng[1], source:'pin', place:{...DEFAULT_SPOT.place}};
+      ss('localPoint',localPoint);
+      renderLocalHeader(); renderListenPin(); updateSaveSpotBtn();
+      setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+placeLabel(localPoint.place));
+      loadLocalChannel();
+    }
   }
 }
 
@@ -4705,7 +4725,8 @@ function renderChannelTabs(){
 function selectLocalChannel(id){
   if(!LOCAL_CHANNELS.some(c=>c.id===id)) return;
   localChannel=id; ss('localChannel',id);
-  renderLocalHeader(); loadLocalChannel();
+  chanGenre=null;
+  renderLocalHeader(); loadLocalChannel(); updateSaveStationBtn();
 }
 
 // ── Channel content ──
@@ -4718,24 +4739,7 @@ async function loadLocalChannel(opts){
   const pl=localPoint?.place;
   const where=esc(placeLabel(pl)||'this spot');
   const country=esc(pl?.country||'this country');
-  if(localChannel!=='radio'){
-    if(opts?.switchNow){
-      const label=LOCAL_CHANNELS.find(c=>c.id===localChannel).label;
-      showLocalAlert(label+' isn\u2019t available yet',
-        label+' is coming soon, so there\u2019s nothing to play here on it. Radio is available now.',
-        [{label:'Play Radio here', primary:true, fn:()=>{ localChannel='radio'; ss('localChannel','radio'); renderChannelTabs(); loadLocalChannel({switchNow:true, prev:opts.prev}); }},
-         {label:'OK'}]);
-    }
-    title.textContent=localChannel==='popular'?('POPULAR IN '+(pl?.country||'YOUR COUNTRY').toUpperCase()):LOCAL_CHANNELS.find(c=>c.id===localChannel).label.toUpperCase();
-    const notes={
-      popular:'The most-played songs in <b>'+country+'</b>. Charts are country-wide, so this channel changes when the pin crosses a border. Coming next: it needs free Last.fm and YouTube API keys on the server.',
-      made:'Artists from around <b>'+where+'</b>, ranked by how well known they are. Coming soon (no key needed).',
-      genres:'Playlists built from the top genres around <b>'+where+'</b>. Coming after Popular.'
-    };
-    renderLocalNote(notes[localChannel]);
-    if(!localPlaying) setLocalNowPlaying(LOCAL_CHANNELS.find(c=>c.id===localChannel).label+' is coming soon','Try Local Radio for now');
-    return;
-  }
+  if(localChannel!=='radio'){ return loadSongChannel(opts); }
   // Local Radio
   title.textContent='STATIONS NEAR '+(pl?.city||'THE PIN').toUpperCase();
   if(!localPoint){ renderLocalNote('Choose a spot first: tap <b>Move pin</b>.'); return; }
@@ -4770,6 +4774,7 @@ async function loadLocalChannel(opts){
   if(!localStations.length){ renderLocalNote('No stations found within '+fmtDist(200)+' of <b>'+where+'</b>. Try moving the pin.'); return; }
   renderLocalList();
   if(!localPlaying) setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station');
+  applyPendingShare();
   if(opts?.autoplay && !localPlaying) playStation(0);
 }
 function renderLocalList(){
@@ -4787,7 +4792,7 @@ function renderLocalList(){
     main.append(name,sub); b.append(icon,main);
     if(i===localIdx&&localPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
     b.onclick=()=>playStation(i);
-    row.append(b, heartButton(st));
+    row.append(b, shareButton({ch:'radio', st:st.uuid}, st.name), heartButton(st));
     list.appendChild(row);
   });
 }
@@ -4858,6 +4863,7 @@ function ensureRadioAudio(){
 }
 function playStation(i){
   const st=localStations[i]; if(!st) return;
+  stopChanPlayback();
   localIdx=i;
   const a=ensureRadioAudio();
   a.src=st.url;
@@ -4877,7 +4883,7 @@ function stopRadio(){
   localPlaying=false;
 }
 function localTogglePlay(){
-  if(localChannel!=='radio'){ selectLocalChannel('radio'); return; }
+  if(localChannel!=='radio'){ chanToggle(); return; }
   if(localPlaying){ radioAudio?.pause(); return; }
   if(localIdx>=0&&radioAudio?.getAttribute('src')){ radioAudio.play().catch(()=>{}); return; }
   if(localStations.length) playStation(Math.max(0,localIdx));
@@ -4885,6 +4891,7 @@ function localTogglePlay(){
   else openLocalPinOnMap();
 }
 function localStep(dir){
+  if(localChannel!=='radio'){ chanStep(dir); return; }
   if(!localStations.length) return;
   playStation(((localIdx<0?0:localIdx+dir)%localStations.length+localStations.length)%localStations.length);
 }
@@ -4950,6 +4957,7 @@ function heartButton(st){
 function updateSaveStationBtn(){
   const vb=document.getElementById('videoToggleBtn');
   if(!vb||!isLocalMode()) return;
+  if(localChannel!=='radio'){ vb.disabled=true; vb.classList.remove('saved'); vb.title='Saving songs is coming soon'; vb.setAttribute('aria-label',vb.title); return; }
   const st=localStations[localIdx];
   const on=!!st&&isStationSaved(st.uuid);
   vb.disabled=!st;
@@ -5046,7 +5054,9 @@ const CREDITS=[
   {name:'Nominatim', role:'Place names for your location and the listening pin', lic:'ODbL', url:'https://nominatim.org', icon:'https://www.openstreetmap.org/favicon.ico'},
   {name:'Overpass API', role:'Reads nearby map features to pick your biome', lic:'ODbL', url:'https://overpass-api.de', icon:'https://www.openstreetmap.org/favicon.ico'},
   {name:'Leaflet', role:'The interactive map', lic:'BSD-2', url:'https://leafletjs.com', icon:'https://leafletjs.com/docs/images/favicon.ico'},
-  {name:'YouTube', role:'Plays game soundtracks and video (IFrame Player, oEmbed)', url:'https://www.youtube.com', icon:'https://www.youtube.com/favicon.ico'},
+  {name:'YouTube', role:'Plays game soundtracks and channel songs (IFrame Player API, oEmbed, Data API search)', url:'https://www.youtube.com', icon:'https://www.youtube.com/favicon.ico'},
+  {name:'Apple Music charts', role:'Most-played songs per country for Popular and Genre Mixes', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
+  {name:'Wikidata', role:'Artists born or formed near the pin, for Made Here', lic:'CC0', url:'https://www.wikidata.org', icon:'https://www.wikidata.org/static/favicon/wikidata.ico'},
   {name:'Spotify', role:'Spotify playback, search and playlist import (Web Playback SDK, Web API)', url:'https://developer.spotify.com', icon:'https://open.spotify.com/favicon.ico'},
   {name:'Radio Browser', role:'Community directory of radio stations near the pin', lic:'Public domain', url:'https://www.radio-browser.info', icon:'https://www.radio-browser.info/favicon.ico'},
   {name:'Google Fonts', role:'Press Start 2P and DM Sans typefaces', lic:'OFL', url:'https://fonts.google.com', icon:'https://www.gstatic.com/images/icons/material/apps/fonts/1x/catalog/v5/favicon.svg'},
@@ -5076,8 +5086,8 @@ function renderCredits(){
   });
   document.getElementById('creditsNote').textContent=
     'Music in the built-in game packs belongs to its composers and publishers and streams from YouTube. '
-    +'Spotify songs belong to their artists and labels. Radio streams belong to their broadcasters. '
-    +'MusicMap does not host or copy any audio. More sources will appear here as new Local Listening channels launch.';
+    +'Chart and channel songs, and Spotify songs, belong to their artists and labels. Radio streams belong to their broadcasters. '
+    +'MusicMap does not host or copy any audio.';
 }
 function openCredits(e){
   if(e) e.preventDefault();
@@ -5174,6 +5184,417 @@ function renderMapLegend(){
   note.textContent='Biomes aren’t drawn on the map: MusicMap reads the map data where you are and picks the closest match (beach, city, forest…).'
     +(curOv?' Right now: '+(curOv.emoji||'')+' '+curOv.name+'.':'');
   el.appendChild(note);
+}
+
+
+// ═══════════════════════════════════════════
+// SONG CHANNELS: Popular · Made Here · Genre Mixes
+// Data comes from the MusicMap plugin (MM_CONFIG.restBase): country charts (Apple Music),
+// local artists (Wikidata) and cached YouTube lookups. Plays on YouTube by default;
+// visitors who connected Spotify also get a Spotify button on each row.
+// ═══════════════════════════════════════════
+let chanItems=[], chanIdx=-1, chanPlaying=false, chanVia=null, chanGenre=null, chanData=null;
+let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
+let chanPlayToken=0, chanStartedToken=-1; // newest play wins; 'ended' only counts for a song that really started
+const chanCache={};
+const YT_ID=/^[A-Za-z0-9_-]{11}$/;
+const ART_OK=/^https:\/\/is\d+-ssl\.mzstatic\.com\/image\/thumb\/[^\s"'<>]+$/;
+
+async function mmApi(path){
+  const base=typeof MM_CONFIG.restBase==='string'&&/^https?:\/\//.test(MM_CONFIG.restBase)?MM_CONFIG.restBase:'';
+  if(!base){ const e=new Error('This channel needs the MusicMap server (the WordPress plugin).'); e.code='no_server'; throw e; }
+  const r=await fetch(base+path,{credentials:'omit'});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||j.ok===false){ const e=new Error(j?.error||'Request failed'); e.code=j?.code||('http_'+r.status); e.status=r.status; throw e; }
+  return j;
+}
+async function getChart(cc){
+  const k='chart:'+cc; if(chanCache[k]) return chanCache[k];
+  return chanCache[k]=await mmApi('chart?cc='+encodeURIComponent(cc));
+}
+async function getMade(lat,lon){
+  const k='made:'+lat.toFixed(1)+','+lon.toFixed(1); if(chanCache[k]) return chanCache[k];
+  return chanCache[k]=await mmApi('made?lat='+lat.toFixed(4)+'&lon='+lon.toFixed(4));
+}
+function genreMixes(songs){
+  const by={};
+  songs.forEach(s=>{ if(s.genre){ (by[s.genre]=by[s.genre]||[]).push(s); } });
+  return Object.entries(by).filter(([,l])=>l.length>=3).sort((a,b)=>b[1].length-a[1].length).map(([genre,list])=>({genre,list}));
+}
+function chanLabel(){ return (LOCAL_CHANNELS.find(c=>c.id===localChannel)||{}).label||''; }
+
+async function loadSongChannel(opts){
+  const title=document.getElementById('localListTitle');
+  const pl=localPoint?.place;
+  const token=++localLoadToken;
+  const fail=(msg)=>{
+    if(opts?.switchNow){
+      showLocalAlert('Nothing to play here', msg+(chanPlaying&&chanItems[chanIdx]?' Still playing '+itemTitle(chanItems[chanIdx])+'.':''), [{label:'OK',primary:true}]);
+      revertListenPoint(opts.prev);
+      renderChanList(); return;
+    }
+    renderLocalNote(esc(msg));
+  };
+  if(!localPoint){ renderLocalNote('Choose a spot first: tap <b>Move pin</b>.'); return; }
+  try{
+    if(localChannel==='made'){
+      title.textContent='MADE AROUND '+(pl?.city||'THE PIN').toUpperCase();
+      renderLocalNote('Finding artists from around <b>'+esc(placeLabel(pl)||'this spot')+'</b>…');
+      const d=await getMade(localPoint.lat,localPoint.lon);
+      if(token!==localLoadToken) return;
+      if(!d.artists.length) return fail('No well-known artists found within '+fmtDist(d.radius_km||80)+' of '+(placeLabel(pl)||'that spot')+'.');
+      setChanList(d.artists.map(a=>({kind:'artist',...a})), d, opts);
+    } else {
+      // Popular and Genre Mixes are country-wide: they always say which country
+      const cc=pl?.cc;
+      if(!cc){
+        if(!pl){
+          // place not looked up yet (e.g. opened from a shared link): look it up, then load
+          renderLocalNote('Finding where the pin is…');
+          const pt=localPoint, place=await localGeocode(pt.lat,pt.lon);
+          if(token!==localLoadToken||localPoint!==pt) return;
+          if(place){ pt.place=place; ss('localPoint',pt); renderLocalHeader(); return loadSongChannel(opts); }
+          return fail('Couldn’t work out which country that spot is in.');
+        }
+        return fail('That spot isn’t in a country with music charts.');
+      }
+      title.textContent=(localChannel==='popular'?'POPULAR IN ':'GENRE MIXES · ')+(pl.country||cc).toUpperCase();
+      renderLocalNote('Loading the chart for <b>'+esc(pl.country||cc.toUpperCase())+'</b>…');
+      const d=await getChart(cc);
+      if(token!==localLoadToken) return;
+      if(localChannel==='popular') setChanList(d.songs.map(x=>({kind:'song',...x})), d, opts);
+      else {
+        const mixes=genreMixes(d.songs);
+        if(!mixes.length) return fail('Not enough chart data for '+(pl.country||cc)+' to build genre mixes.');
+        chanData={...d, mixes};
+        const open=mixes.find(m=>m.genre===chanGenre);
+        if(open){ title.textContent=(open.genre+' mix · '+(pl.country||cc)).toUpperCase(); setChanList(open.list.map(x=>({kind:'song',...x})), chanData, opts, true); }
+        else { chanItems=[]; renderChanList(); if(opts?.switchNow||opts?.autoplay) openMix(mixes[0].genre,true); }
+      }
+    }
+  }catch(e){
+    if(token!==localLoadToken) return;
+    fail(e.code==='no_chart'?'There’s no chart for '+(pl?.country||'this country')+'.':e.message);
+  }
+}
+function setChanList(items, data, opts, keepGenre){
+  if(!keepGenre) chanData=data;
+  ensureYtPlayer().catch(()=>{});
+  const playing=chanPlaying?chanItems[chanIdx]:null;
+  chanItems=items;
+  chanIdx=playing?items.findIndex(x=>itemKey(x)===itemKey(playing)):-1;
+  renderChanList();
+  if(opts?.switchNow||opts?.autoplay) playChanItem(0);
+  else if(!chanPlaying&&!localPlaying) setLocalIdle();
+  applyPendingShare();
+}
+function setLocalIdle(){
+  const pl=localPoint?.place;
+  const n=chanItems.length;
+  const what=localChannel==='made'?n+' artists from around '+(placeLabel(pl)||'the pin')
+    :localChannel==='popular'?'Top '+n+' in '+(pl?.country||'this country')
+    :n?chanGenre+' mix':'Genre mixes for '+(pl?.country||'this country');
+  setChanNowPlaying(null,what,'Tap play or pick '+(localChannel==='made'?'an artist':'a song'));
+}
+const itemKey=x=>x.kind==='artist'?'a:'+x.name:'s:'+x.artist+'|'+x.title;
+const itemTitle=x=>x.kind==='artist'?x.name:x.title+' — '+x.artist;
+
+function renderChanList(){
+  const list=document.getElementById('localList'); if(!list) return;
+  list.innerHTML='';
+  if(localChannel==='genres'&&!chanItems.length&&chanData?.mixes){
+    chanData.mixes.forEach(m=>{
+      const row=document.createElement('div'); row.className='local-row-wrap';
+      const b=document.createElement('button'); b.type='button'; b.className='local-item';
+      const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent='♫';
+      const main=document.createElement('span'); main.className='local-item-main';
+      const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=m.genre+' mix';
+      const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+      sub.textContent=m.list.length+' songs · '+[...new Set(m.list.map(x=>x.artist))].slice(0,3).join(', ');
+      main.append(name,sub); b.append(icon,main);
+      b.onclick=()=>openMix(m.genre,false);
+      row.append(b, shareButton({ch:'genres', g:m.genre}, m.genre+' mix'));
+      list.appendChild(row);
+    });
+    return;
+  }
+  if(localChannel==='genres'&&chanGenre){
+    const back=document.createElement('button'); back.type='button'; back.className='local-back';
+    back.textContent='← All genre mixes';
+    back.onclick=()=>{ chanGenre=null; chanItems=[]; document.getElementById('localListTitle').textContent='GENRE MIXES · '+(localPoint?.place?.country||'').toUpperCase(); renderChanList(); };
+    list.appendChild(back);
+  }
+  chanItems.forEach((it,i)=>{
+    const row=document.createElement('div'); row.className='local-row-wrap';
+    const b=document.createElement('button'); b.type='button'; b.className='local-item'+(i===chanIdx?' active':'');
+    if(it.kind==='song'){
+      const rank=document.createElement('span'); rank.className='local-item-rank'; rank.textContent=it.rank||'';
+      b.append(rank);
+      if(ART_OK.test(it.art||'')){ const img=document.createElement('img'); img.className='local-item-art'; img.alt=''; img.loading='lazy'; img.referrerPolicy='no-referrer'; img.src=it.art; b.append(img); }
+    } else {
+      const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent=(it.name||'?')[0]; b.append(icon);
+    }
+    const main=document.createElement('span'); main.className='local-item-main';
+    const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block';
+    name.textContent=it.kind==='song'?it.title:it.name;
+    const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+    sub.textContent=it.kind==='song'?[it.artist,localChannel==='popular'?it.genre:''].filter(Boolean).join(' · '):[it.genre,it.place].filter(Boolean).join(' · ');
+    main.append(name,sub); b.append(main);
+    if(i===chanIdx&&chanPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
+    b.onclick=()=>playChanItem(i,'youtube');
+    row.append(b);
+    // Spotify only for visitors who connected it
+    if(isSpotifyConnected()){
+      const sp=document.createElement('button'); sp.type='button'; sp.className='row-btn';
+      sp.innerHTML=SOURCE_ICONS.spotify; sp.title='Play on Spotify'; sp.setAttribute('aria-label','Play '+name.textContent+' on Spotify');
+      sp.onclick=()=>playChanItem(i,'spotify');
+      row.append(sp);
+    }
+    row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}:{ch:localChannel,t:it.title,a:it.artist,g:localChannel==='genres'?chanGenre:''}, itemTitle(it)));
+    list.appendChild(row);
+  });
+}
+function openMix(genre,autoplay){
+  const m=chanData?.mixes?.find(x=>x.genre===genre); if(!m) return;
+  chanGenre=genre;
+  document.getElementById('localListTitle').textContent=(genre+' mix · '+(localPoint?.place?.country||'')).toUpperCase();
+  chanItems=m.list.map(x=>({kind:'song',...x})); chanIdx=-1;
+  renderChanList();
+  if(autoplay) playChanItem(0);
+  else if(!chanPlaying&&!localPlaying) setLocalIdle();
+}
+
+// ── Playback ──
+function stopChanPlayback(){
+  clearInterval(chanProgTimer); chanProgTimer=null;
+  if(ytPlayer&&ytPlayer.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
+  document.getElementById('ytContainer')?.classList.remove('local-video');
+  if(chanVia==='spotify'&&spotifyActive){ spotifyPausePlayback(); spotifyActive=false; }
+  chanPlaying=false; chanVia=null;
+}
+async function playChanItem(i,via){
+  const it=chanItems[i]; if(!it) return;
+  if(via!=='spotify') via='youtube';
+  const token=++chanPlayToken;
+  stopRadio(); stopChanPlayback();
+  chanIdx=i; renderChanList();
+  setChanNowPlaying(it,null,'Loading…',via);
+  try{
+    if(via==='spotify') await chanPlaySpotify(it,token);
+    else await chanPlayYouTube(it,token);
+    if(token!==chanPlayToken) return; // a newer play took over
+    chanVia=via;
+    setChanNowPlaying(it,null,null,via);
+    setChanMediaSession(it);
+    if(via==='youtube') setTimeout(()=>{
+      // browsers may block playback that starts after a network wait; one more tap fixes it
+      if(token===chanPlayToken&&chanStartedToken!==token) document.getElementById('npGame').textContent='Tap play to start';
+    },3000);
+  }catch(e){
+    if(token!==chanPlayToken) return;
+    chanPlaying=false; setPlayIcon(false);
+    const msg=e.message||'Could not play this.';
+    if(e.code==='not_found'&&chanSkips<3&&chanItems.length>1){ chanSkips++; spotifyShowSnack('Couldn’t find '+itemTitle(it)+'. Skipping.'); return chanStep(1); }
+    setChanNowPlaying(it,null,msg,via);
+    if(e.code==='quota'||e.code==='no_youtube_key'||e.code==='no_server') showLocalAlert('Can’t play right now', msg+(isSpotifyConnected()?' You can still play it on Spotify.':''), [{label:'OK',primary:true}]);
+  }
+}
+function chanToggle(){
+  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
+  if(chanVia==='spotify'){ if(chanPlaying){ spotifyPausePlayback(); chanPlaying=false; } else { spotifyResumePlayback(); chanPlaying=true; } setPlayIcon(chanPlaying); renderChanList(); return; }
+  if(ytPlayer&&chanVia==='youtube'){ chanPlaying?ytPlayer.pauseVideo():ytPlayer.playVideo(); return; }
+  playChanItem(chanIdx);
+}
+function chanStep(dir){
+  if(!chanItems.length) return;
+  playChanItem(((chanIdx<0?0:chanIdx+dir)%chanItems.length+chanItems.length)%chanItems.length, chanVia==='spotify'?'spotify':'youtube');
+}
+
+// YouTube: the official IFrame player (reports when a song ends, so the next one starts)
+function ytReady(){
+  if(ytReadyPromise) return ytReadyPromise;
+  ytReadyPromise=new Promise((resolve,reject)=>{
+    if(window.YT&&window.YT.Player) return resolve();
+    const prev=window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady=()=>{ if(typeof prev==='function') try{prev();}catch(e){} resolve(); };
+    const sc=document.createElement('script'); sc.src='https://www.youtube.com/iframe_api'; sc.async=true;
+    sc.onerror=()=>{ ytReadyPromise=null; reject(Object.assign(new Error('YouTube could not load.'),{code:'yt_load'})); };
+    document.head.appendChild(sc);
+  });
+  return ytReadyPromise;
+}
+async function ensureYtPlayer(){
+  await ytReady();
+  if(ytPlayer) return ytPlayer;
+  return new Promise(resolve=>{
+    ytPlayer=new YT.Player('localYtPlayer',{
+      host:'https://www.youtube-nocookie.com',
+      playerVars:{playsinline:1,rel:0,modestbranding:1,origin:location.origin},
+      events:{
+        onReady:()=>resolve(ytPlayer),
+        onStateChange:e=>{
+          if(chanVia!=='youtube'&&chanVia!==null) return;
+          if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
+          else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
+          else if(e.data===YT.PlayerState.ENDED){
+            chanPlaying=false;
+            if(chanStartedToken!==chanPlayToken) return; // never actually started: don't skip ahead
+            if(chanItems[chanIdx]?.kind!=='artist'||!ytPlayer.getPlaylist?.()) chanStep(1);
+          }
+        },
+        onError:()=>{ chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
+      }
+    });
+  });
+}
+async function chanPlayYouTube(it,token){
+  const p=await ensureYtPlayer();
+  if(token!==chanPlayToken) return;
+  document.getElementById('ytContainer').classList.add('local-video');
+  if(it.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(it.youtube||'')){
+    // the artist's own uploads playlist: no lookup (and no quota) needed
+    p.loadPlaylist({list:'UU'+it.youtube.slice(2),listType:'playlist',index:0});
+    it._yt={list:'UU'+it.youtube.slice(2)};
+    return;
+  }
+  const q='resolve?artist='+encodeURIComponent(it.kind==='artist'?it.name:it.artist)+(it.kind==='song'?'&title='+encodeURIComponent(it.title):'');
+  const r=await mmApi(q);
+  if(token!==chanPlayToken) return;
+  if(!YT_ID.test(r.videoId||'')) throw Object.assign(new Error('No playable video found.'),{code:'not_found'});
+  it._yt={id:r.videoId};
+  p.loadVideoById(r.videoId);
+}
+// Spotify: search with the visitor's own Spotify sign-in (no server key involved)
+async function chanPlaySpotify(it,playTok){
+  if(!isSpotifyConnected()) throw new Error('Connect Spotify in Settings first.');
+  if(!spotifyReady) throw new Error(spotifyInitFailed?'This browser can’t play Spotify.':'Spotify is still connecting. Try again in a moment.');
+  const token=await getValidSpotifyToken(); if(!token) throw new Error('Your Spotify sign-in expired. Reconnect in Settings.');
+  let uri='', ctx='';
+  if(it.kind==='artist'){
+    if(/^[A-Za-z0-9]{22}$/.test(it.spotify||'')) ctx='spotify:artist:'+it.spotify;
+    else { const r=await spotifyApiGet('/search?type=artist&limit=1&q='+encodeURIComponent(it.name),token); ctx=r?.artists?.items?.[0]?.uri||''; }
+  } else {
+    const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
+    uri=r?.tracks?.items?.[0]?.uri||'';
+  }
+  if(playTok!==chanPlayToken) return;
+  if(!/^spotify:(track|artist):[A-Za-z0-9]{22}$/.test(uri||ctx)) throw Object.assign(new Error('Not found on Spotify.'),{code:'not_found'});
+  const resp=await fetch('https://api.spotify.com/v1/me/player/play?device_id='+encodeURIComponent(spotifyDeviceId),{
+    method:'PUT', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify(uri?{uris:[uri]}:{context_uri:ctx})
+  });
+  if(!resp.ok&&resp.status!==204) throw new Error('Spotify couldn’t start playback.');
+  it._sp=uri||ctx;
+  spotifyActive=true; chanPlaying=true;
+  setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
+  startChanProgress();
+}
+function startChanProgress(){
+  clearInterval(chanProgTimer);
+  const tick=async()=>{
+    let pos=0,dur=0;
+    if(chanVia==='spotify'||spotifyActive){ const st=await spotifyPlayer?.getCurrentState?.(); pos=(st?.position||0)/1000; dur=(st?.duration||0)/1000; }
+    else if(ytPlayer?.getCurrentTime){ pos=ytPlayer.getCurrentTime()||0; dur=ytPlayer.getDuration()||0; }
+    document.getElementById('progressTime').textContent=fmt(Math.floor(pos));
+    document.getElementById('progressDur').textContent=dur?fmt(Math.floor(dur)):'';
+    document.getElementById('progressFill').style.width=dur?Math.min(100,pos/dur*100)+'%':'0%';
+  };
+  tick(); chanProgTimer=setInterval(tick,1000);
+}
+function setChanNowPlaying(it,title,sub,via){
+  const pl=localPoint?.place;
+  const where=localChannel==='made'?'Made around '+(pl?.city||'the pin'):localChannel==='popular'?'Popular in '+(pl?.country||'this country'):(chanGenre||'Genre')+' mix · '+(pl?.country||'');
+  document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:it.name):'');
+  document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'?it.artist+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
+  const src=document.getElementById('npSource');
+  const s2=via==='spotify'?'spotify':it?'youtube':null;
+  src.innerHTML=s2?SOURCE_ICONS[s2]:''; src.title=s2?'Playing from '+SOURCE_LABELS[s2]:'';
+  document.querySelector('.hero-progress').classList.remove('live');
+  if(!it){ document.getElementById('progressTime').textContent='0:00'; document.getElementById('progressDur').textContent=''; document.getElementById('progressFill').style.width='0%'; }
+  setPlayIcon(chanPlaying);
+  // 5th button: open the song where it plays
+  const yb=document.getElementById('npYtBtn');
+  const link=it?._yt?.id?'https://www.youtube.com/watch?v='+it._yt.id:it?._yt?.list?'https://www.youtube.com/playlist?list='+it._yt.list
+    :/^spotify:(track|artist):/.test(it?._sp||'')?'https://open.spotify.com/'+it._sp.split(':')[1]+'/'+it._sp.split(':')[2]:'';
+  yb.disabled=!link; yb.title=link.includes('spotify')?'Open in Spotify':'Open on YouTube'; yb.setAttribute('aria-label',yb.title);
+  yb.onclick=link?()=>window.open(link,'_blank','noopener'):null;
+  updateSaveStationBtn();
+}
+function setChanMediaSession(it){
+  if(!('mediaSession' in navigator)) return;
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({
+      title:it.kind==='song'?it.title:it.name, artist:it.kind==='song'?it.artist:(it.genre||'Made Here'),
+      album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:[]
+    });
+    navigator.mediaSession.setActionHandler('play',()=>chanToggle());
+    navigator.mediaSession.setActionHandler('pause',()=>chanToggle());
+    navigator.mediaSession.setActionHandler('nexttrack',()=>chanStep(1));
+    navigator.mediaSession.setActionHandler('previoustrack',()=>chanStep(-1));
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════
+// SHARE: every channel row has a share button. The link is built on tap:
+// it opens MusicMap at the same spot, on the same channel, with that item ready to play.
+// ═══════════════════════════════════════════
+const SHARE_SHARE_SVG='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>';
+function shareButton(params,label){
+  const b=document.createElement('button'); b.type='button'; b.className='row-btn';
+  b.innerHTML=SHARE_SHARE_SVG; b.title='Share'; b.setAttribute('aria-label','Share '+label);
+  b.onclick=()=>shareListen(params,label);
+  return b;
+}
+function buildShareLink(params){
+  const u=new URL(location.href.split('#')[0]);
+  [...u.searchParams.keys()].forEach(k=>{ if(/^(mm_|ml_)/.test(k)||['code','state','error'].includes(k)) u.searchParams.delete(k); });
+  u.searchParams.set('ml_lat',localPoint.lat.toFixed(4));
+  u.searchParams.set('ml_lon',localPoint.lon.toFixed(4));
+  u.searchParams.set('ml_ch',params.ch);
+  ['st','t','a','g'].forEach(k=>{ if(params[k]) u.searchParams.set('ml_'+k,String(params[k]).slice(0,160)); });
+  return u.toString();
+}
+async function shareListen(params,label){
+  if(!localPoint) return;
+  const url=buildShareLink(params);
+  const where=placeLabel(localPoint.place)||'this spot';
+  const text='Listen to '+label+' near '+where+' on MusicMap';
+  try{
+    if(navigator.share){ await navigator.share({title:'MusicMap',text,url}); return; }
+  }catch(e){ if(e&&e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(url); spotifyShowSnack('Link copied'); }
+  catch(e){ showLocalAlert('Share link', url, [{label:'OK',primary:true}]); }
+}
+// Opening a shared link: validate everything, then set the pin and channel. Playback still
+// waits for a tap (browsers block autoplay), but the shared item is highlighted and ready.
+let pendingShare=null;
+function readShareLink(){
+  const q=new URLSearchParams(location.search);
+  if(!q.has('ml_ch')) return false;
+  const lat=Number(q.get('ml_lat')), lon=Number(q.get('ml_lon')), ch=q.get('ml_ch');
+  const vals={}; ['st','t','a','g'].forEach(k=>vals[k]=(q.get('ml_'+k)||'').slice(0,160)); // read before tidying the address
+  const clean=k=>vals[k];
+  ['ml_lat','ml_lon','ml_ch','ml_st','ml_t','ml_a','ml_g'].forEach(k=>q.delete(k));
+  history.replaceState({},'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180||!['popular','made','genres','radio'].includes(ch)) return false;
+  pendingShare={ch, st:RADIO_UUID.test(clean('st'))?clean('st'):'', t:clean('t'), a:clean('a'), g:clean('g')};
+  localChannel=ch; ss('localChannel',ch);
+  chanGenre=ch==='genres'&&pendingShare.g?pendingShare.g:null;
+  localPoint={lat:+lat.toFixed(5),lon:+lon.toFixed(5),source:'pin',place:null}; ss('localPoint',localPoint);
+  if(trackingActive) stopTracking();
+  return true;
+}
+function applyPendingShare(){
+  const ps=pendingShare; if(!ps||ps.ch!==localChannel) return;
+  let i=-1;
+  if(ps.ch==='radio') i=localStations.findIndex(s=>s.uuid===ps.st);
+  else if(ps.ch==='made') i=chanItems.findIndex(x=>x.name===ps.a);
+  else i=chanItems.findIndex(x=>x.title===ps.t&&x.artist===ps.a);
+  pendingShare=null;
+  if(i<0) return;
+  if(ps.ch==='radio'){ localIdx=i; renderLocalList(); setLocalNowPlaying(localStations[i].name,'Shared with you · tap play'); }
+  else { chanIdx=i; renderChanList(); setChanNowPlaying(chanItems[i],null,'Shared with you · tap play'); }
+  switchTab('player');
 }
 
 // ── Lock-screen / notification controls (Media Session; also used by the native app later) ──

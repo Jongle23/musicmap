@@ -27,6 +27,7 @@ class MusicMap_Settings {
 			'pack_max_kb'         => 400,
 			'pack_expiry_days'    => 365,
 			'cache_days'          => 7,
+			'youtube_daily_units' => 9000,
 			'delete_on_uninstall' => 0,
 		);
 	}
@@ -109,6 +110,7 @@ class MusicMap_Settings {
 		$out['pack_max_kb']         = self::int_between( $in, 'pack_max_kb', 10, 2000 );
 		$out['pack_expiry_days']    = self::int_between( $in, 'pack_expiry_days', 1, 3650 );
 		$out['cache_days']          = self::int_between( $in, 'cache_days', 1, 90 );
+		$out['youtube_daily_units'] = self::int_between( $in, 'youtube_daily_units', 100, 1000000 );
 		$out['delete_on_uninstall'] = empty( $in['delete_on_uninstall'] ) ? 0 : 1;
 
 		return $out;
@@ -157,6 +159,22 @@ class MusicMap_Settings {
 						<td>
 							<input type="text" class="regular-text code" id="mm_spotify" maxlength="32" name="<?php echo esc_attr( self::OPTION ); ?>[spotify_client_id]" value="<?php echo esc_attr( $s['spotify_client_id'] ); ?>" placeholder="bc016b83d9a147428d49e5e9c84a0c5d">
 							<p class="description"><?php esc_html_e( 'Optional. Public by design (it appears in every Spotify login link). Blank uses the built-in MusicMap app ID. Register this page\'s address as a Redirect URI in your Spotify dashboard.', 'musicmap' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'YouTube usage', 'musicmap' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<?php self::number_row( 'youtube_daily_units', __( 'YouTube units to use per day', 'musicmap' ), 100, 1000000, $s ); ?>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Used today', 'musicmap' ); ?></th>
+						<td>
+							<?php
+							$q = class_exists( 'MusicMap_Channels' ) ? MusicMap_Channels::quota_status() : array( 'used' => 0, 'limit' => $s['youtube_daily_units'] );
+							/* translators: 1: units used, 2: daily limit, 3: songs looked up */
+							echo esc_html( sprintf( __( '%1$d of %2$d units (%3$d new song lookups). Resets at midnight Pacific time.', 'musicmap' ), $q['used'], $q['limit'], (int) floor( $q['used'] / 100 ) ) );
+							?>
+							<p class="description"><?php esc_html_e( 'Each new song lookup costs 100 units; Google gives 10,000 free per day. Lookups are cached for everyone, so each song is only looked up once. Keep this under 10,000 to leave headroom.', 'musicmap' ); ?></p>
 						</td>
 					</tr>
 				</table>

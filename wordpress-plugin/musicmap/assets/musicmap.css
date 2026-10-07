@@ -153,7 +153,9 @@
 .ic-lg{width:20px;height:20px}
 
 /* tabs */
-.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-top:16px;overflow-x:auto;gap:0}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-top:16px;overflow:visible;gap:0}
+/* four equal tabs always fit, so no scrolling (overflow-x:auto also produced a stray vertical scrollbar) */
+.tab-bar .tab-btn{flex:1 1 0;min-width:0}
 .tab-btn{font-family:var(--pixel);font-size:7px;padding:9px 11px;border:none;background:none;color:var(--muted);cursor:pointer;letter-spacing:1px;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .tab-btn .tab-icon{width:18px;height:18px}
 .tab-btn:hover{color:#fff}
@@ -384,10 +386,16 @@
 .mi-tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
 .mi-pane{display:none}
 .mi-pane.active{display:block}
-/* ── Mode: Biome Packs vs Local Listening (class on #geovibes-app) ── */
+/* ── Mode: Biome Beats vs Local Listening (class on #geovibes-app) ── */
 #geovibes-app.mode-local .packs-only{display:none!important}
 #geovibes-app.mode-packs .local-only{display:none!important}
-#geovibes-app.mode-local #ytContainer{display:none!important}
+/* Local Listening: the pack iframe never shows; the channel YouTube player shows while it plays
+   (YouTube requires a visible player of at least 200x200) */
+#geovibes-app.mode-local #ytContainer:not(.local-video){display:none!important}
+#geovibes-app.mode-local #ytContainer.local-video{display:block!important}
+#geovibes-app.mode-local #ytFrameA,#geovibes-app.mode-local #spArt{display:none!important}
+#geovibes-app.mode-packs #localYtWrap{display:none!important}
+#localYtWrap iframe{min-height:200px}
 .mode-switch{display:flex;gap:4px;width:100%;max-width:520px;box-sizing:border-box;padding:4px;margin:0 0 12px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);position:relative;z-index:1}
 .mode-opt{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;min-height:44px;border:none;border-radius:12px;background:none;color:rgba(255,255,255,.7);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .mode-opt .ic{width:18px;height:18px}
@@ -436,6 +444,12 @@
 .settings-collapse[open] .settings-collapse-chev{transform:rotate(180deg)}
 .local-row-wrap{display:flex;gap:6px;align-items:stretch}
 .local-row-wrap .local-item{flex:1;min-width:0}
+.row-btn{flex-shrink:0;width:44px;min-height:56px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.row-btn .ic,.row-btn .src-ic{width:19px;height:19px}
+.row-btn:focus-visible,.heart-btn:focus-visible{outline:2px solid var(--accent2);outline-offset:1px}
+.local-item-art{flex-shrink:0;width:40px;height:40px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,.08)}
+.local-item-rank{flex-shrink:0;width:22px;text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
+.local-back{display:flex;align-items:center;gap:6px;min-height:40px;padding:4px 2px;border:none;background:none;color:var(--accent2);font-size:12px;cursor:pointer}
 .heart-btn{flex-shrink:0;width:52px;min-height:56px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .heart-btn .ic{width:20px;height:20px}
 .heart-btn.on{color:#f472b6;border-color:rgba(244,114,182,.45)}
