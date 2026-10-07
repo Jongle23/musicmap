@@ -474,6 +474,23 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
 .cast-menu button[aria-checked="true"]{color:#1DB954;font-weight:600}
 .cast-menu button span:last-child{overflow-wrap:anywhere;min-width:0}
 .cast-menu .cast-note{font-size:11px;color:var(--muted);padding:6px 10px 4px;line-height:1.5}
+#miTabs[hidden],#miSortChoices[hidden],#miSortAi[hidden]{display:none!important}
+.mi-source-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
+.mi-source-note b{color:var(--text)}
+.mi-sort-done{font-size:14px;font-weight:700;color:var(--green,#4ade80);margin:16px 0 4px}
+.mi-sort-lead{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px}
+.mi-choices{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.mi-choice{display:flex;align-items:flex-start;gap:12px;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--border2);background:var(--surface2,rgba(255,255,255,.04));color:var(--text);cursor:pointer;font-size:13px}
+.mi-choice:hover,.mi-choice:focus-visible{border-color:var(--accent)}
+.mi-choice small{display:block;color:var(--muted);font-size:11px;line-height:1.5;margin-top:2px}
+.mi-choice-ic{font-size:20px;line-height:1}
+.mi-prompt{background:rgba(0,0,0,.4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:rgba(255,255,255,.75);font-family:'Courier New',monospace;line-height:1.7;white-space:pre-wrap;cursor:pointer;user-select:all;margin:6px 0 8px;max-height:220px;overflow:auto}
+.setup-banner{display:flex;align-items:center;gap:12px;margin:14px 0 4px;padding:12px 14px;border-radius:12px;border:1px solid var(--accent);background:rgba(124,58,237,.14);font-size:12px;line-height:1.5}
+.setup-banner[hidden]{display:none!important}
+.setup-banner>div{flex:1;min-width:0}
+.setup-banner b{display:block}
+.setup-banner span b{display:inline}
+.setup-banner .btn-primary{flex:0 0 auto;width:auto;padding:8px 16px}
 .shuffle-btn{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;margin-left:auto;padding:5px 11px;min-height:32px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
 .shuffle-btn[aria-pressed="true"]{color:var(--green,#4ade80);border-color:rgba(74,222,128,.55);background:rgba(74,222,128,.12)}
 .shuffle-btn:focus-visible{outline:2px solid var(--accent,#a78bfa);outline-offset:2px}

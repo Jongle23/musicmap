@@ -122,6 +122,11 @@
       </div>
       <div class="local-list" id="localList"></div>
     </div>
+    <!-- Setting up a new pack's biomes by hand -->
+    <div class="setup-banner packs-only" id="setupBanner" hidden>
+      <div><b id="setupBannerTitle">Sorting your pack</b><span>Tap a biome below, then <b>Add tracks</b> under its list. Repeat for each biome you want.</span></div>
+      <button class="btn-primary" type="button" onclick="finishSetup()">Done</button>
+    </div>
     <div class="section packs-only">
       <div class="section-header">
         <div class="section-title">LOCATIONS</div>
@@ -377,7 +382,7 @@
     </div>
     <div style="padding:0 18px;flex:1;overflow-y:auto">
       <!-- TABS -->
-      <div class="mi-tabs" style="margin-top:14px">
+      <div class="mi-tabs" id="miTabs" style="margin-top:14px">
         <button class="mi-tab active" onclick="miSwitchTab('make')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M9 18V4l12-2v14"/></svg> Make a Pack</button>
         <button class="mi-tab" onclick="miSwitchTab('import')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Import</button>
       </div>
@@ -386,9 +391,9 @@
       <div class="mi-pane active" id="mi-make">
         <div class="guide-box" style="margin-bottom:14px">
           <div class="guide-box-title"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h7a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z"/><path d="M22 3h-7a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h8Z"/></svg> HOW IT WORKS</div>
-          <div class="guide-step"><div class="guide-num">1</div><div>Paste YouTube video or playlist links, or Spotify playlist, album or track links.</div></div>
-          <div class="guide-step"><div class="guide-num">2</div><div>YouTube videos get a timestamp importer for chapter lists. Spotify links bring in every song automatically (needs Spotify Premium and a Spotify developer Client ID).</div></div>
-          <div class="guide-step"><div class="guide-num">3</div><div>Name your pack, pick an icon, hit Save. Then assign tracks to biomes from 🌴 Biomes.</div></div>
+          <div class="guide-step"><div class="guide-num">1</div><div>Paste links one at a time: <b>playlists</b>, albums, or <b>single songs or videos</b>. Add as many as you like.</div></div>
+          <div class="guide-step"><div class="guide-num">2</div><div>All links in a pack must come from <b>one service</b>: YouTube, Spotify <i>or</i> SoundCloud. (YouTube videos with a chapter list can be split into tracks with the timestamp importer.)</div></div>
+          <div class="guide-step"><div class="guide-num">3</div><div>Name it, pick an icon and save. Next you'll sort the tracks into biomes, yourself or with an AI's help.</div></div>
         </div>
         <div class="form-row">
           <label class="form-label">Pack name</label>
@@ -403,18 +408,42 @@
           <div class="emoji-picker" id="miEmojiPicker"></div>
         </div>
         <div class="form-row">
-          <label class="form-label">Add a YouTube or Spotify link</label>
+          <label class="form-label">Add links: playlists or songs, all from one service</label>
           <div style="display:flex;gap:7px">
-            <input class="form-input" id="miUrlInput" placeholder="youtube.com/watch?v=… or open.spotify.com/playlist/…" style="flex:1"
+            <input class="form-input" id="miUrlInput" placeholder="Paste a YouTube, Spotify or SoundCloud link…" style="flex:1"
               oninput="miOnUrlInput()" onpaste="setTimeout(miOnUrlInput,50)"/>
             <button class="pill-btn" style="white-space:nowrap;padding:8px 12px" onclick="miAddUrl()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add</button>
           </div>
           <div class="url-status" id="miUrlStatus"></div>
+          <div class="mi-source-note" id="miSourceNote" hidden></div>
         </div>
         <div id="miVideoList"></div>
         <div style="padding-bottom:16px">
           <button class="btn-primary" style="width:100%" onclick="miSavePack()">Save Pack →</button>
         </div>
+      </div>
+
+      <!-- SORT STEP (after saving a new pack): place the tracks into biomes -->
+      <div class="mi-pane" id="mi-sort">
+        <div class="mi-sort-done" id="miSortDone"></div>
+        <div class="mi-sort-lead">Now sort the tracks into biomes, so the right music plays in the right places.</div>
+        <div class="mi-choices" id="miSortChoices">
+          <button class="mi-choice" type="button" onclick="startManualSetup()"><span class="mi-choice-ic">🗺️</span><span><b>Sort them myself</b><small>Opens your biomes: tap one, then add its tracks. Tap Done when you're finished.</small></span></button>
+          <button class="mi-choice" type="button" onclick="showAiSortStep()"><span class="mi-choice-ic">🤖</span><span><b>Let an AI sort them</b><small>Copy a ready-made prompt into ChatGPT, Claude or Gemini, then paste its answer here.</small></span></button>
+          <button class="mi-choice" type="button" onclick="skipSortStep()"><span class="mi-choice-ic">⏭️</span><span><b>Not now</b><small>Until it's sorted, the whole pack plays everywhere, shuffled. Use Edit biomes on the pack any time.</small></span></button>
+        </div>
+        <div id="miSortAi" hidden>
+          <div class="ai-help"><b>1.</b> Copy this prompt and paste it into any AI (ChatGPT, Claude, Gemini).</div>
+          <div class="mi-prompt" id="miSortPrompt" onclick="miCopyPrompt('miSortPrompt')"></div>
+          <button class="pill-btn" style="width:100%;padding:9px" type="button" onclick="miCopyPrompt('miSortPrompt')">Copy prompt</button>
+          <div class="copy-flash" id="miPromptFlash2" style="margin-top:6px"></div>
+          <div class="ai-help" style="margin-top:12px"><b>2.</b> Paste the AI's answer here (the JSON it returns).</div>
+          <textarea class="ts-import-area" id="miSortAnswer" style="min-height:110px" placeholder='{"musicmapSort": 1, "packId": …, "places": { … }}' oninput="previewAiSortAnswer()"></textarea>
+          <div class="url-status" id="miSortPreview"></div>
+          <button class="btn-primary" style="width:100%;margin:8px 0 6px" type="button" onclick="applyAiSortAnswer()">Place the tracks →</button>
+          <button class="pill-btn" style="width:100%;padding:8px;margin-bottom:16px" type="button" onclick="showSortChoices()">← Other ways to sort</button>
+        </div>
+        <div style="padding-bottom:16px"></div>
       </div>
 
       <!-- IMPORT PANE -->
@@ -436,7 +465,7 @@
           <div style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1px;margin-bottom:10px"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5Z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></svg> AI PACK BUILDER PROMPTS</div>
           <div class="ai-tabs" role="tablist">
             <button class="ai-tab active" id="aiTabYt" type="button" role="tab" aria-selected="true" onclick="miAiTab('yt')"><svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg> YouTube</button>
-            <button class="ai-tab" id="aiTabSp" type="button" role="tab" aria-selected="false" onclick="miAiTab('sp')"><svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg> Spotify</button>
+            <button class="ai-tab" id="aiTabSp" type="button" role="tab" aria-selected="false" onclick="miAiTab('sp')"><svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg> Sort a pack</button>
           </div>
           <div id="aiPaneYt">
             <div class="ai-help">Ask any AI (ChatGPT, Claude, Gemini) to build a pack. Fill in the YouTube link(s) and timestamps, then paste the JSON answer in the box above.</div>
@@ -480,7 +509,7 @@ Rules:
             <button class="pill-btn" style="width:100%;padding:9px" type="button" onclick="miCopyPrompt('miAiPrompt')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg> Copy YouTube prompt</button>
           </div>
           <div id="aiPaneSp" hidden>
-            <div class="ai-help">An AI can't open Spotify links, so this prompt sorts songs you've already added. Pick a pack with Spotify songs (add a Spotify link in Make a Pack first), copy the prompt, then paste the AI's JSON answer in the box above to place the songs in biomes.</div>
+            <div class="ai-help">Already made a pack? This prompt lists its tracks so any AI can sort them into biomes. Pick the pack, copy the prompt, then paste the AI's JSON answer in the box above.</div>
             <select class="form-input" id="miAiSpPack" style="margin-bottom:8px" onchange="miBuildSpotifyPrompt()"></select>
             <div id="miAiPromptSp" style="background:rgba(0,0,0,.4);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:rgba(255,255,255,.75);font-family:'Courier New',monospace;line-height:1.7;white-space:pre-wrap;cursor:pointer;user-select:all;margin-bottom:8px;max-height:240px;overflow:auto" onclick="miCopyPrompt('miAiPromptSp')"></div>
             <button class="pill-btn" id="miAiSpCopy" style="width:100%;padding:9px" type="button" onclick="miCopyPrompt('miAiPromptSp')"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg> Copy Spotify prompt</button>
@@ -630,7 +659,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.12.6</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.13</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a></div>
 </div>
 </div><!-- #geovibes-app -->

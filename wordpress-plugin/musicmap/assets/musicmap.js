@@ -1068,6 +1068,7 @@ function getLocTracks(packId,locId){
 }
 function setLocTracks(packId,locId,arr){
   const t=gs(packKey(packId,'locTracks'),{});t[locId]=arr;ss(packKey(packId,'locTracks'),t);
+  if(packSetupId&&packSetupId===packId) commitPackSetup(packId); // still setting up: becomes the starting layout
 }
 function getPinnedIdx(packId,locId){return gs(packKey(packId,'pins'),{})[locId]}
 function setPinnedIdx(packId,locId,idx){
@@ -1525,6 +1526,8 @@ async function init(){
   renderPacksList();
   renderLocGrid();
   loadLocation('beach',false,false);
+  if(packSetupId&&!getUserPacks().some(p=>p.id===packSetupId)){ packSetupId=null; ss('packSetupId',null); } // that pack is gone
+  renderSetupBanner();
   updateCacheStatus();
   const fv=document.getElementById('footerVersion');
   if(fv) fv.textContent='Version '+MM_VERSION;
@@ -1823,6 +1826,7 @@ function packNeedsSpotify(pack){
   return src.length===1 && src[0]==='spotify';
 }
 function activatePack(id){
+  if(packSetupId&&packSetupId!==id) finishSetup(true); // left the pack being set up: keep what was placed
   const target=getAllPacks().find(p=>p.id===id);
   if(target && packNeedsSpotify(target) && !isSpotifyConnected()) setTimeout(openSpotifyNeeded,0);
   setActivePackId(id);
@@ -1830,6 +1834,7 @@ function activatePack(id){
   renderLocGrid();
   loadLocation('beach',false,false);
   switchTab('player');
+  renderSetupBanner();
 }
 
 // From the Packs tab straight to a pack's biomes (switching to that pack first if needed)
@@ -1837,7 +1842,8 @@ function editPackBiomes(id){
   if(getActivePackId()!==id) activatePack(id); else switchTab('player');
   setTimeout(()=>{
     const grid=document.getElementById('locGrid'); if(!grid) return;
-    grid.closest('.section')?.scrollIntoView({block:'start',behavior:'smooth'});
+    const banner=document.getElementById('setupBanner');
+    (banner&&!banner.hidden?banner:grid.closest('.section'))?.scrollIntoView({block:'start',behavior:'smooth'});
     grid.classList.add('flash'); setTimeout(()=>grid.classList.remove('flash'),1600);
     spotifyShowSnack('Tap a biome to see its tracks, or its ✎ to rename it. Add tracks under the list.');
   },120);
@@ -1890,7 +1896,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.12.6';
+const MM_VERSION = '1.13';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3900,6 +3906,7 @@ function openMakeImportModal(){
   miAiTab('yt');
   renderMiEmojiPicker();
   renderMiVideoList();
+  document.getElementById('miTabs').hidden=false; miSortPackId=null; miRenderSourceNote();
   miSwitchTab('make');
   document.getElementById('makeImportOverlay').classList.add('open');
 }
@@ -3956,6 +3963,7 @@ function miOnUrlInput(){
   const raw=document.getElementById('miUrlInput').value.trim();
   const status=document.getElementById('miUrlStatus');
   if(!raw){status.textContent='';status.className='url-status';return;}
+  if(!miCheckSameSource(raw,status)) return;
   const sc=parseSoundCloudLink(raw);
   if(sc){
     status.textContent='SoundCloud '+(sc.kind==='set'?'playlist':'track')+' detected. Click Add. Note: songs play in SoundCloud’s own player; some only allow a 30-second preview (SoundCloud Go+) and some can’t be embedded (those are skipped).';
@@ -3991,10 +3999,38 @@ function miOnUrlInput(){
   }
 }
 
+// Which service a link or added entry belongs to (a pack uses one)
+function miSourceOfEntry(v){ return v.type==='spotify'?'spotify':v.type==='soundcloud'?'soundcloud':'youtube'; }
+function miSourceOfLink(raw){
+  if(parseSpotifyLink(raw)) return 'spotify';
+  if(parseSoundCloudLink(raw)) return 'soundcloud';
+  if(miExtractVideoId(raw)||miExtractPlaylistId(raw)) return 'youtube';
+  return '';
+}
+function miPackSource(){ return miVideos.length?miSourceOfEntry(miVideos[0]):''; }
+// Refuse a second service, with the reason (returns true when the link is fine)
+function miCheckSameSource(raw,status){
+  const have=miPackSource(), got=miSourceOfLink(raw);
+  if(!have||!got||have===got) return true;
+  status.textContent='This pack uses '+SOURCE_LABELS[have]+' links. A pack can only use one service, so make a separate pack for '+SOURCE_LABELS[got]+'.';
+  status.className='url-status err';
+  return false;
+}
+function miRenderSourceNote(){
+  const el=document.getElementById('miSourceNote'); if(!el) return;
+  const src=miPackSource();
+  if(!src){ el.hidden=true; return; }
+  const tracks=miVideos.reduce((n,v)=>n+(v.tracks?.length||0),0);
+  el.hidden=false;
+  el.innerHTML='';
+  const b=document.createElement('b'); b.textContent=SOURCE_LABELS[src];
+  el.append('This pack uses ',b,' · '+miVideos.length+' link'+(miVideos.length!==1?'s':'')+(tracks?' · '+tracks+' track'+(tracks!==1?'s':''):'')+'. Paste another '+SOURCE_LABELS[src]+' link to add more.');
+}
 async function miAddUrl(){
   const raw=document.getElementById('miUrlInput').value.trim();
   const status=document.getElementById('miUrlStatus');
   if(!raw) return;
+  if(!miCheckSameSource(raw,status)) return;
 
   const sp=parseSpotifyLink(raw);
   if(sp) return miAddSpotify(sp, raw);
@@ -4043,6 +4079,7 @@ function renderMiVideoList(){
   const list=document.getElementById('miVideoList');
   if(!list) return;
   list.innerHTML='';
+  miRenderSourceNote();
   miVideos.forEach((v,vi)=>{
     const sec=document.createElement('div');
     sec.className='pe-video-section';
@@ -4186,11 +4223,85 @@ function miSavePack(){
       {id:'port',   name:'Port',    emoji:'⚓',cssClass:'biome-port',   keywords:['port','dock','pier','harbor'],defaultTracks:[]},
     ]
   };
-  const spIdx=allTracks.map((t,i)=>t.spotifyUri||t.soundcloudUrl?i:-1).filter(i=>i>=0);
-  if(spIdx.length) newPack.biomes.forEach(b=>{ b.defaultTracks=[...new Set([...b.defaultTracks,...spIdx])]; });
+  // biomes start empty: the whole pack plays everywhere until it's sorted (next step)
   saveUserPacks([...getUserPacks(),newPack]);
-  document.getElementById('makeImportOverlay').classList.remove('open');
   activatePack(newPack.id);
+  miShowSortStep(newPack.id);
+}
+// ── After saving: sort the new pack's tracks into biomes (by hand, by AI, or later) ──
+let miSortPackId=null;
+function miShowSortStep(packId){
+  miSortPackId=packId;
+  const pack=getAllPacks().find(p=>p.id===packId); if(!pack) return;
+  const n=getAllPackTracks(pack).length;
+  document.getElementById('miTabs').hidden=true;
+  document.querySelectorAll('.mi-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('mi-sort').classList.add('active');
+  document.getElementById('miSortDone').textContent='✓ '+pack.name+' is saved with '+n+' track'+(n!==1?'s':'')+'.';
+  showSortChoices();
+  document.getElementById('mi-sort').scrollIntoView({block:'start'});
+}
+function showSortChoices(){
+  document.getElementById('miSortChoices').hidden=false;
+  document.getElementById('miSortAi').hidden=true;
+}
+function showAiSortStep(){
+  const pack=getAllPacks().find(p=>p.id===miSortPackId); if(!pack) return;
+  document.getElementById('miSortChoices').hidden=true;
+  document.getElementById('miSortAi').hidden=false;
+  document.getElementById('miSortPrompt').textContent=buildSortPrompt(pack);
+  document.getElementById('miSortAnswer').value='';
+  document.getElementById('miSortPreview').textContent='';
+}
+function previewAiSortAnswer(){
+  const el=document.getElementById('miSortPreview'), raw=document.getElementById('miSortAnswer').value.trim();
+  if(!raw){ el.textContent=''; return null; }
+  let j; try{ j=JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g,'')); }catch(e){ el.textContent='That isn’t complete JSON yet. Paste the whole answer.'; el.className='url-status err'; return null; }
+  const sort=parseAiSort(j);
+  if(!sort){ el.textContent='That doesn’t look like a sort answer. Paste the JSON the AI returned for the prompt above.'; el.className='url-status err'; return null; }
+  if(sort.error||sort.pack.id!==miSortPackId){ el.textContent=sort.error||'That answer is for a different pack.'; el.className='url-status err'; return null; }
+  el.textContent='✓ '+sort.placed+' of '+sort.total+' tracks placed across '+sort.used+' places'+(sort.total-sort.placed?' ('+(sort.total-sort.placed)+' left out; those still play in biomes that end up with no tracks).':'.');
+  el.className='url-status ok';
+  return sort;
+}
+function applyAiSortAnswer(){
+  const sort=previewAiSortAnswer(); if(!sort) return;
+  applyAiSort(sort);
+  document.getElementById('makeImportOverlay').classList.remove('open');
+  editPackBiomes(sort.pack.id);
+  spotifyShowSnack('Sorted '+sort.placed+' tracks into biomes. Tap a biome to check its list.');
+}
+function skipSortStep(){
+  document.getElementById('makeImportOverlay').classList.remove('open');
+  spotifyShowSnack('Saved. The whole pack plays everywhere until you sort it (Packs → Edit biomes).');
+}
+// Sorting by hand: the Biomes view with a banner; what you place now is the pack's starting layout
+let packSetupId=gs('packSetupId',null);
+function startManualSetup(){
+  const id=miSortPackId; if(!id) return;
+  document.getElementById('makeImportOverlay').classList.remove('open');
+  packSetupId=id; ss('packSetupId',id);
+  editPackBiomes(id); renderSetupBanner();
+}
+function renderSetupBanner(){
+  const b=document.getElementById('setupBanner'); if(!b) return;
+  const on=!!packSetupId&&getActivePackId()===packSetupId;
+  b.hidden=!on;
+  if(on) document.getElementById('setupBannerTitle').textContent='Sorting '+(getActivePack()?.name||'your pack');
+}
+function finishSetup(quiet){
+  if(!packSetupId) return;
+  commitPackSetup(packSetupId);
+  packSetupId=null; ss('packSetupId',null);
+  renderSetupBanner(); renderHiddenTracks?.();
+  if(!quiet) spotifyShowSnack('Biomes saved. Change them any time from Packs → Edit biomes.');
+}
+// Make the current biome lists a user pack's own starting layout (so they don't count as "removed tracks")
+function commitPackSetup(packId){
+  const packs=getUserPacks(); const p=packs.find(x=>x.id===packId); if(!p) return;
+  const key=packKey(packId,'locTracks'); const ov=gs(key,{}); let changed=false;
+  (p.biomes||[]).forEach(b=>{ if(ov[b.id]!==undefined){ b.defaultTracks=[...ov[b.id]]; delete ov[b.id]; changed=true; } });
+  if(changed){ saveUserPacks(packs); ss(key,ov); }
 }
 
 // ── IMPORT TAB ──
@@ -4340,7 +4451,7 @@ function miNormaliseAiJson(j){
 function miCopyPrompt(id){
   const box=document.getElementById(id||'miAiPrompt');
   const txt=box?.textContent||'';
-  const el=document.getElementById('miPromptFlash');
+  const el=document.getElementById(id==='miSortPrompt'?'miPromptFlash2':'miPromptFlash');
   if(!txt||box.dataset.empty){ el.textContent='Nothing to copy yet.'; return; }
   navigator.clipboard.writeText(txt).then(()=>{
     el.textContent='✓ Prompt copied!';
@@ -4367,12 +4478,13 @@ function miAiTab(which){
   if(!yt) miFillSpotifyPackSelect();
 }
 function packsWithSpotify(){ return getAllPacks().filter(p=>getAllPackTracks(p).some(t=>t.spotifyUri)); }
+function packsForSorting(){ return getAllPacks().filter(p=>getAllPackTracks(p).length); }
 function miFillSpotifyPackSelect(){
   const sel=document.getElementById('miAiSpPack');
   const keep=sel.value;
   sel.innerHTML='';
-  const packs=packsWithSpotify();
-  packs.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name+' ('+getAllPackTracks(p).length+' songs)'; sel.appendChild(o); });
+  const packs=packsForSorting();
+  packs.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name+' ('+getAllPackTracks(p).length+' tracks)'; sel.appendChild(o); });
   if(packs.some(p=>p.id===keep)) sel.value=keep;
   else if(packs.some(p=>p.id===getPackId())) sel.value=getPackId();
   sel.disabled=!packs.length;
@@ -4380,17 +4492,21 @@ function miFillSpotifyPackSelect(){
 }
 function miBuildSpotifyPrompt(){
   const box=document.getElementById('miAiPromptSp');
-  const pack=packsWithSpotify().find(p=>p.id===document.getElementById('miAiSpPack').value);
+  const pack=packsForSorting().find(p=>p.id===document.getElementById('miAiSpPack').value);
   if(!pack){
-    box.textContent='No packs with Spotify songs yet. Add a Spotify playlist, album or track link in Make a Pack first.';
+    box.textContent='No packs with tracks yet. Make one first.';
     box.dataset.empty='1'; return;
   }
   delete box.dataset.empty;
+  box.textContent=buildSortPrompt(pack);
+}
+// The "sort these tracks into places" prompt for any pack (its answer is read by parseAiSort)
+function buildSortPrompt(pack){
   const tracks=getAllPackTracks(pack);
   const minPer=Math.max(1,Math.min(10,Math.floor(tracks.length/AI_PLACES.length)));
   const example='{\n  "musicmapSort": 1,\n  "packId": '+JSON.stringify(pack.id)+',\n  "places": {\n'
     +AI_PLACES.map(([id],i)=>'    "'+id+'": ['+(i*3)+','+(i*3+1)+','+(i*3+2)+']').join(',\n')+'\n  }\n}';
-  box.textContent=[
+  return [
     'Sort these songs into MusicMap places.',
     '',
     'MusicMap plays music that matches where the listener is. Put each song in the place whose mood fits it best:',
@@ -4431,6 +4547,7 @@ function applyAiSort(sort){
   const ov=gs(key,{});
   for(const [id] of AI_PLACES) ov[id]=sort.places[id];
   ss(key,ov);
+  if(!sort.pack.builtin) commitPackSetup(sort.pack.id); // your own pack: this is its layout, not a list of removals
   activatePack(sort.pack.id);
   renderLocGrid();
 }

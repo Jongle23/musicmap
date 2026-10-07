@@ -1,6 +1,19 @@
 # MusicMap Changelog
 
-## v1.12.6 — Current
+## v1.13 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- **New flow for making a pack from links**:
+  - the steps now say you can paste several links (playlists, albums or single songs/videos), one at a time, and that all links in a pack come from **one service** (YouTube, Spotify or SoundCloud). A link from a different service is refused with the reason, and a summary shows the service, links and tracks so far
+  - after **Save Pack**, a new step asks how to sort the tracks into biomes: **Sort them myself** (opens your biomes with a "Sorting…" banner and a Done button), **Let an AI sort them** (a ready-made prompt listing the pack's tracks, plus a box right there for the AI's JSON answer, with a preview before placing), or **Not now** (the whole pack plays everywhere, shuffled)
+  - new packs start with empty biomes (Spotify and SoundCloud packs used to put every track in every biome)
+- The Import tab's Spotify-only sort prompt is now **Sort a pack**, for packs from any service
+
+### Fixed
+- **Setting up a new pack filled "Removed tracks"**: whatever you place while setting up a pack (by hand or with an AI) is now the pack's starting layout, so it no longer shows as removed tracks. Changes made after setup still do. An AI sort of one of your own packs also becomes its layout
+
+## v1.12.6
 **Release date:** 2026-10-07
 
 ### Added

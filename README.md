@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.12.6
+# 🎵 MusicMap v1.13
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -78,7 +78,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.12.6"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.13"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -93,13 +93,13 @@ Spotify tracks play in the browser through Spotify's Web Playback SDK, which nee
 
 - **Connect:** Settings → Connections → Spotify → Connect. MusicMap's shared Spotify app is in Spotify's Development Mode, so only accounts invited to it can sign in; the app warns you before you try.
 - **Your own Client ID:** anyone else can create a free app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) (Web API + Web Playback SDK), add the Redirect URI shown in Settings, and paste the Client ID under "Use my own Spotify app". No Client Secret is needed.
-- **Add Spotify links:** Packs → Make or Import Pack → paste a Spotify playlist, album or track link in the same box as YouTube links. Playlists must be ones you own or collaborate on; any album or track works. Packs can mix YouTube and Spotify.
+- **Add Spotify links:** Packs → Make or Import Pack → paste a Spotify playlist, album or track link (as many as you like, one at a time). Playlists must be ones you own or collaborate on; any album or track works. A pack uses one service, so Spotify links can't be mixed with YouTube or SoundCloud links in the same pack.
 - Spotify-only packs have no YouTube fallback; without Spotify connected, the app explains what's needed instead of playing.
 - **Plays on:** choose *This browser* or one of your Spotify apps (Spotify Connect). On a phone, pick the Spotify app: it keeps playing with the screen off, and it works on iPhone, where the browser player doesn't.
 
 ## ☁️ SoundCloud (Custom Packs)
 
-Paste a SoundCloud track or playlist link (`https://soundcloud.com/artist/track` or `…/sets/playlist`) into **Make or Import Pack** next to YouTube and Spotify links. The songs play in SoundCloud's own embedded player, in the same spot as the video, and the next one starts when a song ends. No account or key is needed.
+Paste a SoundCloud track or playlist link (`https://soundcloud.com/artist/track` or `…/sets/playlist`) into **Make or Import Pack** (as many as you like; a pack uses one service, so don't mix them with YouTube or Spotify links). The songs play in SoundCloud's own embedded player, in the same spot as the video, and the next one starts when a song ends. No account or key is needed.
 
 Good to know:
 - Some tracks only play a **30-second preview** (SoundCloud Go+ tracks); MusicMap says so when you add them and when they play.
@@ -121,19 +121,32 @@ The private key never leaves your server: the plugin signs a developer token tha
 
 ## 🤖 AI Pack Builder
 
-MusicMap includes two built-in prompts for any AI assistant (ChatGPT, Claude, Gemini…), under **Packs → Make or Import Pack → Import**:
+### Making a pack from links
+
+1. **Packs → Make or Import Pack**: paste links one at a time (playlists, albums, or single songs/videos). All links in a pack come from **one service**: YouTube, Spotify or SoundCloud.
+2. Name it, pick an icon, **Save Pack**.
+3. Choose how to sort the tracks into biomes:
+   - **Sort them myself**: opens your biomes with a "Sorting…" banner; tap a biome, then **Add tracks**, and tap **Done** when finished
+   - **Let an AI sort them**: copy the ready-made prompt (it lists the pack's tracks) into ChatGPT, Claude or Gemini, and paste its JSON answer into the box right there
+   - **Not now**: until it's sorted, the whole pack plays everywhere, shuffled
+
+Whatever you place while setting up becomes the pack's starting layout, so none of it shows under **Removed tracks**. Change it later from **Packs → Edit biomes**.
+
+### Prompts in the Import tab
+
+**Packs → Make or Import Pack → Import** also has two prompts:
 
 **YouTube — build a pack**
 1. Find a full game OST on YouTube
 2. Choose **YouTube**, tap **Copy YouTube prompt**, fill in the URL(s) and timestamps
 3. Paste the AI's JSON answer back into the Import box
 
-**Spotify — sort a pack's songs into places**
-1. Add a Spotify playlist, album or track link in **Make a Pack** and save it
-2. Choose **Spotify**, pick the pack, tap **Copy Spotify prompt** (it includes the song list)
+**Sort a pack — place an existing pack's tracks**
+1. Choose **Sort a pack** and pick the pack (any service)
+2. Copy the prompt (it includes the track list)
 3. Paste the AI's JSON answer back into the Import box; it replaces that pack's places
 
-AIs can't open Spotify links, so the Spotify prompt sorts songs you already have instead of inventing new ones. Both formats cover the 9 biomes plus Home, Work, School and Gym.
+AIs can't open Spotify or SoundCloud links, so this prompt sorts tracks you already have instead of inventing new ones. Both formats cover the 9 biomes plus Home, Work, School and Gym.
 
 ---
 
