@@ -1231,6 +1231,46 @@ function hardSwitchTo(src){
   getActiveIframe().src=src;
 }
 
+// ── SKIP WHAT CAN'T PLAY ── (Spotify, YouTube, SoundCloud; both modes)
+// A song that can't play here (region-locked, removed, not allowed to embed) moves on to the next one
+// with a short note, instead of leaving playback stuck. Five in a row stops, rather than looping forever.
+let skipStreak=0, lastSkipFor='';
+const SKIP_WHY={
+  spotify:'That Spotify song can’t play here (it may not be available in your region). Skipping.',
+  youtube:'That YouTube video can’t play here (removed, region-locked or not allowed on other sites). Skipping.',
+  soundcloud:'That SoundCloud track can’t play here (the uploader limits it). Skipping.'
+};
+function playedOk(){ skipStreak=0; } // something really started playing
+function skipUnplayable(source){
+  const local=appMode==='local';
+  // each play attempt is skipped once, even if its failure is reported twice (an error event and the stall check)
+  const attempt=(local?'c':'p')+(local?chanPlayToken:packsPlayToken);
+  if(attempt===lastSkipFor) return;
+  lastSkipFor=attempt; setPlayerBusy(false);
+  if(++skipStreak>5){
+    skipStreak=0;
+    spotifyShowSnack('Several songs in a row couldn’t play here, so playback stopped. Try another '+(local?'channel':'pack')+'.');
+    if(local) stopChanPlayback(); else { isPlaying=false; pauseTrack(); }
+    setPlayIcon(false); document.getElementById('playingBars').style.display='none';
+    return;
+  }
+  spotifyShowSnack(SKIP_WHY[source]||'That song can’t play here. Skipping.');
+  if(local){ if(chanItems.length>1) chanStep(1); else { stopChanPlayback(); setPlayIcon(false); } }
+  else { isPlaying=true; nextTrack(); }
+}
+// Spotify doesn't always report a song it can't play: it just sits at the start. A song still at the very
+// start ~6 s after it should have begun is skipped; one paused part-way (by you, anywhere) is left alone.
+let spStall=null;
+function spotifyWatch(st,wantPlaying){
+  if(!st||!wantPlaying){ spStall=null; return; }
+  const uri=st.uris?.[0]||'', pos=st.position||0;
+  if(pos>3000){ spStall=null; playedOk(); return; }
+  if(pos<1500&&(st.paused||(spStall&&spStall.uri===uri&&spStall.pos===pos))){
+    if(!spStall||spStall.uri!==uri){ spStall={uri,pos,since:Date.now()}; return; }
+    if(Date.now()-spStall.since>6000){ spStall=null; skipUnplayable('spotify'); }
+  } else spStall=null;
+}
+
 // ── SOUNDCLOUD (custom packs) ──
 // Plays in SoundCloud's own embedded player (its Widget API): no account or key needed. Some tracks are limited by
 // SoundCloud or the uploader: Go+ tracks only play a 30-second preview, and some can't be embedded at all (skipped).
@@ -1304,7 +1344,7 @@ function scBind(w){
   w.bind(E.READY,()=>{ scErrors=0; });
   w.bind(E.PLAY,()=>{
     if(!scActive) return;
-    scErrors=0; isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
+    scErrors=0; playedOk(); isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
     w.getDuration(d=>{ scDur=d||0; });
     w.getCurrentSound(s=>{ if(scIsPreview(s)&&scWarned!==s.permalink_url){ scWarned=s.permalink_url; spotifyShowSnack('SoundCloud only allows a 30-second preview of this track.'); } });
   });
@@ -1315,13 +1355,7 @@ function scBind(w){
   },500); });
   w.bind(E.PLAY_PROGRESS,e=>{ if(scActive) scPos=e?.currentPosition||0; });
   w.bind(E.FINISH,()=>{ scFinishedAt=Date.now(); if(scActive&&appMode!=='local'){ isPlaying=true; nextTrack(); } });
-  w.bind(E.ERROR,()=>{
-    if(!scActive) return;
-    setPlayerBusy(false);
-    if(++scErrors>3){ spotifyShowSnack('SoundCloud can’t play these tracks here right now.'); isPlaying=false; setPlayIcon(false); return; }
-    spotifyShowSnack('That SoundCloud track can’t play here (the uploader limits it). Skipping.');
-    if(appMode!=='local'&&isPlaying) nextTrack();
-  });
+  w.bind(E.ERROR,()=>{ if(scActive&&appMode!=='local') skipUnplayable('soundcloud'); });
 }
 async function scPlay(url){
   await scLoadApi();
@@ -1725,7 +1759,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.8';
+const MM_VERSION = '1.8.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2323,6 +2357,10 @@ async function playCurrentTrack(useFade){
   spotifyActive=false; packsSpQueue=null;
   updateSpotifyNowPlaying(false, t);
   // Spotify-only track and Spotify can't play it: there is no YouTube to fall back to
+  if(t.spotifyUri && !t.videoId && spotifyCanPlay() && getLocTracks(getPackId(),currentLocId).length>1){
+    skipUnplayable('spotify'); // Spotify refused this one (e.g. region-locked): move on
+    return;
+  }
   if(t.spotifyUri && !t.videoId){
     isPlaying=false;
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
@@ -4550,6 +4588,11 @@ async function initSpotifySdk(){
         if(r==='revoked') spotifySignedOut();
         else setTimeout(()=>{ if(spotifyPlayer&&!spotifyReady) spotifyPlayer.connect(); },2000);
       });
+      // a song Spotify can't play (e.g. not licensed in your country)
+      spotifyPlayer.addListener('playback_error',()=>{
+        if(!spotifyActive) return;
+        if(appMode==='local'?(chanVia==='spotify'&&chanPlaying):isPlaying) skipUnplayable('spotify');
+      });
       spotifyPlayer.addListener('account_error',()=>{ spotifyShowSnack('Spotify Premium required for playback.'); showSpotifyNotice('premium'); resolve(); });
       spotifyPlayer.connect();
     };
@@ -5553,7 +5596,7 @@ function cleanStations(rows,lat,lon){
 function ensureRadioAudio(){
   if(radioAudio) return radioAudio;
   radioAudio=new Audio(); radioAudio.preload='none';
-  radioAudio.addEventListener('playing',()=>{ localPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; updateLocalSub(); renderLocalList(); });
+  radioAudio.addEventListener('playing',()=>{ playedOk(); localPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; updateLocalSub(); renderLocalList(); });
   radioAudio.addEventListener('waiting',()=>{ updateLocalSub('Buffering…'); setPlayerBusy(true); });
   radioAudio.addEventListener('pause',()=>{ localPlaying=false; setPlayIcon(false); setPlayerBusy(false); document.getElementById('playingBars').style.display='none'; renderLocalList(); });
   radioAudio.addEventListener('error',()=>{
@@ -6028,6 +6071,7 @@ function startPacksTicker(t){
     if(scActive){ show(scPos/1000, (scDur/1000)||Number(t.dur)||0); return; }
     if(spotifyActive){
       const st=await spotifyGetState(); if(!st) return;
+      spotifyWatch(st, isPlaying&&spotifyActive);
       show(st.position/1000, st.duration/1000);
       return;
     }
@@ -6056,7 +6100,7 @@ function followPacksYouTube(cur){
 // Coming back to the page after the soundtrack ran on: the song that's playing finishes first
 // (the ticker follows it), then the biome's own shuffle carries on at that boundary.
 function packsYtState(e){
-  if(e.data===YT.PlayerState.PLAYING){ isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; }
+  if(e.data===YT.PlayerState.PLAYING){ playedOk(); isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; }
   else if(e.data===YT.PlayerState.BUFFERING&&isPlaying) setPlayerBusy(true);
   else if(e.data===YT.PlayerState.PAUSED&&document.visibilityState==='visible'&&!isPlaying){ setPlayIcon(false); }
   else if(e.data===YT.PlayerState.ENDED&&isPlaying){ nextTrack(); } // the whole video finished
@@ -6398,8 +6442,10 @@ async function ensureYtPlayer(){
         onStateChange:e=>{
           if(appMode!=='local') return packsYtState(e);
           if(chanVia!=='youtube'&&chanVia!==null) return;
-          if(e.data===YT.PlayerState.PLAYING&&chanYtNext&&chanYtNext.token===chanPlayToken&&ytPlayer.getPlaylistIndex?.()===1){
-            // YouTube moved on to the queued next song by itself
+          // YouTube moved on to the queued next song by itself. Go by the video that's really playing: YouTube also
+          // jumps there silently when the first one can't play (its playlist position can still say 0)
+          if(e.data===YT.PlayerState.PLAYING&&chanYtNext&&chanYtNext.token===chanPlayToken&&ytPlayer.getVideoData?.()?.video_id===chanYtNext.id){
+            if(chanStartedToken!==chanPlayToken) spotifyShowSnack(SKIP_WHY.youtube); // the first song never played
             const nx=chanYtNext; chanYtNext=null; chanIdx=nx.idx; chanSkips=0; dismissStickyToast();
             setChanNowPlaying(chanItems[chanIdx],null,null,'youtube'); setChanMediaSession(chanItems[chanIdx]);
           }
@@ -6412,7 +6458,7 @@ async function ensureYtPlayer(){
             else curIt._ytStart=pi;
             if(curIt._ytStart===pi) showArtistSong(cleanVideoTitle(ytPlayer.getVideoData?.()?.title,curIt.name));
           }
-          if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
+          if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; playedOk(); chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
           else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); setPlayerBusy(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
           else if(e.data===YT.PlayerState.BUFFERING&&chanStartedToken===chanPlayToken) setPlayerBusy(true);
           else if(e.data===YT.PlayerState.ENDED){
@@ -6421,7 +6467,12 @@ async function ensureYtPlayer(){
             chanStep(1);
           }
         },
-        onError:()=>{ setPlayerBusy(false); if(appMode!=='local'){ if(isPlaying) nextTrack(); return; } chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
+        onError:()=>{
+          setPlayerBusy(false);
+          if(appMode!=='local'){ if(isPlaying&&!spotifyActive&&!scActive) skipUnplayable('youtube'); return; }
+          if(chanVia==='spotify'||chanVia==='apple'||amActive) return; // not the YouTube player's song
+          chanPlaying=false; skipUnplayable('youtube');
+        }
       }
     });
   });
@@ -6530,7 +6581,7 @@ function startChanProgress(){
   clearInterval(chanProgTimer);
   const tick=async()=>{
     let pos=0,dur=0;
-    if(chanVia==='spotify'||spotifyActive){ const st=await spotifyGetState(); pos=(st?.position||0)/1000; dur=(st?.duration||0)/1000; }
+    if(chanVia==='spotify'||spotifyActive){ const st=await spotifyGetState(); spotifyWatch(st, chanVia==='spotify'&&chanPlaying&&spotifyActive); pos=(st?.position||0)/1000; dur=(st?.duration||0)/1000; }
     else if(amActive&&amMusic){ pos=amMusic.currentPlaybackTime||0; dur=amMusic.currentPlaybackDuration||0; }
     else if(ytPlayer?.getCurrentTime){ pos=ytPlayer.getCurrentTime()||0; dur=ytPlayer.getDuration()||0; }
     // near the end of each song, check where you are now (live tracking) so the next one fits

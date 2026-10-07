@@ -1,6 +1,13 @@
 # MusicMap Changelog
 
-## v1.8 — Current
+## v1.8.1 — Current
+**Release date:** 2026-10-07
+
+### Fixed
+- **Songs that can't play no longer stop the music**: a Spotify song that isn't available in your region (Spotify just sits at the start, or reports a playback error), a YouTube video that's removed, region-locked or not allowed on other sites, or a SoundCloud track the uploader limits is now skipped with a short note, in both modes. A Spotify song you paused part-way (even from another Spotify app) is left alone. After five unplayable songs in a row, playback stops and says so instead of looping
+- When YouTube silently jumped past a video it couldn't play, the player kept showing the skipped song's name; it now follows the video that's really playing
+
+## v1.8
 **Release date:** 2026-10-07
 
 ### Added
