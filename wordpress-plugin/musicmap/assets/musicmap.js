@@ -1621,6 +1621,7 @@ function switchTab(id){
   if(id==='saved')renderSavedList();
 }
 // ── The map, at the top of Channels / Biomes (hide it with its toggle; remembered) ──
+let mapCenterOnPin=false; // set by a shared link to a place: the map opens on it instead of the state view
 function mapShown(){ return gs('mapShown',true)!==false; }
 function refreshMap(){
   // Leaflet needs its box visible to measure it: set up on first show, re-measure after
@@ -1629,7 +1630,10 @@ function refreshMap(){
     leafletMap.invalidateSize();
     renderCustomPins(); renderSavedMarkers();
     if(lastLat!==null) updateMapPin(lastLat,lastLon,trackingActive); // only zoom in while live tracking
-    renderListenPin(trackingActive); renderMapLegend();
+    renderListenPin(trackingActive);
+    // opened from a shared link: start centred on that place (once)
+    if(mapCenterOnPin&&localPoint){ mapCenterOnPin=false; leafletMap.setView([localPoint.lat,localPoint.lon],11,{animate:false}); }
+    renderMapLegend();
   },50);
 }
 function setMapShown(on,scroll,quiet){ // quiet: only set the toggle (page start; the map loads when the tab shows)
@@ -1861,7 +1865,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.11.4';
+const MM_VERSION = '1.11.5';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6885,6 +6889,7 @@ function readShareLink(){
   chanGenre=chan==='popular'?(pendingShare.g||(pendingShare.t?CHART_TOP:null)):null;
   localPoint={lat:+lat.toFixed(5),lon:+lon.toFixed(5),source:'pin',place:null}; ss('localPoint',localPoint);
   if(trackingActive) stopTracking();
+  mapCenterOnPin=true;
   return true;
 }
 function applyPendingShare(){

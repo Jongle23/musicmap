@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.11.4 — Current
+## v1.11.5 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- Opening a shared link to a place (a spot, station or channel) starts the map centred on that place instead of the whole-state view
+
+## v1.11.4
 **Release date:** 2026-10-07
 
 ### Changed
