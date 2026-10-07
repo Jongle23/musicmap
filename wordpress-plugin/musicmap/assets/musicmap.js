@@ -4556,8 +4556,8 @@ async function chanPlayApple(it,playTok){
       const first=await amFindSong(it);
       if(first){
         queue=[{idx:chanIdx,id:first}];
-        for(let k=1;k<chanItems.length&&queue.length<25;k++){
-          const j=(chanIdx+k)%chanItems.length, x=chanItems[j];
+        for(let k=1,j=chanIdx;k<chanItems.length&&queue.length<25;k++){
+          j=chanNextIdx(j); const x=chanItems[j];
           if(x.kind==='song'&&AM_ID.test(String(x.am||''))) queue.push({idx:j,id:String(x.am)});
         }
         it._am='https://music.apple.com/'+amStorefront()+'/song/'+first;
@@ -5127,6 +5127,7 @@ function renderChannelTabs(){
     chips.appendChild(b);
   });
   chips.querySelector('.active')?.scrollIntoView({block:'nearest',inline:'nearest'});
+  renderShuffleBtn();
 }
 function selectLocalChannel(id){
   if(!LOCAL_CHANNELS.some(c=>c.id===id)) return;
@@ -5166,9 +5167,9 @@ async function loadLocalChannel(opts){
       if(localStations.length) renderLocalList(); else renderLocalNote('Choose a spot with radio nearby: tap <b>Move pin</b>.');
       return;
     }
-    localStations=stations; localIdx=-1;
+    localStations=stations; localIdx=-1; buildRadOrder();
     renderLocalList();
-    playStation(0);
+    playStation(radOrder[0]??0);
     return;
   }
   // Keep the selected station (playing or still buffering) when the list refreshes
@@ -5176,12 +5177,13 @@ async function loadLocalChannel(opts){
   localStations=stations||[];
   localIdx=current?localStations.findIndex(s=>s.uuid===current.uuid):-1;
   if(current&&localIdx<0){ localStations.unshift(current); localIdx=0; } // moved away: keep it listed while it plays
+  buildRadOrder(); if(localIdx>=0) radOrderPos=Math.max(0,radOrder.indexOf(localIdx));
   if(stations===null){ renderLocalNote('Could not reach the radio directory. Check your connection and try again.'); return; }
   if(!localStations.length){ renderLocalNote('No stations found within '+fmtDist(200)+' of <b>'+where+'</b>. Try moving the pin.'); return; }
   renderLocalList();
   if(!localPlaying) setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station');
   applyPendingShare();
-  if(opts?.autoplay && !localPlaying) playStation(0);
+  if(opts?.autoplay && !localPlaying) playStation(radOrder[0]??0);
 }
 function renderLocalList(){
   const list=document.getElementById('localList'); if(!list) return;
@@ -5271,6 +5273,7 @@ function playStation(i){
   const st=localStations[i]; if(!st) return;
   stopChanPlayback();
   localIdx=i;
+  const at=radOrder.indexOf(i); if(at>=0) radOrderPos=at; // keep the play order in step with taps
   const a=ensureRadioAudio();
   a.src=st.url;
   a.play().catch(()=>{ updateLocalSub('Tap play to start'); });
@@ -5299,7 +5302,9 @@ function localTogglePlay(){
 function localStep(dir){
   if(localChannel!=='radio'){ chanStep(dir); return; }
   if(!localStations.length) return;
-  playStation(((localIdx<0?0:localIdx+dir)%localStations.length+localStations.length)%localStations.length);
+  if(radOrder.length!==localStations.length) buildRadOrder();
+  radOrderPos=((radOrderPos+(localIdx<0?0:dir))%radOrder.length+radOrder.length)%radOrder.length; // follows the shuffle when it's on
+  playStation(radOrder[radOrderPos]);
 }
 
 // ── Now playing in Local Listening ──
@@ -5710,7 +5715,42 @@ function mmLogoArtwork(){
 let chanItems=[], chanIdx=-1, chanPlaying=false, chanVia=null, chanGenre=null, chanData=null;
 let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
 let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null;
-let chanOrder=[], chanOrderPos=0; // Made Here plays in a shuffled order
+let chanOrder=[], chanOrderPos=0; // play order of chanItems (list order, or shuffled)
+let radOrder=[], radOrderPos=0;   // the same for radio stations
+// Shuffle is remembered per channel; Made Here starts shuffled
+function shuffleOn(ch){ const s=gs('chanShuffle',{}); return s[ch||localChannel]!==undefined?s[ch||localChannel]===true:(ch||localChannel)==='made'; }
+function shuffledIdx(n){ const a=[...Array(n).keys()]; for(let i=n-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function buildChanOrder(){ chanOrder=shuffleOn()?shuffledIdx(chanItems.length):[...Array(chanItems.length).keys()]; chanOrderPos=0; }
+function buildRadOrder(){ radOrder=shuffleOn('radio')?shuffledIdx(localStations.length):[...Array(localStations.length).keys()]; radOrderPos=0; }
+// the item after `from` in play order (what plays next by itself)
+function chanNextIdx(from){
+  if(chanOrder.length===chanItems.length){ const at=chanOrder.indexOf(from); if(at>=0) return chanOrder[(at+1)%chanOrder.length]; }
+  return (from+1)%chanItems.length;
+}
+function renderShuffleBtn(){
+  const b=document.getElementById('chanShuffleBtn'); if(!b) return;
+  const on=shuffleOn(); b.setAttribute('aria-pressed',on); b.title=on?'Shuffle is on (tap to play in order)':'Shuffle play';
+}
+// Off → on: shuffle and start a random one now. On → off: carry on in list order.
+function toggleChanShuffle(){
+  const on=!shuffleOn(); const s=gs('chanShuffle',{}); s[localChannel]=on; ss('chanShuffle',s);
+  renderShuffleBtn();
+  if(localChannel==='radio'){
+    buildRadOrder();
+    if(on&&localStations.length){ playStation(radOrder[0]); }
+    else if(localIdx>=0){ radOrderPos=Math.max(0,radOrder.indexOf(localIdx)); }
+    else if(on&&localPoint) loadLocalChannel({autoplay:true});
+    return;
+  }
+  if(localChannel==='genres'&&chanGenre===null&&chanData?.mixes?.length){
+    if(on) openMix(chanData.mixes[Math.floor(Math.random()*chanData.mixes.length)].genre,true);
+    return;
+  }
+  buildChanOrder();
+  if(!chanItems.length) return;
+  if(on){ playChanItem(chanOrder[0]); return; }
+  if(chanIdx>=0) chanOrderPos=Math.max(0,chanOrder.indexOf(chanIdx));
+}
 let chanWantVia=null; // the service the visitor chose for this channel (one missing song may still come from YouTube) // newest play wins; 'ended' only counts for a song that really started
 const chanCache={};
 const YT_ID=/^[A-Za-z0-9_-]{11}$/;
@@ -5799,10 +5839,9 @@ function setChanList(items, data, opts, keepGenre){
   const playing=chanPlaying?chanItems[chanIdx]:null;
   chanItems=items;
   chanIdx=playing?items.findIndex(x=>itemKey(x)===itemKey(playing)):-1;
-  // Made Here shuffles: a fresh random order every time the list loads
-  chanOrder=items.map((_,i)=>i);
-  if(localChannel==='made') for(let i=chanOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [chanOrder[i],chanOrder[j]]=[chanOrder[j],chanOrder[i]]; }
-  chanOrderPos=0;
+  // a fresh order every time the list loads (random when shuffle is on)
+  buildChanOrder(); renderShuffleBtn();
+  if(chanIdx>=0){ const at=chanOrder.indexOf(chanIdx); if(at>=0) chanOrderPos=at; }
   renderChanList();
   if(opts?.switchNow||opts?.autoplay) playChanItem(chanOrder[0]??0);
   else if(!chanPlaying&&!localPlaying) setLocalIdle();
@@ -5879,8 +5918,8 @@ function openMix(genre,autoplay){
   chanGenre=genre;
   document.getElementById('localListTitle').textContent=(genre+' mix · '+(localPoint?.place?.country||'')).toUpperCase();
   chanItems=m.list.map(x=>({kind:'song',...x})); chanIdx=-1;
-  renderChanList();
-  if(autoplay) playChanItem(0);
+  buildChanOrder(); renderChanList();
+  if(autoplay) playChanItem(chanOrder[0]??0);
   else if(!chanPlaying&&!localPlaying) setLocalIdle();
 }
 
@@ -5935,7 +5974,7 @@ async function playChanItem(i,via,opts){
   }
 }
 function chanToggle(){
-  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(localChannel==='made'?(chanOrder[chanOrderPos]??0):0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
+  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(chanOrder[chanOrderPos]??0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
   if(chanVia==='spotify'){ if(chanPlaying){ spotifyPausePlayback(); chanPlaying=false; } else { spotifyResumePlayback(); chanPlaying=true; } setPlayIcon(chanPlaying); renderChanList(); return; }
   if(chanVia==='apple'&&amMusic&&amActive){ try{ chanPlaying?amMusic.pause():amMusic.play(); }catch(e){} return; }
   if(ytPlayer&&chanVia==='youtube'){ chanPlaying?ytPlayer.pauseVideo():ytPlayer.playVideo(); return; }
@@ -5943,7 +5982,7 @@ function chanToggle(){
 }
 function chanStep(dir){
   if(!chanItems.length) return;
-  if(localChannel==='made'&&chanOrder.length===chanItems.length){
+  if(chanOrder.length===chanItems.length){
     chanOrderPos=((chanOrderPos+dir)%chanOrder.length+chanOrder.length)%chanOrder.length;
     return playChanItem(chanOrder[chanOrderPos]);
   }
@@ -6019,7 +6058,7 @@ async function chanPlayYouTube(it,token){
     return;
   }
   const lookup=x=>mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
-  const nextIdx=chanItems.length>1?(chanIdx+1)%chanItems.length:-1;
+  const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
   const nextIt=nextIdx>=0&&chanItems[nextIdx]?.kind==='song'?chanItems[nextIdx]:null;
   // look up this song and the next together, so YouTube can move on by itself (e.g. screen off)
   const [r,rn]=await Promise.all([lookup(it), nextIt?lookup(nextIt).catch(()=>null):Promise.resolve(null)]);
@@ -6058,7 +6097,7 @@ async function chanPlaySpotify(it,playTok){
 // Spotify song channels: put the next song in Spotify's own queue so it plays on by itself
 async function queueNextChanSpotify(playTok,token){
   chanSpNext=null;
-  const nextIdx=chanItems.length>1?(chanIdx+1)%chanItems.length:-1;
+  const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
   const it=chanItems[nextIdx]; if(!it||it.kind!=='song') return;
   try{
     const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
