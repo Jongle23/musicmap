@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.12.1 — Current
+## v1.12.2 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- Support wording no longer implies Apple Music is already live: Credits now says it "helps cover running costs and supports future projects and integrations like Apple Music", and the note in Connections says Apple Music needs a $99-a-year Apple developer account
+
+## v1.12.1
 **Release date:** 2026-10-07
 
 ### Changed
