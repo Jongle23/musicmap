@@ -1861,7 +1861,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.11.1';
+const MM_VERSION = '1.11.2';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3146,12 +3146,22 @@ function startTracking(opts){
     setTrackingUI(false,'Location isn\'t supported on this device','error');return;
   }
   trackingActive=true; ss('liveLocation',true);
+  locatingNow=true; setPlayerBusy(true); // until your location comes back (or fails)
   setTrackingUI(true,'Finding you…','locating');
+  if(appMode==='local') renderLocalHeader();
   clearTimeout(trackingTimer);
   pollLocation(true,opts); // immediate first poll
 }
 
+let locatingNow=false; // waiting for the first location fix after turning live location on
+function locatingDone(){
+  if(!locatingNow) return;
+  locatingNow=false; setPlayerBusy(false);
+  if(trackingActive) setTrackingUI(true,'Location found','world'); // the button stops spinning (Biome Beats then names the place)
+  if(appMode==='local') renderLocalHeader();
+}
 function stopTracking(){
+  locatingDone();
   trackingActive=false; ss('liveLocation',false);
   clearTimeout(trackingTimer);
   setTrackingUI(false,'');
@@ -3184,8 +3194,10 @@ function setTrackingUI(on, statusText, state){
   const sub=document.getElementById('heroDetectSub');
   const status=document.getElementById('locStatus');
   btn.classList.toggle('tracking', on);
+  const locating=on&&!!statusText&&state==='locating';
+  btn.classList.toggle('locating', locating); btn.setAttribute('aria-busy',locating?'true':'false');
   label.textContent = on ? 'LISTENING' : 'LISTEN TO WORLD';
-  if(sub) sub.textContent = on ? 'TRACKING ON · TAP TO STOP' : 'DETECT MY LOCATION';
+  if(sub) sub.textContent = locating ? 'FINDING YOU…' : on ? 'TRACKING ON · TAP TO STOP' : 'DETECT MY LOCATION';
   if(!status) return;
   state = statusText ? (state||'world') : '';
   status.dataset.state = state;
@@ -3203,6 +3215,7 @@ async function pollLocation(isFirstPoll,opts){
 
   navigator.geolocation.getCurrentPosition(async pos=>{
     const lat=pos.coords.latitude, lon=pos.coords.longitude;
+    locatingDone(); // found you: whatever loads next (a biome's song, the channel list) shows its own loading
 
     // Determine if moving fast (schedule next poll)
     let moved=0;
@@ -3271,6 +3284,7 @@ async function pollLocation(isFirstPoll,opts){
       trackingTimer=setTimeout(()=>pollLocation(false), nextPollDelay);
     }
   }, err=>{
+    locatingDone();
     const m={1:'Location permission denied',2:'Location unavailable · retrying',3:'GPS timed out · retrying'};
     if(err.code===1){ stopTracking(); setTrackingUI(false, m[1], 'error'); return; }
     setTrackingUI(trackingActive, m[err.code]||'GPS error', 'error');
@@ -5583,7 +5597,8 @@ function renderLocalHeader(){
   const pl=localPoint?.place;
   if(localPoint&&!placeLabel(pl)) busyText(nameEl,'Finding place…');
   else nameEl.textContent=!localPoint?'Choose a spot':placeLabel(pl);
-  subEl.textContent=!localPoint?'':
+  if(locatingNow) busyText(subEl,'Finding you…');
+  else subEl.textContent=!localPoint?'':
     [pl?.country||'', localPoint.source==='gps'?'Live tracking':'Pinned spot'].filter(Boolean).join(' · ');
   renderChannelTabs();
 }

@@ -397,6 +397,10 @@
 
 /* location toggle */
 #heroDetectBtn.tracking #heroDetectIcon{animation:trackPulse 2s ease-in-out infinite}
+/* finding you: the pin icon becomes a spinner */
+#heroDetectBtn.locating #heroDetectIcon{animation:none;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px}
+#heroDetectBtn.locating #heroDetectIcon svg{display:none}
+#heroDetectBtn.locating #heroDetectIcon::before{content:'';width:18px;height:18px;border-radius:50%;border:3px solid currentColor;border-right-color:transparent;animation:mmSpin .8s linear infinite;box-sizing:border-box}
 @keyframes trackPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
 .track-badge{display:inline-block;font-size:8px;padding:2px 6px;border-radius:100px;background:rgba(74,222,128,.25);color:var(--green);font-family:var(--pixel);letter-spacing:.5px;margin-left:4px;vertical-align:middle}
 

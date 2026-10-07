@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.11.1 — Current
+## v1.11.2 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- **Finding your location shows it's working**: after tapping Listen to World, the button's pin turns into a spinner ("FINDING YOU…"), the player shows its loading ring, and Local Listening shows "Finding you…" under the place name, until your location comes back (or the GPS gives up). Then the usual loading takes over for the biome's song or the channel list
+
+## v1.11.1
 **Release date:** 2026-10-07
 
 ### Changed
