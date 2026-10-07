@@ -16,7 +16,7 @@
 - **MusicMap → Data**: browse, search, view and delete share codes (single or bulk), delete expired codes, view and clear cache and rate-limit records, and copy or delete the old snippet's files
 - Share codes move to a database table; the old snippet's files are copied in on activation (expired ones skipped), so existing codes keep working. The `?mm_action=` API is unchanged and also available at `/wp-json/musicmap/v1/`
 - Every admin change checks permissions and a security token; saves are rate-limited per hashed IP; all queries are prepared
-- `tools/build_plugin.py` builds the plugin's assets and zip from `musicmap.html`
+- `tools/build_plugin.py` builds the plugin's assets and zip from `musicmap.html`; a ready-to-upload `dist/musicmap.zip` is kept in the repo
 
 ### Added
 - **Credits & Sources** in Settings (and a Credits link in the footer): every service and tool MusicMap uses, with links, logos and licences

@@ -22,8 +22,8 @@ MusicMap is a geolocation-aware music player that detects your real-world enviro
 Visit **[jongle.me/musicmap](https://jongle.me/musicmap)** — no install required. Works in any modern browser.
 
 ### WordPress Plugin (recommended)
-1. Build the plugin zip: `python tools/build_plugin.py --zip` (creates `dist/musicmap.zip`)
-2. In WP Admin go to **Plugins → Add New → Upload Plugin**, upload `musicmap.zip`, and activate it
+1. Download **[`dist/musicmap.zip`](dist/musicmap.zip)** from this repo (or rebuild it with `python tools/build_plugin.py --zip`)
+2. In WP Admin go to **Plugins → Add New → Upload Plugin**, upload `musicmap.zip`, and activate it — or copy the `wordpress-plugin/musicmap` folder into `wp-content/plugins/` by FTP / File Manager instead
 3. Add **`[musicmap]`** (or `[MusicMap]`) to any page or post — a Shortcode block works, and so does Elementor's Shortcode widget
 4. Open **MusicMap → Settings** for API keys, the contact email, an optional Spotify Client ID and share-code limits
 5. Open **MusicMap → Data** to view and delete share codes, cached lookups and rate-limit records
@@ -137,6 +137,7 @@ It will use free data sources only (Apple Music charts, Last.fm, Wikidata, Music
 musicmap.html       — The full app (single file, self-contained) — the source of truth
 wordpress-plugin/   — The MusicMap WordPress plugin ([musicmap] shortcode, settings, data, API)
 tools/              — build_plugin.py: builds the plugin's assets (and zip) from musicmap.html
+dist/musicmap.zip   — Ready-to-upload plugin zip (rebuilt with tools/build_plugin.py --zip)
 musicmap-api.php    — Legacy standalone share-code snippet (WPCode / PHP Snippets)
 CHANGELOG.md        — Version history
 LICENSE.md          — License terms
