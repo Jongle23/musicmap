@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.4
+# 🎵 MusicMap v1.5
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -25,7 +25,7 @@ Visit **[jongle.me/musicmap](https://jongle.me/musicmap)** — no install requir
 1. Download **[`dist/musicmap.zip`](dist/musicmap.zip)** from this repo (or rebuild it with `python tools/build_plugin.py --zip`)
 2. In WP Admin go to **Plugins → Add New → Upload Plugin**, upload `musicmap.zip`, and activate it — or copy the `wordpress-plugin/musicmap` folder into `wp-content/plugins/` by FTP / File Manager instead
 3. Add **`[musicmap]`** (or `[MusicMap]`) to any page or post — a Shortcode block works, and so does Elementor's Shortcode widget
-4. Open **MusicMap → Settings** for API keys, the contact email, an optional Spotify Client ID and share-code limits
+4. Open **MusicMap → Settings** for API keys, the contact email, an optional Spotify Client ID, optional Apple Music (MusicKit) details and share-code limits
 5. Open **MusicMap → Data** to view and delete share codes, cached lookups and rate-limit records
 
 The plugin serves the app, runs the share-code API (`?mm_action=` and `/wp-json/musicmap/v1/`) and stores everything in its own database tables. Keys stay on the server and are shown masked after saving. If you used the old snippet, turn it off after activating; the plugin copies its saved share codes into the database automatically.
@@ -78,7 +78,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.4"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.5"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -91,10 +91,21 @@ If your site is behind Cloudflare or another proxy, set `$TRUSTED_IP_HEADER` in 
 
 Spotify tracks play in the browser through Spotify's Web Playback SDK, which needs **Spotify Premium**.
 
-- **Connect:** Settings → Spotify → Connect. MusicMap's shared Spotify app is in Spotify's Development Mode, so only accounts invited to it can sign in; the app warns you before you try.
+- **Connect:** Settings → Connections → Spotify → Connect. MusicMap's shared Spotify app is in Spotify's Development Mode, so only accounts invited to it can sign in; the app warns you before you try.
 - **Your own Client ID:** anyone else can create a free app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) (Web API + Web Playback SDK), add the Redirect URI shown in Settings, and paste the Client ID under "Use my own Spotify app". No Client Secret is needed.
 - **Add Spotify links:** Packs → Make or Import Pack → paste a Spotify playlist, album or track link in the same box as YouTube links. Playlists must be ones you own or collaborate on; any album or track works. Packs can mix YouTube and Spotify.
 - Spotify-only packs have no YouTube fallback; without Spotify connected, the app explains what's needed instead of playing.
+- **Plays on:** choose *This browser* or one of your Spotify apps (Spotify Connect). On a phone, pick the Spotify app: it keeps playing with the screen off, and it works on iPhone, where the browser player doesn't.
+
+## 🍎 Apple Music (Optional)
+
+Visitors with an Apple Music subscription can play Local Listening songs through Apple Music (without one, Apple plays 30-second previews).
+
+1. In your [Apple Developer account](https://developer.apple.com/account) (Apple Developer Program membership required), go to **Certificates, Identifiers & Profiles**, create a **Media ID**, then a **Key** with **MusicKit** enabled, and download its `.p8` file
+2. In WordPress, open **MusicMap → Settings → Apple Music** and enter your **Team ID**, the **Key ID** and the contents of the `.p8` file
+3. Visitors then see Apple Music under **Settings → Connections**
+
+The private key never leaves your server: the plugin signs a developer token that lasts a day, works only on your site's address, and is cached so it is signed about twice a day.
 
 ---
 
@@ -127,9 +138,9 @@ Pick a channel from the sub-menu at the top of the **Channels** tab:
 - **Genre Mixes** — the country's top songs grouped into genre playlists (Hip-Hop/Rap, Country, Pop…)
 - **Radio** — live stations broadcasting near the pin; keeps playing with the screen off
 
-Songs and artists play through YouTube (the video shows while it plays, as YouTube requires). Visitors who connected Spotify also get a Spotify button on every row. Every row has a **share** button: the link opens MusicMap at the same spot, on the same channel, with that item ready to play. Favourite stations and spots go in the **Saved** tab.
+Songs and artists play through YouTube by default (the video shows while it plays, as YouTube requires), or on Spotify or Apple Music for visitors who connected one: **Settings → Connections → Play songs on** picks which, and the small buttons on each row play it on the others. Each channel has a **Shuffle** button (Made Here starts shuffled), and while a Made Here artist plays, the player shows the song. Every row has a **share** button: the link opens MusicMap at the same spot, on the same channel, with that item ready to play. Favourite stations and spots go in the **Saved** tab.
 
-Data comes from free sources only — Apple Music charts, Wikidata, Radio Browser and your free YouTube Data API key — fetched by the WordPress plugin and cached in its database for every visitor. Each new song costs 100 of YouTube's 10,000 free daily units (about 100 new songs a day); songs played before are free. Set the daily budget and see today's usage under **MusicMap → Settings**. Charts are country-level (no free source has city charts); Made Here and Radio are local. An early prototype of this mode lives in `alpha/`.
+Data comes from free sources only — Apple Music charts, Wikidata, Radio Browser and your free YouTube Data API key — fetched by the WordPress plugin and cached in its database for every visitor. Each new song costs 101 of YouTube's 10,000 free daily units (about 99 new songs a day; the extra unit checks video lengths so Shorts are skipped); songs played before are free. Set the daily budget and see today's usage under **MusicMap → Settings**. Charts are country-level (no free source has city charts); Made Here and Radio are local. An early prototype of this mode lives in `alpha/`.
 
 ---
 

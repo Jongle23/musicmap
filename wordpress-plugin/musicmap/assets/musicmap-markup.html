@@ -102,6 +102,7 @@
       <div class="channel-tabs" id="channelChips" role="tablist" aria-label="Channels"></div>
       <div class="section-header">
         <div class="section-title" id="localListTitle">CHANNEL</div>
+        <button class="shuffle-btn" id="chanShuffleBtn" type="button" aria-pressed="false" onclick="toggleChanShuffle()" title="Shuffle"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg><span>Shuffle</span></button>
       </div>
       <div class="local-list" id="localList"></div>
     </div>
@@ -154,13 +155,28 @@
 
     <!-- SETTINGS TAB -->
   <div id="tab-settings" class="tab-pane">
-    <div class="section" style="margin-top:20px">
-      <div class="section-header"><div class="section-title">SPOTIFY</div></div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">Connect a Spotify Premium account for full in-browser playback. Tracks with a Spotify URI in custom packs will play via Spotify automatically.</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <span id="spotifyStatus" style="font-size:12px;color:var(--muted)">● Not connected</span>
-        <button id="spotifyConnectBtn" class="pill-btn" style="font-size:11px;padding:5px 14px" onclick="spotifyLogin()">Connect</button>
+    <!-- CONNECTIONS: music services each visitor signs in to, and which one plays songs -->
+    <div class="section" id="connectionsSection" style="margin-top:20px">
+      <div class="section-header"><div class="section-title">CONNECTIONS</div></div>
+      <div class="conn-intro">Link a music service to play songs there. Without one, songs play from YouTube.</div>
+      <label class="settings-inline conn-pref" for="preferredPlatformSelect">Play songs on
+        <select class="form-input" id="preferredPlatformSelect" onchange="setPreferredPlatform(this.value)" style="width:auto;min-height:40px"><option value="youtube">YouTube</option></select>
+      </label>
+      <div class="conn-hint">Used when you tap a song in Local Listening, and for Biome Beats tracks that have a Spotify version. The small buttons on each song play it somewhere else. Radio always plays the station.</div>
+      <div class="conn-card">
+      <div class="conn-head">
+        <span class="conn-logo" id="connLogoSpotify" aria-hidden="true"></span>
+        <div class="conn-name">Spotify <span id="spotifyStatus" class="conn-status">● Not connected</span></div>
+        <button id="spotifyConnectBtn" class="pill-btn conn-btn" onclick="spotifyLogin()">Connect</button>
       </div>
+      <div class="conn-sub">Needs Spotify Premium. Full songs in Local Listening and in packs with Spotify tracks.</div>
+      <label class="settings-inline conn-device" id="spotifyDeviceRow" for="spotifyDeviceSelect" hidden>Plays on
+        <span class="conn-device-pick">
+          <select class="form-input" id="spotifyDeviceSelect" onchange="setSpotifyDevice(this.value)" style="width:auto;min-height:40px;max-width:190px"><option value="">This browser</option></select>
+          <button class="pill-btn" type="button" onclick="loadSpotifyDevices(true)" title="Find my Spotify apps" aria-label="Find my Spotify apps"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>
+        </span>
+      </label>
+      <div class="conn-hint" id="spotifyDeviceHint" hidden>On a phone, pick your Spotify app so music keeps going with the screen off (open Spotify there first, then tap the refresh button).</div>
       <!-- Shown before sign-in (warn) or after Spotify refuses the account (denied) — see showSpotifyNotice() -->
       <div class="sp-notice" id="spotifyNotice" role="status" hidden>
         <div class="sp-notice-text" id="spotifyNoticeText"></div>
@@ -182,6 +198,16 @@
         </div>
         <div id="spotifyClientIdMsg" style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5"></div>
       </details>
+      </div>
+      <div class="conn-card">
+        <div class="conn-head">
+          <span class="conn-logo" id="connLogoApple" aria-hidden="true"></span>
+          <div class="conn-name">Apple Music <span id="amStatus" class="conn-status">● Not connected</span></div>
+          <button id="amConnectBtn" class="pill-btn conn-btn" type="button" hidden>Connect</button>
+        </div>
+        <div class="conn-sub">Needs an Apple Music subscription for full songs (otherwise 30-second previews). Plays Local Listening songs.</div>
+        <div class="conn-hint" id="amMsg" role="status" aria-live="polite"></div>
+      </div>
     </div>
     <div class="section" style="margin-top:20px">
       <div class="section-header"><div class="section-title">DATA</div></div>
@@ -571,7 +597,7 @@ Rules:
   </div>
 </div>
 <div style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.4</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.5</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a></div>
 </div>
 </div><!-- #geovibes-app -->

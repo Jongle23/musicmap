@@ -388,6 +388,24 @@
 .mi-pane{display:none}
 .mi-pane.active{display:block}
 /* ── Mode: Biome Beats vs Local Listening (class on #geovibes-app) ── */
+.shuffle-btn{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;margin-left:auto;padding:5px 11px;min-height:32px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
+.shuffle-btn[aria-pressed="true"]{color:var(--green,#4ade80);border-color:rgba(74,222,128,.55);background:rgba(74,222,128,.12)}
+.shuffle-btn:focus-visible{outline:2px solid var(--accent,#a78bfa);outline-offset:2px}
+.conn-intro{font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px}
+.conn-hint{font-size:10px;color:var(--muted);line-height:1.6;margin:4px 0 2px}
+.conn-hint:empty{display:none}
+.conn-pref{margin-bottom:2px}
+.conn-card{border:1px solid var(--border,rgba(255,255,255,.12));border-radius:12px;padding:10px 12px;margin-top:10px;background:rgba(255,255,255,.03)}
+.conn-head{display:flex;align-items:center;gap:10px;min-width:0}
+.conn-logo{flex:0 0 auto;display:flex}
+.conn-logo .src-ic{width:24px;height:24px}
+.conn-name{flex:1;min-width:0;font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:2px}
+.conn-status{font-size:11px;font-weight:400;color:var(--muted)}
+.conn-btn{font-size:11px;padding:5px 14px;flex:0 0 auto}
+.conn-sub{font-size:10px;color:var(--muted);line-height:1.6;margin:6px 0 4px}
+.conn-device{margin-top:6px;flex-wrap:wrap}
+.conn-device-pick{display:flex;align-items:center;gap:6px}
+.conn-card [hidden],#connectionsSection [hidden]{display:none!important}
 #geovibes-app.mode-local .packs-only{display:none!important}
 #geovibes-app.mode-packs .local-only{display:none!important}
 /* Local Listening: the pack iframe never shows; the channel YouTube player shows while it plays

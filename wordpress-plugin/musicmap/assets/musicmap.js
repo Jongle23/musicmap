@@ -1127,10 +1127,11 @@ function ensurePackEditable(packId){
 // ── TRACK / PACK SOURCES ──
 // A track plays from Spotify if it has a spotifyUri, otherwise YouTube if it has a videoId.
 const SOURCE_ORDER=['youtube','spotify','other'];
-const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',radio:'Local radio',other:'Other source'};
+const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',apple:'Apple Music',radio:'Local radio',other:'Other source'};
 const SOURCE_ICONS={
   youtube:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg>',
   spotify:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  apple:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="21" rx="5.5" fill="#FA2D48"/><path d="M15.6 6v8.2a2.2 2.2 0 1 1-1.4-2V8.5l-4.6 1.1v6.1a2.2 2.2 0 1 1-1.4-2V8.4z" fill="#fff"/></svg>',
   radio:'<svg class="src-ic" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2" fill="#fca5a5"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>',
   other:'<svg class="src-ic other" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 };
@@ -1258,19 +1259,54 @@ async function init(){
   updateCacheStatus();
   const fv=document.getElementById('footerVersion');
   if(fv) fv.textContent='Version '+MM_VERSION;
-  // Restore Spotify SDK if previously connected
+  // Restore Spotify if previously connected (an expired access token is renewed with the saved refresh token)
   if(isSpotifyConnected()) initSpotifySdk();
-  updateSpotifySettingsUI();
+  renderConnectionsUI();
   syncSpotifyOwnAppUI();
   resumePendingSpotifyLink();
+  // Apple Music: check the saved sign-in is still good
+  if(isAppleConnected()) amLoad().then(m=>{ if(!m.isAuthorized){ ss('appleMusicLinked',false); renderConnectionsUI(); } }).catch(()=>{});
   applyLogo();
   applyModeUI();
-  if(readShareLink()){ appMode='local'; ss('appMode','local'); applyModeUI(); }
+  // the last known location, shared by both modes (a week at most)
+  const lf=gs('lastFix',null);
+  if(lf&&Number.isFinite(lf.lat)&&Number.isFinite(lf.lon)&&Math.abs(lf.lat)<=90&&Math.abs(lf.lon)<=180&&Date.now()-(Number(lf.t)||0)<7*864e5){ lastLat=lf.lat; lastLon=lf.lon; }
+  const fromShare=readShareLink();
+  if(fromShare){ appMode='local'; ss('appMode','local'); applyModeUI(); }
   if(appMode==='local'){
     // opening in Local Listening: start on the channel list (the default Packs tab doesn't apply)
     if(document.getElementById('tab-packs')?.classList.contains('active')) switchTab('player');
     enterLocalMode(false);
   }
+  // live location was on last time: turn it back on, but only if the browser already allows it (never prompt
+  // on page load), and not when a shared link chose the spot
+  if(!fromShare&&gs('liveLocation',false)&&navigator.permissions?.query){
+    navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted'&&!trackingActive) startTracking({autoplay:false}); }).catch(()=>{});
+  }
+}
+
+// Back from the lock screen / another app: if Spotify stopped while the screen was off, carry on
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') setTimeout(resumeAfterScreenOff,400); });
+async function resumeAfterScreenOff(){
+  if(!isSpotifyConnected()) return;
+  if(spotifyPlayer&&!spotifyReady&&!spRemoteDevice()) try{ await spotifyPlayer.connect(); }catch(e){}
+  const wanted=appMode==='local'?(chanVia==='spotify'&&chanPlaying):(spotifyActive&&isPlaying);
+  if(!wanted||!spotifyActive) return;
+  if(spRemoteDevice()) await pollSpotifyRemote(); // catch up on what the Spotify app did meanwhile
+  let s=await spotifyGetState();
+  if(s){ onSpotifyState(s); s=await spotifyGetState(); } // follow any songs Spotify moved through
+  if(s&&!s.paused) return; // still going
+  if(s&&s.position>0){ await spotifyResumePlayback(); } // paused part-way (e.g. by the system): resume
+  else if(appMode==='local') playChanItem(chanIdx>=0?chanIdx:0,'spotify'); // the player lost its place: start again
+  else playCurrentTrack();
+  // phones may still refuse to start audio without a tap: say so instead of pretending to play
+  setTimeout(async()=>{
+    const st=await spotifyGetState();
+    if(st&&!st.paused) return;
+    if(appMode==='local'){ chanPlaying=false; renderChanList(); } else isPlaying=false;
+    setPlayIcon(false); document.getElementById('playingBars').style.display='none';
+    document.getElementById('npGame').textContent='Tap play to carry on';
+  },2500);
 }
 
 function importSharedPack(pack, silent){
@@ -1324,8 +1360,11 @@ function switchTab(id){
     syncDistUnitsSelect();
     renderCredits();
     renderHiddenTracks();
-    updateSpotifySettingsUI();
+    renderConnectionsUI();
     syncSpotifyOwnAppUI();
+    if(isSpotifyConnected()&&!spDeviceList.length) loadSpotifyDevices(false);
+    // load Apple Music ahead of time, so the sign-in window can open straight from the Connect tap
+    if(APPLE_MUSIC_ON&&!isAppleConnected()) amLoad().catch(()=>{});
   }
   if(id==='map'){
     // Init Leaflet on first open (Leaflet needs the container visible)
@@ -1496,7 +1535,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.4';
+const MM_VERSION = '1.5';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2058,7 +2097,7 @@ async function playCurrentTrack(useFade){
   const token=++packsPlayToken;
   stopPacksTicker();
   // Spotify path: hand Spotify the whole upcoming queue, so it keeps playing with the screen off
-  if(t.spotifyUri && spotifyReady && isSpotifyConnected()){
+  if(t.spotifyUri && spotifyCanPlay() && (preferredPlatform()!=='youtube' || !t.videoId)){
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
     const queue=packsSpotifyQueue();
     const ok=await spotifyPlayUris(queue.map(q=>q.uri));
@@ -2082,8 +2121,7 @@ async function playCurrentTrack(useFade){
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
     setPlayIcon(false); stopProgress();
     document.getElementById('playingBars').style.display='none';
-    if(isSpotifyConnected() && spotifyInitFailed) spotifyShowSnack('This browser can’t play Spotify. Try Chrome, Edge, Firefox or Safari.');
-    else if(isSpotifyConnected() && !spotifyReady) spotifyShowSnack('Spotify is still connecting. Try again in a moment.');
+    if(isSpotifyConnected() && !spotifyCanPlay()) spotifyShowSnack(spotifyWhyNot());
     else if(isSpotifyConnected()) spotifyShowSnack('Spotify could not play this track.');
     else openSpotifyNeeded();
     return;
@@ -2113,6 +2151,7 @@ async function pauseTrack(){
   document.getElementById('playingBars').style.display='none';
 }
 async function togglePlay(){
+  spotifyUnlockAudio();
   if(appMode==='local') return localTogglePlay();
   if(isPlaying){
     isPlaying=false;
@@ -2731,19 +2770,39 @@ function toggleTracking(){
   }
 }
 
-function startTracking(){
+// Live location is shared by both modes: one on/off setting (remembered across visits) and one last fix.
+// opts.autoplay:false = find the place but don't start music (mode switch, page reopened)
+function startTracking(opts){
   if(!navigator.geolocation){
     setTrackingUI(false,'Location isn\'t supported on this device','error');return;
   }
-  trackingActive=true;
+  trackingActive=true; ss('liveLocation',true);
   setTrackingUI(true,'Finding you…','locating');
-  pollLocation(true); // immediate first poll
+  clearTimeout(trackingTimer);
+  pollLocation(true,opts); // immediate first poll
 }
 
 function stopTracking(){
-  trackingActive=false;
+  trackingActive=false; ss('liveLocation',false);
   clearTimeout(trackingTimer);
   setTrackingUI(false,'');
+  if(appMode==='local'&&localPoint?.source==='gps'){ localPoint.source='pin'; ss('localPoint',localPoint); renderLocalHeader(); }
+}
+function saveFix(lat,lon){ lastLat=lat; lastLon=lon; ss('lastFix',{lat:+lat.toFixed(5),lon:+lon.toFixed(5),t:Date.now()}); }
+// A fresh reading right now (near the end of a track), without disturbing the regular schedule
+function freshFix(){
+  return new Promise(res=>{
+    if(!navigator.geolocation||!trackingActive) return res(null);
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const lat=pos.coords.latitude, lon=pos.coords.longitude;
+      saveFix(lat,lon); updateMapPin(lat,lon); res({lat,lon});
+    },()=>res(null),{timeout:12000,enableHighAccuracy:true,maximumAge:15000});
+  });
+}
+// Same place, new mode: carry the live location over and look again
+function relocateForMode(){
+  if(!trackingActive) return;
+  startTracking({autoplay:false});
 }
 
 // One location notice under the biome name. state:
@@ -2769,8 +2828,9 @@ function setTrackingUI(on, statusText, state){
 }
 
 // ── POLL LOCATION ──
-async function pollLocation(isFirstPoll){
+async function pollLocation(isFirstPoll,opts){
   if(!trackingActive) return;
+  const autoplay=isFirstPoll&&opts?.autoplay!==false;
 
   navigator.geolocation.getCurrentPosition(async pos=>{
     const lat=pos.coords.latitude, lon=pos.coords.longitude;
@@ -2780,14 +2840,14 @@ async function pollLocation(isFirstPoll){
     if(lastPollLat!==null) moved=dist(lastPollLat,lastPollLon,lat,lon);
     const nextPoll = (moved > MOVE_THRESHOLD) ? POLL_FAST : POLL_SLOW;
     lastPollLat=lat; lastPollLon=lon;
-    lastLat=lat; lastLon=lon;
+    saveFix(lat,lon);
 
     // Update map pin
     updateMapPin(lat,lon);
 
     // Local Listening: the GPS fix moves the listening pin; biomes don't apply
     if(appMode==='local'){
-      setListenPoint(lat,lon,'gps',{autoplay:isFirstPoll});
+      setListenPoint(lat,lon,'gps',{autoplay});
       if(trackingActive) trackingTimer=setTimeout(()=>pollLocation(false), nextPoll);
       return;
     }
@@ -2812,17 +2872,20 @@ async function pollLocation(isFirstPoll){
         try{
           const locName2=await revGeo(lat,lon);
           const id=await classifyBiome(lat,lon,locName2);
-          if(id!==currentLocId) loadLocation(id,false,false);
-          if(!isPlaying){ playCurrentTrack(false); isPlaying=true; }
+          if(id!==currentLocId){
+            // already playing (mode switch): change biome at the end of this track, like any other move
+            if(isPlaying&&!autoplay) pendingBiomeId=id; else loadLocation(id,false,false);
+          }
+          if(autoplay&&!isPlaying){ playCurrentTrack(false); isPlaying=true; }
         }catch(e){}
       }
     } else {
       // Saved place: the hero already shows its name, so the notice just confirms it
       setTrackingUI(true, 'You\'re here', 'here');
       if(nearby.id!==currentLocId || isFirstPoll){
-        if(isFirstPoll){
+        if(isFirstPoll&&!(isPlaying&&!autoplay)){
           loadLocation(nearby.id,false,false);
-          if(!isPlaying){ playCurrentTrack(false); isPlaying=true; }
+          if(autoplay&&!isPlaying){ playCurrentTrack(false); isPlaying=true; }
         } else {
           // Hero still shows the old place until the track ends — name the new one here
           pendingBiomeId=nearby.id;
@@ -3383,7 +3446,8 @@ function confirmMapPin(){
 
 // ── BACKGROUND BIOME CHECK (called 10s before track ends) ──
 async function checkBiomeInBackground(){
-  if(!lastLat||!lastLon) return;
+  if(trackingActive) await freshFix(); // where are you now, not at the last scheduled poll
+  if(lastLat===null||lastLon===null) return;
   // Check custom location proximity first
   const nearby=getAllCustomLocs().find(l=>{
     if(l.pins&&l.pins.length>0) return l.pins.some(p=>dist(lastLat,lastLon,p.lat,p.lon)<=(p.radius||200));
@@ -3969,7 +4033,9 @@ async function warmVideoTitles(pack){
 // ═══════════════════════════════════════════
 const SPOTIFY_SCOPES='streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state';
 
-function isSpotifyConnected(){ return !!(gs('spotifyToken',null) && gs('spotifyExpiry',0) > Date.now()); }
+// Signed in = we hold a refresh token. The access token only lasts an hour and is renewed on demand,
+// so an expired one must not count as "disconnected" (that used to drop people after an hour).
+function isSpotifyConnected(){ return !!(gs('spotifyRefreshToken',null) || (gs('spotifyToken',null) && gs('spotifyExpiry',0) > Date.now())); }
 
 function setSpotifyTokens(access, refresh, expiresIn){
   ss('spotifyToken',access);
@@ -4132,36 +4198,57 @@ async function checkSpotifyAccess(clientId){
   }catch(e){ return false; }
 }
 
-async function spotifyRefreshAccessToken(){
+// One refresh at a time: Spotify swaps the refresh token on every use, so two at once would
+// leave the second holding a dead token. Result: 'ok' | 'revoked' (sign in again) | 'offline' (keep the sign-in)
+let spRefreshing=null;
+function spotifyRefreshAccessToken(){
+  if(!spRefreshing) spRefreshing=spotifyDoRefresh().finally(()=>{ spRefreshing=null; });
+  return spRefreshing;
+}
+async function spotifyDoRefresh(){
   const refresh=gs('spotifyRefreshToken',null);
   const clientId=gs('spotifyTokenClientId','')||spotifyClientId(); // refresh with the app that issued the token
-  if(!refresh||!SPOTIFY_CLIENT_ID_RE.test(clientId)) return false;
+  if(!refresh||!SPOTIFY_CLIENT_ID_RE.test(clientId)) return 'revoked';
   try{
     const resp=await fetch('https://accounts.spotify.com/api/token',{
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body:new URLSearchParams({grant_type:'refresh_token',refresh_token:refresh,client_id:clientId})
     });
-    if(!resp.ok) return false;
+    if(resp.status===400||resp.status===401){
+      // another tab may have used this refresh token a moment ago and saved a fresh pair
+      if(gs('spotifyRefreshToken',null)!==refresh && gs('spotifyExpiry',0)>Date.now()) return 'ok';
+      return 'revoked';
+    }
+    if(!resp.ok) return 'offline';
     const data=await resp.json();
-    setSpotifyTokens(data.access_token, data.refresh_token||refresh, data.expires_in);
-    return true;
-  }catch(e){ return false; }
+    if(!data.access_token) return 'offline';
+    setSpotifyTokens(data.access_token, data.refresh_token||refresh, Number(data.expires_in)||3600);
+    return 'ok';
+  }catch(e){ return 'offline'; }
 }
-
 async function getValidSpotifyToken(){
-  const token=gs('spotifyToken',null);
-  if(!token) return null;
-  if(gs('spotifyExpiry',0) < Date.now()){
-    const ok=await spotifyRefreshAccessToken();
-    if(!ok){ clearSpotifyTokens(); updateSpotifySettingsUI(); return null; }
+  if(!isSpotifyConnected()) return null;
+  if(!gs('spotifyToken',null) || gs('spotifyExpiry',0) < Date.now()){
+    const r=await spotifyRefreshAccessToken();
+    if(r==='revoked'){ spotifySignedOut(); return null; }
+    if(r!=='ok') return null; // offline for now: keep the sign-in and try again next time
   }
   return gs('spotifyToken',null);
+}
+// Spotify itself ended the sign-in (revoked, password changed, app removed)
+function spotifySignedOut(){
+  if(!isSpotifyConnected()) return;
+  if(spotifyPlayer){ try{ spotifyPlayer.disconnect(); }catch(e){} spotifyPlayer=null; }
+  spotifyDeviceId=null; spotifyReady=false;
+  clearSpotifyTokens(); updateSpotifySettingsUI(); renderConnectionsUI();
+  if(appMode==='local'&&chanItems.length) renderChanList();
+  spotifyShowSnack('Spotify ended the sign-in. Reconnect in Settings → Connections.');
 }
 
 function cleanSpotifyUrlParams(){
   const url=new URL(window.location);
-  ['code','state','error'].forEach(k=>url.searchParams.delete(k));
+  ['code','state','error','ubi'].forEach(k=>url.searchParams.delete(k)); // ubi: Spotify's own tracking tag
   history.replaceState({},'',url.toString());
 }
 
@@ -4182,7 +4269,7 @@ async function initSpotifySdk(){
         name:'MusicMap',
         getOAuthToken:async cb=>{
           const t=await getValidSpotifyToken();
-          if(t) cb(t); else { clearSpotifyTokens(); updateSpotifySettingsUI(); }
+          if(t) cb(t);
         },
         volume:0.8
       });
@@ -4192,20 +4279,16 @@ async function initSpotifySdk(){
         spotifyShowSnack('🎵 Spotify ready!');
         resolve();
       });
-      spotifyPlayer.addListener('not_ready',()=>{ spotifyReady=false; updateSpotifySettingsUI(); });
+      // the browser player dropped off Spotify (sleep, network change): reconnect instead of waiting forever
+      spotifyPlayer.addListener('not_ready',()=>{
+        spotifyReady=false; updateSpotifySettingsUI();
+        setTimeout(()=>{ if(spotifyPlayer&&!spotifyReady) spotifyPlayer.connect(); },3000);
+      });
       spotifyPlayer.addListener('player_state_changed',state=>{
-        if(!state||!spotifyActive) return;
+        if(!state||!spotifyActive||spRemoteDevice()) return;
         const cur=state.track_window?.current_track;
-        if(cur) setSpotifyArt(cur.album?.images, cur.album?.name);
-        const uris=[cur?.uri,cur?.linked_from?.uri].filter(Boolean);
-        // Spotify moved on by itself (screen may be off): follow it instead of starting anything
-        if(appMode!=='local' && packsSpQueue && followPacksSpotify(uris)) return;
-        if(appMode==='local' && followChanSpotify(uris)) return;
-        if(state.paused && state.position===0 && !state.loading){
-          // end of what we handed Spotify: move on ourselves
-          if(appMode!=='local' && packsSpQueue && packsSpQueue.length>1) return;
-          nextTrack();
-        }
+        onSpotifyState({uris:[cur?.uri,cur?.linked_from?.uri].filter(Boolean), paused:state.paused, position:state.position,
+          duration:state.duration, loading:state.loading, images:cur?.album?.images, album:cur?.album?.name, name:cur?.name});
       });
       // e.g. no Widevine/DRM (some embedded or privacy browsers) — say so instead of "Connecting…" forever
       spotifyPlayer.addListener('initialization_error',()=>{
@@ -4213,7 +4296,13 @@ async function initSpotifySdk(){
         spotifyShowSnack('This browser can’t play Spotify. Try Chrome, Edge, Firefox or Safari.');
         resolve();
       });
-      spotifyPlayer.addListener('authentication_error',()=>{ clearSpotifyTokens(); updateSpotifySettingsUI(); resolve(); });
+      // usually just an access token that ran out: renew it and reconnect; only a refused renewal signs out
+      spotifyPlayer.addListener('authentication_error',async()=>{
+        resolve();
+        const r=await spotifyRefreshAccessToken();
+        if(r==='revoked') spotifySignedOut();
+        else setTimeout(()=>{ if(spotifyPlayer&&!spotifyReady) spotifyPlayer.connect(); },2000);
+      });
       spotifyPlayer.addListener('account_error',()=>{ spotifyShowSnack('Spotify Premium required for playback.'); showSpotifyNotice('premium'); resolve(); });
       spotifyPlayer.connect();
     };
@@ -4230,25 +4319,93 @@ async function initSpotifySdk(){
 function spotifyDisconnect(){
   if(spotifyPlayer){ spotifyPlayer.disconnect(); spotifyPlayer=null; }
   spotifyDeviceId=null; spotifyReady=false; spotifyActive=false;
-  clearSpotifyTokens();
-  updateSpotifySettingsUI();
+  clearSpotifyTokens(); ss('spotifyDevice',null);
+  updateSpotifySettingsUI(); renderConnectionsUI();
+  if(appMode==='local'&&chanItems.length) renderChanList();
   spotifyShowSnack('Spotify disconnected');
 }
 
-async function spotifyPlayUri(uri){
-  const token=await getValidSpotifyToken();
-  if(!token||!spotifyDeviceId) return false;
-  try{
-    const resp=await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(spotifyDeviceId)}`,{
-      method:'PUT',
-      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({uris:[uri]})
-    });
-    return resp.ok||resp.status===204;
-  }catch(e){ return false; }
+// ── Where Spotify plays: this browser (Web Playback SDK) or one of your Spotify apps (Spotify Connect).
+// Your phone's Spotify app keeps going with the screen off, and works where the browser player can't (iPhone).
+function spRemoteDevice(){ const d=gs('spotifyDevice',null); return d&&/^[A-Za-z0-9_-]{1,64}$/.test(d.id||'')?d:null; }
+function spTargetId(){ return spRemoteDevice()?.id||spotifyDeviceId; }
+function spotifyCanPlay(){ return isSpotifyConnected() && (!!spRemoteDevice() || spotifyReady); }
+function spotifyWhyNot(){
+  if(!isSpotifyConnected()) return 'Connect Spotify in Settings first.';
+  if(spotifyInitFailed) return 'This browser can’t play Spotify. In Settings → Connections, choose your Spotify app to play there.';
+  return 'Spotify is still connecting. Try again in a moment.';
 }
-async function spotifyPausePlayback(){ if(spotifyPlayer) try{ await spotifyPlayer.pause(); }catch(e){} }
-async function spotifyResumePlayback(){ if(spotifyPlayer) try{ await spotifyPlayer.resume(); }catch(e){} }
+async function spotifyPlayBody(body){
+  const token=await getValidSpotifyToken(); const dev=spTargetId();
+  if(!token||!dev) return {ok:false};
+  try{
+    const r=await fetch('https://api.spotify.com/v1/me/player/play?device_id='+encodeURIComponent(dev),{
+      method:'PUT',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.status===404&&spRemoteDevice()) spotifyShowSnack('Can’t reach '+spRemoteDevice().name+'. Open Spotify there, or choose This browser in Settings → Connections.');
+    return {ok:r.ok||r.status===204, status:r.status};
+  }catch(e){ return {ok:false}; }
+}
+async function spotifyPlayUri(uri){ return (await spotifyPlayBody({uris:[uri]})).ok; }
+async function spotifyRemoteCmd(cmd){
+  const token=await getValidSpotifyToken(); const dev=spRemoteDevice(); if(!token||!dev) return;
+  try{ await fetch('https://api.spotify.com/v1/me/player/'+cmd+'?device_id='+encodeURIComponent(dev.id),{method:'PUT',headers:{'Authorization':'Bearer '+token}}); }catch(e){}
+}
+async function spotifyPausePlayback(){
+  if(spRemoteDevice()) return spotifyRemoteCmd('pause');
+  if(spotifyPlayer) try{ await spotifyPlayer.pause(); }catch(e){}
+}
+async function spotifyResumePlayback(){
+  if(spRemoteDevice()) return spotifyRemoteCmd('play');
+  if(spotifyPlayer) try{ spotifyPlayer.activateElement?.(); await spotifyPlayer.resume(); }catch(e){}
+}
+// Phones only let a page start audio from a tap: unlock the browser player while we have one
+function spotifyUnlockAudio(){ if(spotifyPlayer&&!spRemoteDevice()) try{ spotifyPlayer.activateElement?.(); }catch(e){} }
+
+// What Spotify is playing, the same shape for both players: {uris,paused,position,duration,loading,images,album} (ms)
+let spRemoteLast=null; // last remote reading + when it was taken, so the seek bar can run between polls
+async function spotifyGetState(){
+  if(!spRemoteDevice()){
+    const st=await spotifyPlayer?.getCurrentState?.(); if(!st) return null;
+    const cur=st.track_window?.current_track;
+    return {uris:[cur?.uri,cur?.linked_from?.uri].filter(Boolean), paused:st.paused, position:st.position, duration:st.duration, loading:st.loading, images:cur?.album?.images, album:cur?.album?.name};
+  }
+  if(spRemoteLast){
+    const s=spRemoteLast.s, live=!s.paused?Date.now()-spRemoteLast.at:0;
+    return {...s, position:Math.min(s.duration||Infinity, s.position+live)};
+  }
+  return null;
+}
+async function pollSpotifyRemote(){
+  const token=await getValidSpotifyToken(); if(!token) return;
+  try{
+    const r=await fetch('https://api.spotify.com/v1/me/player?additional_types=track',{headers:{'Authorization':'Bearer '+token}});
+    if(r.status===204){ spRemoteLast=null; return; }
+    if(!r.ok) return;
+    const d=await r.json(), it=d.item;
+    if(!it) return;
+    const s={uris:[it.uri,it.linked_from?.uri].filter(Boolean), paused:!d.is_playing, position:d.progress_ms||0, duration:it.duration_ms||0, loading:false, images:it.album?.images, album:it.album?.name, name:it.name};
+    spRemoteLast={s,at:Date.now()};
+    if(spotifyActive) onSpotifyState(s);
+  }catch(e){}
+}
+setInterval(()=>{ if(spotifyActive&&spRemoteDevice()) pollSpotifyRemote(); },3000);
+
+// One handler for both players' updates
+function onSpotifyState(s){
+  if(!spotifyActive) return;
+  setSpotifyArt(s.images, s.album);
+  if(appMode==='local'&&chanVia==='spotify'&&s.name) showArtistSong(s.name);
+  // Spotify moved on by itself (screen may be off): follow it instead of starting anything
+  if(appMode!=='local' && packsSpQueue && followPacksSpotify(s.uris)) return;
+  if(appMode==='local' && chanVia==='spotify' && followChanSpotify(s.uris)) return;
+  if(s.paused && s.position===0 && !s.loading){
+    // end of what we handed Spotify: move on ourselves (unless Spotify already has the next song lined up)
+    if(appMode!=='local' && packsSpQueue && packsSpQueue.length>1) return;
+    if(appMode==='local' && (chanVia!=='spotify' || !chanPlaying || (chanSpNext&&chanSpNext.token===chanPlayToken))) return;
+    if(appMode!=='local' && !isPlaying) return;
+    nextTrack();
+  }
+}
 
 // Small source icon before the album/game line. Spotify only counts while it's really playing
 // through the SDK — otherwise the track falls back to YouTube.
@@ -4310,6 +4467,219 @@ function updateSpotifySettingsUI(){
     btn.textContent='Connect';
     btn.onclick=spotifyLogin;
     status.innerHTML='<span style="color:var(--muted)">● Not connected</span>';
+  }
+}
+
+// ═══════════════════════════════════════════
+// APPLE MUSIC (MusicKit JS)
+// ═══════════════════════════════════════════
+// The site's developer token comes from the plugin, signed on the server with the site's MusicKit key
+// (the key itself never reaches the page). Each visitor signs in with their own Apple Account;
+// without an Apple Music subscription, Apple plays 30-second previews.
+const APPLE_MUSIC_ON=MM_CONFIG.appleMusic===true;
+const AM_ID=/^\d{1,15}$/;
+let amMusic=null, amLoading=null, amActive=false, amQueue=null;
+function isAppleConnected(){ return APPLE_MUSIC_ON && gs('appleMusicLinked',false)===true; }
+function amLoad(){
+  if(amMusic) return Promise.resolve(amMusic);
+  if(amLoading) return amLoading;
+  amLoading=(async()=>{
+    const d=await mmApi('musickit');
+    if(typeof d?.token!=='string'||!/^[\w-]+\.[\w-]+\.[\w-]+$/.test(d.token)) throw new Error('Apple Music isn’t set up on this site.');
+    if(!window.MusicKit?.configure){
+      await new Promise((res,rej)=>{
+        document.addEventListener('musickitloaded',res,{once:true});
+        const s=document.createElement('script'); s.src='https://js-cdn.music.apple.com/musickit/v3/musickit.js'; s.async=true;
+        s.onerror=()=>rej(new Error('Apple Music could not load. Check your connection.'));
+        document.head.appendChild(s);
+      });
+    }
+    const m=await MusicKit.configure({developerToken:d.token, app:{name:'MusicMap', build:MM_VERSION}});
+    m.addEventListener('nowPlayingItemDidChange',amOnItem);
+    m.addEventListener('playbackStateDidChange',amOnState);
+    amMusic=m; return m;
+  })().finally(()=>{ amLoading=null; });
+  return amLoading;
+}
+function amStorefront(){ const s=String(amMusic?.storefrontId||''); return /^[a-z]{2}$/.test(s)?s:'us'; }
+async function amApi(path,params){ const m=await amLoad(); const r=await m.api.music(path,params); return r?.data; }
+async function appleConnect(){
+  const msg=document.getElementById('amMsg'); if(msg) msg.textContent='';
+  try{
+    if(!amMusic){
+      // the sign-in window must open straight from a tap: load first, then ask for one more tap
+      if(msg) msg.textContent='Loading Apple Music…';
+      await amLoad();
+      if(msg) msg.textContent='Ready. Tap Connect again to sign in.';
+      return;
+    }
+    await amMusic.authorize();
+    if(!amMusic.isAuthorized) return;
+    ss('appleMusicLinked',true);
+    if(msg) msg.textContent='';
+    renderConnectionsUI(); if(appMode==='local'&&chanItems.length) renderChanList();
+    spotifyShowSnack('Apple Music connected');
+  }catch(e){ if(msg) msg.textContent=e?.message||'Apple Music sign-in didn’t finish. Try again.'; }
+}
+async function appleDisconnect(){
+  if(amActive) stopChanPlayback();
+  try{ await amMusic?.unauthorize(); }catch(e){}
+  ss('appleMusicLinked',false); chanWantVia=null;
+  renderConnectionsUI(); if(appMode==='local'&&chanItems.length) renderChanList();
+  spotifyShowSnack('Apple Music disconnected');
+}
+// A chart song already carries its Apple Music id; anything else is looked up in your storefront
+async function amFindSong(it){
+  if(AM_ID.test(String(it.am||''))) return String(it.am);
+  const d=await amApi('/v1/catalog/{{storefrontId}}/search',{term:(it.title+' '+it.artist).slice(0,200),types:'songs',limit:1});
+  const id=d?.results?.songs?.data?.[0]?.id; return AM_ID.test(id||'')?id:'';
+}
+async function chanPlayApple(it,playTok){
+  const cant=m=>Object.assign(new Error(m),{code:'cant_play'});
+  if(!isAppleConnected()) throw cant('Connect Apple Music in Settings first.');
+  let m; try{ m=await amLoad(); }catch(e){ throw cant(e.message); }
+  if(!m.isAuthorized){ ss('appleMusicLinked',false); renderConnectionsUI(); throw cant('Your Apple Music sign-in ended. Reconnect in Settings.'); }
+  let queue=[];
+  try{
+    if(it.kind==='artist'){
+      // Made Here: the artist's best-known songs, shuffled
+      const d=await amApi('/v1/catalog/{{storefrontId}}/search',{term:it.name.slice(0,200),types:'artists',limit:1});
+      const aid=d?.results?.artists?.data?.[0]?.id;
+      if(AM_ID.test(aid||'')){
+        const t=await amApi('/v1/catalog/{{storefrontId}}/artists/'+aid+'/view/top-songs',{limit:10});
+        const ids=(t?.data||[]).map(s=>s.id).filter(id=>AM_ID.test(id||''));
+        for(let k=ids.length-1;k>0;k--){ const j=Math.floor(Math.random()*(k+1)); [ids[k],ids[j]]=[ids[j],ids[k]]; }
+        queue=ids.map(id=>({idx:chanIdx,id}));
+        it._am='https://music.apple.com/'+amStorefront()+'/artist/'+aid;
+      }
+    } else {
+      // this song, then the rest of the list, so Apple Music carries on by itself with the screen off
+      const first=await amFindSong(it);
+      if(first){
+        queue=[{idx:chanIdx,id:first}];
+        for(let k=1,j=chanIdx;k<chanItems.length&&queue.length<25;k++){
+          j=chanNextIdx(j); const x=chanItems[j];
+          if(x.kind==='song'&&AM_ID.test(String(x.am||''))) queue.push({idx:j,id:String(x.am)});
+        }
+        it._am='https://music.apple.com/'+amStorefront()+'/song/'+first;
+      }
+    }
+  }catch(e){ throw cant('Apple Music didn’t answer. Try again in a moment.'); }
+  if(playTok!==chanPlayToken) return;
+  if(!queue.length) throw Object.assign(new Error('Not found on Apple Music.'),{code:'not_found'});
+  amQueue={token:playTok, items:queue}; amActive=true;
+  try{ await m.setQueue({songs:queue.map(q=>q.id), startPlaying:true}); }
+  catch(e){ amActive=false; amQueue=null; throw cant('Apple Music couldn’t play this.'); }
+  if(playTok!==chanPlayToken) return;
+  chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
+  startChanProgress();
+}
+// Apple Music moved on to the next song in its queue (screen may be off): follow it
+function amOnItem(){
+  if(!amActive||!amQueue||amQueue.token!==chanPlayToken) return;
+  const id=String(amMusic?.nowPlayingItem?.id||''); const q=amQueue.items.find(x=>x.id===id);
+  if(q&&q.idx===chanIdx) showArtistSong(amMusic.nowPlayingItem?.title||amMusic.nowPlayingItem?.attributes?.name);
+  if(!q||q.idx===chanIdx) return;
+  chanIdx=q.idx; chanSkips=0;
+  const it=chanItems[chanIdx]; if(!it) return;
+  if(it.kind==='song') it._am='https://music.apple.com/'+amStorefront()+'/song/'+id;
+  const at=chanOrder.indexOf(chanIdx); if(at>=0) chanOrderPos=at;
+  renderChanList(); setChanNowPlaying(it,null,null,'apple'); setChanMediaSession(it);
+}
+function amOnState(){
+  if(!amActive||!amMusic||!window.MusicKit) return;
+  const S=MusicKit.PlaybackStates, st=amMusic.playbackState;
+  const was=chanPlaying;
+  if(st===S.playing) chanPlaying=true;
+  else if(st===S.paused||st===S.stopped) chanPlaying=false;
+  else if(st===S.completed||st===S.ended){
+    chanPlaying=false;
+    // the end of what we handed Apple Music: carry on down the list
+    if(st===S.completed&&amQueue?.token===chanPlayToken) return chanStep(1);
+  } else return;
+  setPlayIcon(chanPlaying); document.getElementById('playingBars').style.display=chanPlaying?'flex':'none';
+  if(was!==chanPlaying) renderChanList();
+}
+
+// ── Connections (Settings): Spotify, Apple Music, and which one plays songs ──
+// Preferred service for songs. Unset: the first service you connected, else YouTube.
+function preferredPlatform(){
+  const p=gs('preferredPlatform',null);
+  if(p==='spotify'&&isSpotifyConnected()) return 'spotify';
+  if(p==='apple'&&isAppleConnected()) return 'apple';
+  if(p) return 'youtube';
+  return isSpotifyConnected()?'spotify':isAppleConnected()?'apple':'youtube';
+}
+function altPlatforms(){
+  const pref=preferredPlatform();
+  return ['spotify','apple','youtube'].filter(p=>p!==pref&&(p==='youtube'||(p==='spotify'?isSpotifyConnected():isAppleConnected())));
+}
+function setPreferredPlatform(v){
+  if(!['youtube','spotify','apple'].includes(v)) return;
+  ss('preferredPlatform',v); chanWantVia=null;
+  if(appMode==='local'&&chanItems.length) renderChanList();
+  renderConnectionsUI();
+}
+let spDeviceList=[];
+async function loadSpotifyDevices(announce){
+  const token=await getValidSpotifyToken(); if(!token) return;
+  try{
+    const r=await fetch('https://api.spotify.com/v1/me/player/devices',{headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok) throw new Error();
+    const d=await r.json();
+    spDeviceList=(d.devices||[]).filter(x=>x&&typeof x.id==='string'&&/^[A-Za-z0-9_-]{1,64}$/.test(x.id)&&!x.is_restricted&&x.id!==spotifyDeviceId)
+      .map(x=>({id:x.id, name:String(x.name||'Spotify').slice(0,60), type:String(x.type||'').slice(0,20)}));
+    if(announce) spotifyShowSnack(spDeviceList.length?'Found '+spDeviceList.length+' Spotify app'+(spDeviceList.length>1?'s':''):'No Spotify apps found. Open Spotify on your phone, then try again.');
+  }catch(e){ if(announce) spotifyShowSnack('Couldn’t list your Spotify apps right now.'); }
+  renderConnectionsUI();
+}
+function setSpotifyDevice(id){
+  if(!id){ ss('spotifyDevice',null); }
+  else {
+    const d=spDeviceList.find(x=>x.id===id)||(spRemoteDevice()?.id===id?spRemoteDevice():null);
+    if(!d) return;
+    ss('spotifyDevice',{id:d.id,name:d.name});
+    spotifyShowSnack('Spotify will play on '+d.name+'. Keep the Spotify app open there.');
+  }
+  spRemoteLast=null;
+  if(spotifyActive){ // move what's playing over on the next song
+    if(appMode==='local') stopChanPlayback(); else { spotifyActive=false; packsSpQueue=null; }
+  }
+  renderConnectionsUI();
+}
+function renderConnectionsUI(){
+  updateSpotifySettingsUI();
+  const logoSp=document.getElementById('connLogoSpotify'); if(logoSp&&!logoSp.innerHTML) logoSp.innerHTML=SOURCE_ICONS.spotify;
+  const logoAm=document.getElementById('connLogoApple'); if(logoAm&&!logoAm.innerHTML) logoAm.innerHTML=SOURCE_ICONS.apple;
+  // where Spotify plays
+  const row=document.getElementById('spotifyDeviceRow'), hint=document.getElementById('spotifyDeviceHint'), sel=document.getElementById('spotifyDeviceSelect');
+  const spOn=isSpotifyConnected();
+  if(row) row.hidden=!spOn; if(hint) hint.hidden=!spOn;
+  if(sel&&spOn){
+    const cur=spRemoteDevice();
+    const opts=[{id:'',name:'This browser'}].concat(spDeviceList.map(d=>({id:d.id,name:d.name+(d.type?' ('+d.type+')':'')})));
+    if(cur&&!opts.some(o=>o.id===cur.id)) opts.push({id:cur.id,name:cur.name});
+    sel.innerHTML='';
+    opts.forEach(o=>{ const op=document.createElement('option'); op.value=o.id; op.textContent=o.name; sel.append(op); });
+    sel.value=cur?cur.id:'';
+  }
+  // Apple Music
+  const amStatus=document.getElementById('amStatus'), amBtn=document.getElementById('amConnectBtn');
+  if(amStatus&&amBtn){
+    if(!APPLE_MUSIC_ON){ amStatus.innerHTML='<span style="color:var(--muted)">● Not available on this site yet</span>'; amBtn.hidden=true; }
+    else if(isAppleConnected()){ amStatus.innerHTML='<span style="color:var(--green)">● Connected</span>'; amBtn.hidden=false; amBtn.textContent='Disconnect'; amBtn.onclick=appleDisconnect; }
+    else { amStatus.innerHTML='<span style="color:var(--muted)">● Not connected</span>'; amBtn.hidden=false; amBtn.textContent='Connect'; amBtn.onclick=appleConnect; }
+  }
+  // preferred service
+  const pref=document.getElementById('preferredPlatformSelect');
+  if(pref){
+    pref.innerHTML='';
+    [['youtube',true],['spotify',isSpotifyConnected()],['apple',isAppleConnected()]].forEach(([p,ok])=>{
+      if(p==='apple'&&!APPLE_MUSIC_ON) return;
+      const op=document.createElement('option'); op.value=p; op.disabled=!ok;
+      op.textContent=SOURCE_LABELS[p]+(ok?'':' (connect first)'); pref.append(op);
+    });
+    pref.value=preferredPlatform();
   }
 }
 
@@ -4618,8 +4988,15 @@ async function setAppMode(mode){
     renderListenPin();
     updateNowPlaying(); renderLocGrid(); renderTrackList();
   }
+  relocateForMode(); // live location carries over: find your biome / move the listening pin to you
 }
 function enterLocalMode(fromSwitch){
+  // live location is on: listen from where you are (from the last fix right away; the next poll refines it)
+  if(trackingActive&&lastLat!==null&&(!localPoint||localPoint.source!=='gps'||dist(localPoint.lat,localPoint.lon,lastLat,lastLon)>500)){
+    setListenPoint(lastLat,lastLon,'gps',{force:true});
+    setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · near you');
+    return;
+  }
   renderLocalHeader(); renderListenPin(); updateSaveSpotBtn();
   if(localPoint&&!localPoint.place){
     // e.g. opened from a shared link: fill in the place name (channels that need the country wait for it)
@@ -4752,12 +5129,13 @@ function renderChannelTabs(){
     chips.appendChild(b);
   });
   chips.querySelector('.active')?.scrollIntoView({block:'nearest',inline:'nearest'});
+  renderShuffleBtn();
 }
 function selectLocalChannel(id){
   if(!LOCAL_CHANNELS.some(c=>c.id===id)) return;
   localChannel=id; ss('localChannel',id);
   chanGenre=null;
-  renderLocalHeader(); loadLocalChannel(); updateSaveStationBtn();
+  renderLocalHeader(); loadLocalChannel(id==='made'?{autoplay:true}:undefined); updateSaveStationBtn();
 }
 
 // ── Channel content ──
@@ -4791,9 +5169,9 @@ async function loadLocalChannel(opts){
       if(localStations.length) renderLocalList(); else renderLocalNote('Choose a spot with radio nearby: tap <b>Move pin</b>.');
       return;
     }
-    localStations=stations; localIdx=-1;
+    localStations=stations; localIdx=-1; buildRadOrder();
     renderLocalList();
-    playStation(0);
+    playStation(radOrder[0]??0);
     return;
   }
   // Keep the selected station (playing or still buffering) when the list refreshes
@@ -4801,12 +5179,13 @@ async function loadLocalChannel(opts){
   localStations=stations||[];
   localIdx=current?localStations.findIndex(s=>s.uuid===current.uuid):-1;
   if(current&&localIdx<0){ localStations.unshift(current); localIdx=0; } // moved away: keep it listed while it plays
+  buildRadOrder(); if(localIdx>=0) radOrderPos=Math.max(0,radOrder.indexOf(localIdx));
   if(stations===null){ renderLocalNote('Could not reach the radio directory. Check your connection and try again.'); return; }
   if(!localStations.length){ renderLocalNote('No stations found within '+fmtDist(200)+' of <b>'+where+'</b>. Try moving the pin.'); return; }
   renderLocalList();
   if(!localPlaying) setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station');
   applyPendingShare();
-  if(opts?.autoplay && !localPlaying) playStation(0);
+  if(opts?.autoplay && !localPlaying) playStation(radOrder[0]??0);
 }
 function renderLocalList(){
   const list=document.getElementById('localList'); if(!list) return;
@@ -4896,6 +5275,7 @@ function playStation(i){
   const st=localStations[i]; if(!st) return;
   stopChanPlayback();
   localIdx=i;
+  const at=radOrder.indexOf(i); if(at>=0) radOrderPos=at; // keep the play order in step with taps
   const a=ensureRadioAudio();
   a.src=st.url;
   a.play().catch(()=>{ updateLocalSub('Tap play to start'); });
@@ -4924,7 +5304,9 @@ function localTogglePlay(){
 function localStep(dir){
   if(localChannel!=='radio'){ chanStep(dir); return; }
   if(!localStations.length) return;
-  playStation(((localIdx<0?0:localIdx+dir)%localStations.length+localStations.length)%localStations.length);
+  if(radOrder.length!==localStations.length) buildRadOrder();
+  radOrderPos=((radOrderPos+(localIdx<0?0:dir))%radOrder.length+radOrder.length)%radOrder.length; // follows the shuffle when it's on
+  playStation(radOrder[radOrderPos]);
 }
 
 // ── Now playing in Local Listening ──
@@ -5246,13 +5628,8 @@ function packsSpotifyQueue(){
   return out;
 }
 async function spotifyPlayUris(uris){
-  const token=await getValidSpotifyToken();
-  if(!token||!spotifyDeviceId||!uris.length) return false;
-  try{
-    const r=await fetch('https://api.spotify.com/v1/me/player/play?device_id='+encodeURIComponent(spotifyDeviceId),{
-      method:'PUT',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({uris})});
-    return r.ok||r.status===204;
-  }catch(e){ return false; }
+  if(!uris.length) return false;
+  return (await spotifyPlayBody({uris})).ok;
 }
 // Spotify reached a later track in our queue: catch our state up (no playback calls)
 function followPacksSpotify(uris){
@@ -5281,7 +5658,7 @@ function startPacksTicker(t){
   const tick=async()=>{
     if(appMode==='local'){ stopPacksTicker(); return; }
     if(spotifyActive){
-      const st=await spotifyPlayer?.getCurrentState?.(); if(!st) return;
+      const st=await spotifyGetState(); if(!st) return;
       show(st.position/1000, st.duration/1000);
       return;
     }
@@ -5339,7 +5716,44 @@ function mmLogoArtwork(){
 // ═══════════════════════════════════════════
 let chanItems=[], chanIdx=-1, chanPlaying=false, chanVia=null, chanGenre=null, chanData=null;
 let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
-let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null; // newest play wins; 'ended' only counts for a song that really started
+let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null;
+let chanOrder=[], chanOrderPos=0; // play order of chanItems (list order, or shuffled)
+let radOrder=[], radOrderPos=0;   // the same for radio stations
+// Shuffle is remembered per channel; Made Here starts shuffled
+function shuffleOn(ch){ const s=gs('chanShuffle',{}); return s[ch||localChannel]!==undefined?s[ch||localChannel]===true:(ch||localChannel)==='made'; }
+function shuffledIdx(n){ const a=[...Array(n).keys()]; for(let i=n-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function buildChanOrder(){ chanOrder=shuffleOn()?shuffledIdx(chanItems.length):[...Array(chanItems.length).keys()]; chanOrderPos=0; }
+function buildRadOrder(){ radOrder=shuffleOn('radio')?shuffledIdx(localStations.length):[...Array(localStations.length).keys()]; radOrderPos=0; }
+// the item after `from` in play order (what plays next by itself)
+function chanNextIdx(from){
+  if(chanOrder.length===chanItems.length){ const at=chanOrder.indexOf(from); if(at>=0) return chanOrder[(at+1)%chanOrder.length]; }
+  return (from+1)%chanItems.length;
+}
+function renderShuffleBtn(){
+  const b=document.getElementById('chanShuffleBtn'); if(!b) return;
+  const on=shuffleOn(); b.setAttribute('aria-pressed',on); b.title=on?'Shuffle is on (tap to play in order)':'Shuffle play';
+}
+// Off → on: shuffle and start a random one now. On → off: carry on in list order.
+function toggleChanShuffle(){
+  const on=!shuffleOn(); const s=gs('chanShuffle',{}); s[localChannel]=on; ss('chanShuffle',s);
+  renderShuffleBtn();
+  if(localChannel==='radio'){
+    buildRadOrder();
+    if(on&&localStations.length){ playStation(radOrder[0]); }
+    else if(localIdx>=0){ radOrderPos=Math.max(0,radOrder.indexOf(localIdx)); }
+    else if(on&&localPoint) loadLocalChannel({autoplay:true});
+    return;
+  }
+  if(localChannel==='genres'&&chanGenre===null&&chanData?.mixes?.length){
+    if(on) openMix(chanData.mixes[Math.floor(Math.random()*chanData.mixes.length)].genre,true);
+    return;
+  }
+  buildChanOrder();
+  if(!chanItems.length) return;
+  if(on){ playChanItem(chanOrder[0]); return; }
+  if(chanIdx>=0) chanOrderPos=Math.max(0,chanOrder.indexOf(chanIdx));
+}
+let chanWantVia=null; // the service the visitor chose for this channel (one missing song may still come from YouTube) // newest play wins; 'ended' only counts for a song that really started
 const chanCache={};
 const YT_ID=/^[A-Za-z0-9_-]{11}$/;
 const ART_OK=/^https:\/\/is\d+-ssl\.mzstatic\.com\/image\/thumb\/[^\s"'<>]+$/;
@@ -5427,8 +5841,11 @@ function setChanList(items, data, opts, keepGenre){
   const playing=chanPlaying?chanItems[chanIdx]:null;
   chanItems=items;
   chanIdx=playing?items.findIndex(x=>itemKey(x)===itemKey(playing)):-1;
+  // a fresh order every time the list loads (random when shuffle is on)
+  buildChanOrder(); renderShuffleBtn();
+  if(chanIdx>=0){ const at=chanOrder.indexOf(chanIdx); if(at>=0) chanOrderPos=at; }
   renderChanList();
-  if(opts?.switchNow||opts?.autoplay) playChanItem(0);
+  if(opts?.switchNow||opts?.autoplay) playChanItem(chanOrder[0]??0);
   else if(!chanPlaying&&!localPlaying) setLocalIdle();
   applyPendingShare();
 }
@@ -5485,15 +5902,15 @@ function renderChanList(){
     sub.textContent=it.kind==='song'?[it.artist,localChannel==='popular'?it.genre:''].filter(Boolean).join(' · '):[it.genre,it.place].filter(Boolean).join(' · ');
     main.append(name,sub); b.append(main);
     if(i===chanIdx&&chanPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
-    b.onclick=()=>playChanItem(i,'youtube');
+    b.onclick=()=>playChanItem(i,preferredPlatform());
     row.append(b);
-    // Spotify only for visitors who connected it
-    if(isSpotifyConnected()){
-      const sp=document.createElement('button'); sp.type='button'; sp.className='row-btn';
-      sp.innerHTML=SOURCE_ICONS.spotify; sp.title='Play on Spotify'; sp.setAttribute('aria-label','Play '+name.textContent+' on Spotify');
-      sp.onclick=()=>playChanItem(i,'spotify');
-      row.append(sp);
-    }
+    // the other ways to play it: services this visitor connected, and YouTube when it isn't their first choice
+    altPlatforms().forEach(p=>{
+      const x=document.createElement('button'); x.type='button'; x.className='row-btn';
+      x.innerHTML=SOURCE_ICONS[p]; x.title='Play on '+SOURCE_LABELS[p]; x.setAttribute('aria-label','Play '+name.textContent+' on '+SOURCE_LABELS[p]);
+      x.onclick=()=>playChanItem(i,p);
+      row.append(x);
+    });
     row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}:{ch:localChannel,t:it.title,a:it.artist,g:localChannel==='genres'?chanGenre:''}, itemTitle(it)));
     list.appendChild(row);
   });
@@ -5503,8 +5920,8 @@ function openMix(genre,autoplay){
   chanGenre=genre;
   document.getElementById('localListTitle').textContent=(genre+' mix · '+(localPoint?.place?.country||'')).toUpperCase();
   chanItems=m.list.map(x=>({kind:'song',...x})); chanIdx=-1;
-  renderChanList();
-  if(autoplay) playChanItem(0);
+  buildChanOrder(); renderChanList();
+  if(autoplay) playChanItem(chanOrder[0]??0);
   else if(!chanPlaying&&!localPlaying) setLocalIdle();
 }
 
@@ -5515,17 +5932,26 @@ function stopChanPlayback(){
   if(ytPlayer&&ytPlayer.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
   document.getElementById('ytContainer')?.classList.remove('local-video');
   if(chanVia==='spotify'&&spotifyActive){ spotifyPausePlayback(); spotifyActive=false; }
+  if(amActive){ amActive=false; amQueue=null; try{ amMusic?.stop(); }catch(e){} }
   chanPlaying=false; chanVia=null;
 }
-async function playChanItem(i,via){
+// via: 'youtube' | 'spotify' | 'apple'. Left out: the service already in use, else the visitor's preferred one.
+// opts.fallback: the chosen service didn't have this song, so this one plays from YouTube (the next goes back to the choice)
+async function playChanItem(i,via,opts){
   const it=chanItems[i]; if(!it) return;
-  if(via!=='spotify') via='youtube';
+  if(!via) via=chanWantVia||preferredPlatform();
+  if(via!=='spotify'&&via!=='apple') via='youtube';
+  if(!opts?.fallback) chanWantVia=via;
+  if(via==='spotify') spotifyUnlockAudio();
+  it._song=null;
   const token=++chanPlayToken;
   stopRadio(); stopChanPlayback();
   chanIdx=i; renderChanList();
+  const at=chanOrder.indexOf(i); if(at>=0) chanOrderPos=at; // keep the shuffle position in step
   setChanNowPlaying(it,null,'Loading…',via);
   try{
     if(via==='spotify') await chanPlaySpotify(it,token);
+    else if(via==='apple') await chanPlayApple(it,token);
     else await chanPlayYouTube(it,token);
     if(token!==chanPlayToken) return; // a newer play took over
     chanVia=via;
@@ -5539,20 +5965,31 @@ async function playChanItem(i,via){
     if(token!==chanPlayToken) return;
     chanPlaying=false; setPlayIcon(false);
     const msg=e.message||'Could not play this.';
+    // Spotify/Apple Music doesn't have it (or can't play here): this one plays from YouTube instead
+    if(via!=='youtube'&&(e.code==='not_found'||e.code==='cant_play')){
+      spotifyShowSnack((e.code==='not_found'?'Not on '+SOURCE_LABELS[via]+'.':msg)+' Playing from YouTube.');
+      return playChanItem(i,'youtube',{fallback:true});
+    }
     if(e.code==='not_found'&&chanSkips<3&&chanItems.length>1){ chanSkips++; spotifyShowSnack('Couldn’t find '+itemTitle(it)+'. Skipping.'); return chanStep(1); }
     setChanNowPlaying(it,null,msg,via);
-    if(e.code==='quota'||e.code==='no_youtube_key'||e.code==='no_server') showLocalAlert('Can’t play right now', msg+(isSpotifyConnected()?' You can still play it on Spotify.':''), [{label:'OK',primary:true}]);
+    const other=isSpotifyConnected()?'Spotify':isAppleConnected()?'Apple Music':'';
+    if(e.code==='quota'||e.code==='no_youtube_key'||e.code==='no_server') showLocalAlert('Can’t play right now', msg+(other?' You can still play it on '+other+'.':''), [{label:'OK',primary:true}]);
   }
 }
 function chanToggle(){
-  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
+  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(chanOrder[chanOrderPos]??0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
   if(chanVia==='spotify'){ if(chanPlaying){ spotifyPausePlayback(); chanPlaying=false; } else { spotifyResumePlayback(); chanPlaying=true; } setPlayIcon(chanPlaying); renderChanList(); return; }
+  if(chanVia==='apple'&&amMusic&&amActive){ try{ chanPlaying?amMusic.pause():amMusic.play(); }catch(e){} return; }
   if(ytPlayer&&chanVia==='youtube'){ chanPlaying?ytPlayer.pauseVideo():ytPlayer.playVideo(); return; }
   playChanItem(chanIdx);
 }
 function chanStep(dir){
   if(!chanItems.length) return;
-  playChanItem(((chanIdx<0?0:chanIdx+dir)%chanItems.length+chanItems.length)%chanItems.length, chanVia==='spotify'?'spotify':'youtube');
+  if(chanOrder.length===chanItems.length){
+    chanOrderPos=((chanOrderPos+dir)%chanOrder.length+chanOrder.length)%chanOrder.length;
+    return playChanItem(chanOrder[chanOrderPos]);
+  }
+  playChanItem(((chanIdx<0?0:chanIdx+dir)%chanItems.length+chanItems.length)%chanItems.length);
 }
 
 // YouTube: the official IFrame player (reports when a song ends, so the next one starts)
@@ -5585,12 +6022,21 @@ async function ensureYtPlayer(){
             const nx=chanYtNext; chanYtNext=null; chanIdx=nx.idx; chanSkips=0;
             setChanNowPlaying(chanItems[chanIdx],null,null,'youtube'); setChanMediaSession(chanItems[chanIdx]);
           }
+          const curIt=chanItems[chanIdx];
+          if(e.data===YT.PlayerState.PLAYING&&curIt?.kind==='artist'&&curIt._yt?.list){
+            const pi=ytPlayer.getPlaylistIndex?.();
+            if(curIt._ytStart!=null){ if(pi!==curIt._ytStart&&chanStartedToken===chanPlayToken){ chanStep(1); return; } } // one song per artist, then shuffle on
+            // an artist's uploads also hold interviews, trailers and vlogs: skip on to one that looks like a song
+            else if(!ytLooksLikeSong()&&(curIt._ytSkips=(curIt._ytSkips||0)+1)<=8){ ytPlayer.nextVideo(); return; }
+            else curIt._ytStart=pi;
+            if(curIt._ytStart===pi) showArtistSong(cleanVideoTitle(ytPlayer.getVideoData?.()?.title,curIt.name));
+          }
           if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
           else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
           else if(e.data===YT.PlayerState.ENDED){
             chanPlaying=false;
             if(chanStartedToken!==chanPlayToken) return; // never actually started: don't skip ahead
-            if(chanItems[chanIdx]?.kind!=='artist'||!ytPlayer.getPlaylist?.()) chanStep(1);
+            chanStep(1);
           }
         },
         onError:()=>{ if(appMode!=='local'){ if(isPlaying) nextTrack(); return; } chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
@@ -5598,24 +6044,42 @@ async function ensureYtPlayer(){
     });
   });
 }
+// Same idea as the plugin's song lookup: Shorts, interviews and the like aren't songs
+const YT_NOT_MUSIC=/#shorts?\b|\b(interview|vlog|podcast|trailer|teaser|behind the scenes|reaction|reacts?|unboxing|q\s*&\s*a|livestream|live stream|announcement|documentary|episode|tutorial|lesson|press conference|making of|snippet|preview|tiktok|compilation|full album)\b/i;
+function ytLooksLikeSong(){
+  const title=ytPlayer?.getVideoData?.()?.title||'', dur=ytPlayer?.getDuration?.()||0;
+  return !YT_NOT_MUSIC.test(title) && (!dur || (dur>=70 && dur<=900));
+}
 async function chanPlayYouTube(it,token){
   const p=await ensureYtPlayer();
   if(token!==chanPlayToken) return;
   document.getElementById('ytContainer').classList.add('local-video');
-  if(it.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(it.youtube||'')){
-    // the artist's own uploads playlist: no lookup (and no quota) needed
-    p.loadPlaylist({list:'UU'+it.youtube.slice(2),listType:'playlist',index:0});
-    it._yt={list:'UU'+it.youtube.slice(2)};
+  if(it.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(it.youtube||'')&&!it._ytEmpty){
+    // the artist's own uploads, long-form only ("UULF": no Shorts or live streams): no lookup (and no quota) needed
+    const load=prefix=>{
+      const list=prefix+it.youtube.slice(2);
+      p.loadPlaylist({list,listType:'playlist',index:prefix==='UULF'?Math.floor(Math.random()*5):0});
+      it._yt={list}; it._ytStart=null; it._ytSkips=0; // _ytStart is set when a song starts; moving off it = next artist
+    };
+    load('UULF');
+    // some channels have no long-form list: use all their uploads instead (the song check still skips Shorts)
+    // and if the channel has nothing playable at all, look the artist up like any other song
+    const check=(prefix,next)=>setTimeout(()=>{
+      if(token!==chanPlayToken||it._yt?.list!==prefix+it.youtube.slice(2)||(p.getPlaylist?.()||[]).length) return;
+      next();
+    },3500);
+    check('UULF',()=>{ load('UU'); check('UU',()=>{ it._ytEmpty=true; playChanItem(chanIdx,'youtube',{fallback:true}); }); });
     return;
   }
   const lookup=x=>mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
-  const nextIdx=chanItems.length>1?(chanIdx+1)%chanItems.length:-1;
+  const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
   const nextIt=nextIdx>=0&&chanItems[nextIdx]?.kind==='song'?chanItems[nextIdx]:null;
   // look up this song and the next together, so YouTube can move on by itself (e.g. screen off)
   const [r,rn]=await Promise.all([lookup(it), nextIt?lookup(nextIt).catch(()=>null):Promise.resolve(null)]);
   if(token!==chanPlayToken) return;
   if(!YT_ID.test(r.videoId||'')) throw Object.assign(new Error('No playable video found.'),{code:'not_found'});
   it._yt={id:r.videoId};
+  if(it.kind==='artist'&&r.title) it._song=cleanVideoTitle(r.title,it.name); // shown once playback starts
   if(rn&&YT_ID.test(rn.videoId||'')){
     nextIt._yt={id:rn.videoId};
     chanYtNext={idx:nextIdx,id:rn.videoId,token};
@@ -5624,9 +6088,8 @@ async function chanPlayYouTube(it,token){
 }
 // Spotify: search with the visitor's own Spotify sign-in (no server key involved)
 async function chanPlaySpotify(it,playTok){
-  if(!isSpotifyConnected()) throw new Error('Connect Spotify in Settings first.');
-  if(!spotifyReady) throw new Error(spotifyInitFailed?'This browser can’t play Spotify.':'Spotify is still connecting. Try again in a moment.');
-  const token=await getValidSpotifyToken(); if(!token) throw new Error('Your Spotify sign-in expired. Reconnect in Settings.');
+  if(!spotifyCanPlay()) throw Object.assign(new Error(spotifyWhyNot()),{code:'cant_play'});
+  const token=await getValidSpotifyToken(); if(!token) throw Object.assign(new Error('Can’t reach Spotify right now. Check your connection.'),{code:'cant_play'});
   let uri='', ctx='';
   if(it.kind==='artist'){
     if(/^[A-Za-z0-9]{22}$/.test(it.spotify||'')) ctx='spotify:artist:'+it.spotify;
@@ -5637,11 +6100,8 @@ async function chanPlaySpotify(it,playTok){
   }
   if(playTok!==chanPlayToken) return;
   if(!/^spotify:(track|artist):[A-Za-z0-9]{22}$/.test(uri||ctx)) throw Object.assign(new Error('Not found on Spotify.'),{code:'not_found'});
-  const resp=await fetch('https://api.spotify.com/v1/me/player/play?device_id='+encodeURIComponent(spotifyDeviceId),{
-    method:'PUT', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-    body:JSON.stringify(uri?{uris:[uri]}:{context_uri:ctx})
-  });
-  if(!resp.ok&&resp.status!==204) throw new Error('Spotify couldn’t start playback.');
+  const resp=await spotifyPlayBody(uri?{uris:[uri]}:{context_uri:ctx});
+  if(!resp.ok) throw Object.assign(new Error('Spotify couldn’t start playback.'),{code:'cant_play'});
   it._sp=uri||ctx;
   spotifyActive=true; chanPlaying=true;
   if(uri) queueNextChanSpotify(playTok,token);
@@ -5652,13 +6112,13 @@ async function chanPlaySpotify(it,playTok){
 // Spotify song channels: put the next song in Spotify's own queue so it plays on by itself
 async function queueNextChanSpotify(playTok,token){
   chanSpNext=null;
-  const nextIdx=chanItems.length>1?(chanIdx+1)%chanItems.length:-1;
+  const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
   const it=chanItems[nextIdx]; if(!it||it.kind!=='song') return;
   try{
     const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
     const uri=r?.tracks?.items?.[0]?.uri||'';
     if(playTok!==chanPlayToken||!/^spotify:track:[A-Za-z0-9]{22}$/.test(uri)) return;
-    const q=await fetch('https://api.spotify.com/v1/me/player/queue?uri='+encodeURIComponent(uri)+'&device_id='+encodeURIComponent(spotifyDeviceId),{method:'POST',headers:{'Authorization':'Bearer '+token}});
+    const q=await fetch('https://api.spotify.com/v1/me/player/queue?uri='+encodeURIComponent(uri)+'&device_id='+encodeURIComponent(spTargetId()),{method:'POST',headers:{'Authorization':'Bearer '+token}});
     if(q.ok||q.status===204){ it._sp=uri; chanSpNext={idx:nextIdx,uri,token:playTok}; }
   }catch(e){}
 }
@@ -5671,12 +6131,20 @@ function followChanSpotify(uris){
   return true;
 }
 
+let chanLocKey=null;
 function startChanProgress(){
   clearInterval(chanProgTimer);
   const tick=async()=>{
     let pos=0,dur=0;
-    if(chanVia==='spotify'||spotifyActive){ const st=await spotifyPlayer?.getCurrentState?.(); pos=(st?.position||0)/1000; dur=(st?.duration||0)/1000; }
+    if(chanVia==='spotify'||spotifyActive){ const st=await spotifyGetState(); pos=(st?.position||0)/1000; dur=(st?.duration||0)/1000; }
+    else if(amActive&&amMusic){ pos=amMusic.currentPlaybackTime||0; dur=amMusic.currentPlaybackDuration||0; }
     else if(ytPlayer?.getCurrentTime){ pos=ytPlayer.getCurrentTime()||0; dur=ytPlayer.getDuration()||0; }
+    // near the end of each song, check where you are now (live tracking) so the next one fits
+    const key=chanPlayToken+':'+chanIdx;
+    if(trackingActive&&dur>20&&dur-pos<=15&&chanLocKey!==key){
+      chanLocKey=key;
+      freshFix().then(f=>{ if(f&&appMode==='local'&&trackingActive) setListenPoint(f.lat,f.lon,'gps'); });
+    }
     document.getElementById('progressTime').textContent=fmt(Math.floor(pos));
     document.getElementById('progressDur').textContent=dur?fmt(Math.floor(dur)):'';
     document.getElementById('progressFill').style.width=dur?Math.min(100,pos/dur*100)+'%':'0%';
@@ -5686,10 +6154,10 @@ function startChanProgress(){
 function setChanNowPlaying(it,title,sub,via){
   const pl=localPoint?.place;
   const where=localChannel==='made'?'Made around '+(pl?.city||'the pin'):localChannel==='popular'?'Popular in '+(pl?.country||'this country'):(chanGenre||'Genre')+' mix · '+(pl?.country||'');
-  document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:it.name):'');
-  document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'?it.artist+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
+  document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:(it._song||it.name)):'');
+  document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'||it._song?(it.artist||it.name)+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
   const src=document.getElementById('npSource');
-  const s2=via==='spotify'?'spotify':it?'youtube':null;
+  const s2=it?(via==='spotify'||via==='apple'?via:'youtube'):null;
   src.innerHTML=s2?SOURCE_ICONS[s2]:''; src.title=s2?'Playing from '+SOURCE_LABELS[s2]:'';
   document.querySelector('.hero-progress').classList.remove('live');
   if(!it){ document.getElementById('progressTime').textContent='0:00'; document.getElementById('progressDur').textContent=''; document.getElementById('progressFill').style.width='0%'; }
@@ -5697,16 +6165,31 @@ function setChanNowPlaying(it,title,sub,via){
   // 5th button: open the song where it plays
   const yb=document.getElementById('npYtBtn');
   const link=it?._yt?.id?'https://www.youtube.com/watch?v='+it._yt.id:it?._yt?.list?'https://www.youtube.com/playlist?list='+it._yt.list
-    :/^spotify:(track|artist):/.test(it?._sp||'')?'https://open.spotify.com/'+it._sp.split(':')[1]+'/'+it._sp.split(':')[2]:'';
-  yb.disabled=!link; yb.title=link.includes('spotify')?'Open in Spotify':'Open on YouTube'; yb.setAttribute('aria-label',yb.title);
+    :/^spotify:(track|artist):/.test(it?._sp||'')?'https://open.spotify.com/'+it._sp.split(':')[1]+'/'+it._sp.split(':')[2]
+    :/^https:\/\/music\.apple\.com\//.test(it?._am||'')?it._am:'';
+  yb.disabled=!link; yb.title=link.includes('spotify')?'Open in Spotify':link.includes('music.apple.com')?'Open in Apple Music':'Open on YouTube'; yb.setAttribute('aria-label',yb.title);
   yb.onclick=link?()=>window.open(link,'_blank','noopener'):null;
   updateSaveStationBtn();
+}
+// Made Here plays an artist: once we know which song is on, show it (player and lock screen)
+function showArtistSong(title){
+  const it=chanItems[chanIdx]; title=String(title||'').trim().slice(0,160);
+  if(!it||it.kind!=='artist'||!title||it._song===title) return;
+  it._song=title;
+  setChanNowPlaying(it,null,null,chanVia||'youtube'); setChanMediaSession(it);
+}
+// "Artist - Song (Official Video)" -> "Song"
+function cleanVideoTitle(t,artist){
+  const raw=String(t||''); let s=raw;
+  if(artist) s=s.replace(new RegExp('^\\s*'+artist.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[-–—:|]\\s*','i'),'');
+  s=s.replace(/\s*[(\[](official(\s+music)?(\s+(video|audio|lyric video|visuali[sz]er))?|lyrics?|lyric video|audio|hd|hq|4k|visuali[sz]er|remaster(ed)?[^)\]]*)[)\]]/gi,'');
+  return s.trim()||raw.trim();
 }
 function setChanMediaSession(it){
   if(!('mediaSession' in navigator)) return;
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
-      title:it.kind==='song'?it.title:it.name, artist:it.kind==='song'?it.artist:(it.genre||'Made Here'),
+      title:it.kind==='song'?it.title:(it._song||it.name), artist:it.kind==='song'?it.artist:(it._song?it.name:(it.genre||'Made Here')),
       album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:mmLogoArtwork()
     });
     navigator.mediaSession.setActionHandler('play',()=>chanToggle());
