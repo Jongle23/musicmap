@@ -1126,17 +1126,19 @@ function ensurePackEditable(packId){
 // Get all tracks across all videos in a pack (flat, with videoIdx + trackIdx)
 // ── TRACK / PACK SOURCES ──
 // A track plays from Spotify if it has a spotifyUri, otherwise YouTube if it has a videoId.
-const SOURCE_ORDER=['youtube','spotify','other'];
-const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',apple:'Apple Music',radio:'Local radio',other:'Other source'};
+const SOURCE_ORDER=['youtube','spotify','soundcloud','other'];
+const SOURCE_LABELS={youtube:'YouTube',spotify:'Spotify',soundcloud:'SoundCloud',apple:'Apple Music',radio:'Local radio',other:'Other source'};
 const SOURCE_ICONS={
   youtube:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#FF0033"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg>',
   spotify:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#1DB954"/><path d="M6.6 9.3c3.6-1.1 7.7-.8 10.9 1M7.2 12.4c3-.9 6.2-.6 8.8.9M7.8 15.3c2.4-.6 4.8-.4 6.9.7" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  soundcloud:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.5" fill="#FF5500"/><path d="M6.2 15.2h10.2a2.4 2.4 0 0 0 .3-4.8 3.6 3.6 0 0 0-6.6-1.2v6M8.8 10.4v4.8M7.5 11.6v3.6" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   apple:'<svg class="src-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="1.5" width="21" height="21" rx="5.5" fill="#FA2D48"/><path d="M15.6 6v8.2a2.2 2.2 0 1 1-1.4-2V8.5l-4.6 1.1v6.1a2.2 2.2 0 1 1-1.4-2V8.4z" fill="#fff"/></svg>',
   radio:'<svg class="src-ic" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2" fill="#fca5a5"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>',
   other:'<svg class="src-ic other" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 };
 function trackSource(t){
   if(t&&t.spotifyUri) return 'spotify';
+  if(t&&t.soundcloudUrl) return 'soundcloud';
   if(t&&t.videoId) return 'youtube';
   return 'other';
 }
@@ -1227,6 +1229,119 @@ function crossfadeTo(src){
 
 function hardSwitchTo(src){
   getActiveIframe().src=src;
+}
+
+// ── SOUNDCLOUD (custom packs) ──
+// Plays in SoundCloud's own embedded player (its Widget API): no account or key needed. Some tracks are limited by
+// SoundCloud or the uploader: Go+ tracks only play a 30-second preview, and some can't be embedded at all (skipped).
+const SC_URL_RE=/^https:\/\/(?:www\.|m\.)?soundcloud\.com\/([A-Za-z0-9_-]{1,100})\/(sets\/)?([A-Za-z0-9_-]{1,200})\/?(?:[?#].*)?$/;
+const SC_RESERVED=['discover','search','you','stream','upload','charts','pages','people','tags','stations','messages','notifications','settings','terms-of-use','pro','mobile'];
+function parseSoundCloudLink(raw){
+  const m=String(raw||'').trim().match(SC_URL_RE);
+  if(!m||SC_RESERVED.includes(m[1].toLowerCase())) return null;
+  return {kind:m[2]?'set':'track', url:'https://soundcloud.com/'+m[1]+'/'+(m[2]||'')+m[3], slug:m[3]};
+}
+function scTrackUrl(u){ const p=parseSoundCloudLink(u); return p&&p.kind==='track'?p.url:''; }
+function scEmbedSrc(url,autoplay){
+  return 'https://w.soundcloud.com/player/?url='+encodeURIComponent(url)+'&auto_play='+(autoplay?'true':'false')+'&visual=true&show_comments=false&hide_related=true&show_reposts=false&show_teaser=false';
+}
+let scApiReady=null;
+function scLoadApi(){
+  if(window.SC?.Widget) return Promise.resolve();
+  if(scApiReady) return scApiReady;
+  scApiReady=new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src='https://w.soundcloud.com/player/api.js'; s.async=true;
+    s.onload=()=>res(); s.onerror=()=>{ scApiReady=null; rej(new Error('SoundCloud could not load. Check your connection.')); };
+    document.head.appendChild(s);
+  });
+  return scApiReady;
+}
+const scIsPreview=s=>!!s&&(s.policy==='SNIP'||(s.full_duration>0&&s.duration>0&&s.duration<s.full_duration-1000));
+// Read a track or playlist link in a hidden player: its songs, lengths and permalinks
+async function scReadLink(link){
+  await scLoadApi();
+  return new Promise((resolve,reject)=>{
+    const fr=document.createElement('iframe');
+    fr.style.cssText='position:absolute;width:2px;height:2px;left:-9999px;top:0;border:0'; fr.title='SoundCloud'; fr.allow='autoplay';
+    fr.src=scEmbedSrc(link.url,false); document.body.appendChild(fr);
+    let done=false;
+    const finish=(v,e)=>{ if(done) return; done=true; clearTimeout(to); fr.remove(); e?reject(e):resolve(v); };
+    const to=setTimeout(()=>finish(null,new Error('SoundCloud didn’t answer. The link may be private or not allowed to embed.')),20000);
+    const w=SC.Widget(fr);
+    w.bind(SC.Widget.Events.ERROR,()=>finish(null,new Error('SoundCloud can’t play that link here (private, removed, or not allowed to embed).')));
+    w.bind(SC.Widget.Events.READY,()=>w.getSounds(sounds=>{
+      const list=(Array.isArray(sounds)?sounds:[]).filter(s=>s&&typeof s.title==='string'&&scTrackUrl(s.permalink_url)).slice(0,500);
+      if(!list.length) return finish(null,new Error('No playable SoundCloud tracks found in that link.'));
+      const tracks=list.map(s=>({
+        title:String(s.title).slice(0,120)+(s.user?.username?' — '+String(s.user.username).slice(0,60):''),
+        start:0, dur:Math.max(1,Math.round((s.duration||0)/1000))||180, soundcloudUrl:scTrackUrl(s.permalink_url), videoId:null
+      }));
+      const title=link.kind==='set'?link.slug.replace(/[-_]+/g,' '):tracks[0].title;
+      finish({title, tracks, previews:list.filter(scIsPreview).length});
+    }));
+  });
+}
+async function miAddSoundCloud(link){
+  const status=document.getElementById('miUrlStatus');
+  if(miVideos.find(v=>v.type==='soundcloud'&&v.url===link.url)){ status.textContent='Already added'; return; }
+  busyText(status,'Reading SoundCloud '+(link.kind==='set'?'playlist':'track')+'…'); status.className='url-status';
+  try{
+    const got=await scReadLink(link);
+    miVideos.push({type:'soundcloud', kind:link.kind, url:link.url, title:String(got.title).slice(0,80), tracks:got.tracks, previews:got.previews});
+    const nameEl=document.getElementById('miPackName');
+    if(!nameEl.value.trim()) nameEl.value=String(got.title).slice(0,32);
+    document.getElementById('miUrlInput').value='';
+    status.textContent='✓ Added '+got.tracks.length+' song'+(got.tracks.length!==1?'s':'')+' from SoundCloud'
+      +(got.previews?'. Note: '+got.previews+' of them only play a 30-second preview (SoundCloud Go+).':'');
+    status.className=got.previews?'url-status warn':'url-status ok';
+    renderMiVideoList();
+  }catch(e){ status.textContent=e.message||'SoundCloud could not read that link.'; status.className='url-status err'; }
+}
+// Biome Beats playback: one player, reloaded with each track
+let scWidget=null, scActive=false, scPos=0, scDur=0, scErrors=0, scWarned='', scFinishedAt=0;
+function scBind(w){
+  const E=SC.Widget.Events;
+  w.bind(E.READY,()=>{ scErrors=0; });
+  w.bind(E.PLAY,()=>{
+    if(!scActive) return;
+    scErrors=0; isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
+    w.getDuration(d=>{ scDur=d||0; });
+    w.getCurrentSound(s=>{ if(scIsPreview(s)&&scWarned!==s.permalink_url){ scWarned=s.permalink_url; spotifyShowSnack('SoundCloud only allows a 30-second preview of this track.'); } });
+  });
+  // SoundCloud reports "paused" just before "finished": wait a moment so the end of a song isn't taken for a pause
+  w.bind(E.PAUSE,()=>{ if(!scActive||!isPlaying) return; setTimeout(()=>{
+    if(!scActive||!isPlaying||Date.now()-scFinishedAt<2000||document.visibilityState!=='visible') return;
+    isPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none';
+  },500); });
+  w.bind(E.PLAY_PROGRESS,e=>{ if(scActive) scPos=e?.currentPosition||0; });
+  w.bind(E.FINISH,()=>{ scFinishedAt=Date.now(); if(scActive&&appMode!=='local'){ isPlaying=true; nextTrack(); } });
+  w.bind(E.ERROR,()=>{
+    if(!scActive) return;
+    setPlayerBusy(false);
+    if(++scErrors>3){ spotifyShowSnack('SoundCloud can’t play these tracks here right now.'); isPlaying=false; setPlayIcon(false); return; }
+    spotifyShowSnack('That SoundCloud track can’t play here (the uploader limits it). Skipping.');
+    if(appMode!=='local'&&isPlaying) nextTrack();
+  });
+}
+async function scPlay(url){
+  await scLoadApi();
+  scPos=0; scDur=0;
+  const box=document.getElementById('ytContainer'); box?.classList.add('sc-mode');
+  document.getElementById('scWrap').hidden=false;
+  if(!scWidget){
+    const fr=document.getElementById('scFrame');
+    fr.src=scEmbedSrc(url,true);
+    scWidget=SC.Widget(fr); scBind(scWidget);
+  } else {
+    scWidget.load(url,{auto_play:true,visual:true,show_comments:false,hide_related:true,show_reposts:false,show_teaser:false});
+  }
+}
+function stopSoundCloud(){
+  if(!scActive&&!scWidget) return;
+  scActive=false;
+  try{ scWidget?.pause(); }catch(e){}
+  document.getElementById('ytContainer')?.classList.remove('sc-mode');
+  const wrap=document.getElementById('scWrap'); if(wrap) wrap.hidden=true;
 }
 
 // ── SUPPORT LINK ── "Buy me a coffee", set by the site owner in MusicMap > Settings
@@ -1610,7 +1725,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.7';
+const MM_VERSION = '1.8';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2171,6 +2286,23 @@ async function playCurrentTrack(useFade){
   if(!t)return;
   const token=++packsPlayToken;
   stopPacksTicker(); setPlayerBusy(true);
+  // SoundCloud track (custom packs): SoundCloud's own player, in the video slot
+  if(scTrackUrl(t.soundcloudUrl)){
+    if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
+    if(spotifyActive){ spotifyPausePlayback(); spotifyActive=false; }
+    packsSpQueue=null; packsYtTrack=null; updateSpotifyNowPlaying(false,t);
+    scActive=true;
+    try{ await scPlay(scTrackUrl(t.soundcloudUrl)); }
+    catch(e){ scActive=false; setPlayerBusy(false); isPlaying=false; setPlayIcon(false); spotifyShowSnack(e.message||'SoundCloud could not load.'); return; }
+    if(token!==packsPlayToken) return;
+    setPlayIcon(true); setPlayerBusy(true); // spins until SoundCloud actually starts
+    document.getElementById('playingBars').style.display='flex';
+    const btn=document.getElementById('npYtBtn');
+    if(btn){ btn.disabled=false; btn.title='Open on SoundCloud'; btn.setAttribute('aria-label',btn.title); btn.onclick=()=>window.open(scTrackUrl(t.soundcloudUrl),'_blank','noopener'); }
+    setPacksMediaSession(t); startPacksTicker(t);
+    return;
+  }
+  stopSoundCloud();
   // Spotify path: hand Spotify the whole upcoming queue, so it keeps playing with the screen off
   if(t.spotifyUri && spotifyCanPlay() && (preferredPlatform()!=='youtube' || !t.videoId)){
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
@@ -2218,7 +2350,9 @@ async function playCurrentTrack(useFade){
 }
 async function pauseTrack(){
   setPlayerBusy(false);
-  if(spotifyActive){
+  if(scActive){
+    try{ scWidget?.pause(); }catch(e){}
+  } else if(spotifyActive){
     await spotifyPausePlayback();
   } else if(ytPlayer?.pauseVideo){
     try{ ytPlayer.pauseVideo(); }catch(e){}
@@ -2234,7 +2368,10 @@ async function togglePlay(){
     await pauseTrack();
   } else {
     isPlaying=true;
-    if(spotifyActive){
+    if(scActive&&scWidget){
+      scWidget.play(); setPlayIcon(true);
+      document.getElementById('playingBars').style.display='flex';
+    } else if(spotifyActive){
       await spotifyResumePlayback();
       setPlayIcon(true);
       document.getElementById('playingBars').style.display='flex';
@@ -3633,6 +3770,16 @@ function miOnUrlInput(){
   const raw=document.getElementById('miUrlInput').value.trim();
   const status=document.getElementById('miUrlStatus');
   if(!raw){status.textContent='';status.className='url-status';return;}
+  const sc=parseSoundCloudLink(raw);
+  if(sc){
+    status.textContent='SoundCloud '+(sc.kind==='set'?'playlist':'track')+' detected. Click Add. Note: songs play in SoundCloud’s own player; some only allow a 30-second preview (SoundCloud Go+) and some can’t be embedded (those are skipped).';
+    status.className='url-status warn';
+    return;
+  }
+  if(/^https?:\/\/on\.soundcloud\.com\//i.test(raw)){
+    status.textContent='That’s a SoundCloud short link. Open it, then copy the full soundcloud.com address from the browser.';
+    status.className='url-status err'; return;
+  }
   const sp=parseSpotifyLink(raw);
   if(sp){
     if(isSpotifyConnected()){
@@ -3653,7 +3800,7 @@ function miOnUrlInput(){
     status.textContent='✓ Video ID: '+vid;
     status.className='url-status ok';
   } else {
-    status.textContent='✗ Not a YouTube or Spotify link';
+    status.textContent='✗ Not a YouTube, Spotify or SoundCloud link';
     status.className='url-status err';
   }
 }
@@ -3665,11 +3812,13 @@ async function miAddUrl(){
 
   const sp=parseSpotifyLink(raw);
   if(sp) return miAddSpotify(sp, raw);
+  const sc=parseSoundCloudLink(raw);
+  if(sc) return miAddSoundCloud(sc);
 
   const pid=miExtractPlaylistId(raw);
   const vid=miExtractVideoId(raw);
 
-  if(!pid&&!vid){status.textContent='✗ Not a YouTube or Spotify link';status.className='url-status err';return;}
+  if(!pid&&!vid){status.textContent='✗ Not a YouTube, Spotify or SoundCloud link';status.className='url-status err';return;}
 
   if(pid){
     // Playlist — resolve via oEmbed per video (no API key needed)
@@ -3719,6 +3868,10 @@ function renderMiVideoList(){
     if(v.type==='spotify'){
       info.innerHTML='<div class="pe-video-id" style="display:flex;align-items:center;gap:6px">'+SOURCE_ICONS.spotify+'<span>'+esc(v.title)+'</span></div>'
         +'<div class="pe-video-track-count">Spotify '+esc(v.kind)+' · '+v.tracks.length+' song'+(v.tracks.length!==1?'s':'')+'</div>';
+    } else if(v.type==='soundcloud'){
+      info.innerHTML='<div class="pe-video-id" style="display:flex;align-items:center;gap:6px">'+SOURCE_ICONS.soundcloud+'<span>'+esc(v.title)+'</span></div>'
+        +'<div class="pe-video-track-count">SoundCloud '+(v.kind==='set'?'playlist':'track')+' · '+v.tracks.length+' song'+(v.tracks.length!==1?'s':'')
+        +(v.previews?' · '+v.previews+' preview-only':'')+'</div>';
     } else
     info.innerHTML='<div class="pe-video-id">'+(v.title==='Loading…'?'<span class="mm-spinner" aria-hidden="true"></span> ':'')+(v.type==='playlist'?'Playlist: ':'')+esc(v.title)+'</div>'
       +'<div class="pe-video-track-count">'+(v.type==='playlist'?'Playlist · '+(v.tracks.length||0)+' tracks imported':v.videoId+' · '+(v.tracks.length||0)+' tracks')+'</div>';
@@ -3726,7 +3879,7 @@ function renderMiVideoList(){
     del.className='pill-btn'; del.style.color='var(--red)'; del.innerHTML=ic('trash','ic-sm')+' Remove';
     del.onclick=()=>{miVideos.splice(vi,1);renderMiVideoList();};
     hdr.appendChild(info); hdr.appendChild(del); sec.appendChild(hdr);
-    if(v.type==='spotify'){ list.appendChild(sec); return; } // songs come complete from Spotify
+    if(v.type==='spotify'||v.type==='soundcloud'){ list.appendChild(sec); return; } // songs come complete from Spotify / SoundCloud
 
     // For playlists: each video = one track, but user can also paste timestamps
     // For regular videos: timestamp importer
@@ -3808,11 +3961,11 @@ function defaultPackBiomes(){
 }
 
 function miSavePack(){
-  const firstSp=miVideos.find(v=>v.type==='spotify');
+  const firstSp=miVideos.find(v=>v.type==='spotify'||v.type==='soundcloud');
   const name=document.getElementById('miPackName').value.trim()||(firstSp?String(firstSp.title).slice(0,32):'');
   const subtitle=document.getElementById('miSubtitle').value.trim()||(firstSp?String(firstSp.owner||'').slice(0,60):'');
   if(!name){alert('Please enter a pack name.');return;}
-  if(miVideos.length===0){alert('Please add at least one YouTube or Spotify link.');return;}
+  if(miVideos.length===0){alert('Please add at least one YouTube, Spotify or SoundCloud link.');return;}
 
   // Check URL input for any unregistered video
   const rawUrl=document.getElementById('miUrlInput').value.trim();
@@ -3824,6 +3977,8 @@ function miSavePack(){
   // Build flat tracks array across all videos
   const videos=miVideos.map(v=>v.type==='spotify'
     ? {id:null, spotify:{kind:v.kind,id:v.spotifyId}, tracks:v.tracks||[]}
+    : v.type==='soundcloud'
+    ? {id:null, soundcloud:{kind:v.kind,url:v.url}, tracks:v.tracks||[]}
     : {id:v.videoId||v.playlistId, tracks:v.tracks||[]});
   const allTracks=videos.flatMap(v=>v.tracks);
 
@@ -3831,7 +3986,7 @@ function miSavePack(){
     id:'user_'+Date.now(),
     name, subtitle, icon:miSelectedEmoji,
     videoId:(videos.find(v=>v.id)||{}).id||null,
-    source:subtitle||(firstSp?'Spotify':'Custom Pack'), builtin:false,
+    source:subtitle||(firstSp?(firstSp.type==='soundcloud'?'SoundCloud':'Spotify'):'Custom Pack'), builtin:false,
     videos, tracks:allTracks,
     biomes:[
       {id:'beach',  name:'Beach',   emoji:'🌊',cssClass:'biome-beach',  keywords:['beach','coast','sea','bay','shore'],defaultTracks:[]},
@@ -3845,7 +4000,7 @@ function miSavePack(){
       {id:'port',   name:'Port',    emoji:'⚓',cssClass:'biome-port',   keywords:['port','dock','pier','harbor'],defaultTracks:[]},
     ]
   };
-  const spIdx=allTracks.map((t,i)=>t.spotifyUri?i:-1).filter(i=>i>=0);
+  const spIdx=allTracks.map((t,i)=>t.spotifyUri||t.soundcloudUrl?i:-1).filter(i=>i>=0);
   if(spIdx.length) newPack.biomes.forEach(b=>{ b.defaultTracks=[...new Set([...b.defaultTracks,...spIdx])]; });
   saveUserPacks([...getUserPacks(),newPack]);
   document.getElementById('makeImportOverlay').classList.remove('open');
@@ -5077,7 +5232,7 @@ async function setAppMode(mode){
   if(mode==='local'){
     // stop pack playback (YouTube or Spotify) before radio takes over
     if(isPlaying){ isPlaying=false; await pauseTrack(); }
-    stopPacksTicker(); packsSpQueue=null;
+    stopPacksTicker(); packsSpQueue=null; stopSoundCloud();
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
     enterLocalMode(true);
   } else {
@@ -5683,6 +5838,7 @@ const CREDITS=[
   {name:'Apple Music charts', role:'Most-played songs per country for Popular and Genre Mixes', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
   {name:'Wikidata', role:'Artists born or formed near the pin, for Made Here', lic:'CC0', url:'https://www.wikidata.org', icon:'https://www.wikidata.org/static/favicon/wikidata.ico'},
   {name:'Spotify', role:'Spotify playback, search and playlist import (Web Playback SDK, Web API)', url:'https://developer.spotify.com', icon:'https://open.spotify.com/favicon.ico'},
+  {name:'SoundCloud', role:'SoundCloud tracks in custom packs (embedded player / Widget API)', url:'https://developers.soundcloud.com/docs/api/html5-widget', icon:'https://soundcloud.com/favicon.ico'},
   {name:'Radio Browser', role:'Community directory of radio stations near the pin', lic:'Public domain', url:'https://www.radio-browser.info', icon:'https://www.radio-browser.info/favicon.ico'},
   {name:'Google Fonts', role:'Press Start 2P and DM Sans typefaces', lic:'OFL', url:'https://fonts.google.com', icon:'https://www.gstatic.com/images/icons/material/apps/fonts/1x/catalog/v5/favicon.svg'},
   {name:'Lucide', role:'Icon designs', lic:'ISC', url:'https://lucide.dev', icon:'https://lucide.dev/favicon.ico'},
@@ -5869,6 +6025,7 @@ function startPacksTicker(t){
   };
   const tick=async()=>{
     if(appMode==='local'){ stopPacksTicker(); return; }
+    if(scActive){ show(scPos/1000, (scDur/1000)||Number(t.dur)||0); return; }
     if(spotifyActive){
       const st=await spotifyGetState(); if(!st) return;
       show(st.position/1000, st.duration/1000);

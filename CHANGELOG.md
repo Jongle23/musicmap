@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.7 — Current
+## v1.8 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **SoundCloud in custom packs**: paste a SoundCloud track or playlist link in Make or Import Pack. Songs play in SoundCloud's own embedded player (no account needed), with the seek bar, pause, next and "open on SoundCloud" working like any other track, and the next song starting by itself. MusicMap notes when a track only allows a 30-second preview (SoundCloud Go+), and skips tracks the uploader doesn't let other sites play. Pack cards show the SoundCloud icon; SoundCloud is listed in Credits
+
+## v1.7
 **Release date:** 2026-10-07
 
 ### Added

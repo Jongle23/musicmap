@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.7
+# 🎵 MusicMap v1.8
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -78,7 +78,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.7"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.8"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -96,6 +96,16 @@ Spotify tracks play in the browser through Spotify's Web Playback SDK, which nee
 - **Add Spotify links:** Packs → Make or Import Pack → paste a Spotify playlist, album or track link in the same box as YouTube links. Playlists must be ones you own or collaborate on; any album or track works. Packs can mix YouTube and Spotify.
 - Spotify-only packs have no YouTube fallback; without Spotify connected, the app explains what's needed instead of playing.
 - **Plays on:** choose *This browser* or one of your Spotify apps (Spotify Connect). On a phone, pick the Spotify app: it keeps playing with the screen off, and it works on iPhone, where the browser player doesn't.
+
+## ☁️ SoundCloud (Custom Packs)
+
+Paste a SoundCloud track or playlist link (`https://soundcloud.com/artist/track` or `…/sets/playlist`) into **Make or Import Pack** next to YouTube and Spotify links. The songs play in SoundCloud's own embedded player, in the same spot as the video, and the next one starts when a song ends. No account or key is needed.
+
+Good to know:
+- Some tracks only play a **30-second preview** (SoundCloud Go+ tracks); MusicMap says so when you add them and when they play.
+- Some uploaders don't allow their tracks to be embedded, and private or removed tracks can't play; those are skipped.
+- Short links (`on.soundcloud.com/…`) can't be read: open them and copy the full `soundcloud.com` address.
+- SoundCloud is for custom packs only. Its search needs an approved API key, so Local Listening channels can't look songs up there.
 
 ## 🍎 Apple Music (Optional)
 
