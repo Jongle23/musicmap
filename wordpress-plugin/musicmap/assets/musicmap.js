@@ -1672,6 +1672,59 @@ function setMapShown(on,scroll,quiet){ // quiet: only set the toggle (page start
   if(on&&!quiet){ refreshMap(); if(scroll) setTimeout(()=>document.getElementById('mapSection')?.scrollIntoView({block:'start',behavior:'smooth'}),80); }
 }
 function toggleMap(){ setMapShown(!mapShown()); }
+// ── Place search above the map (OpenStreetMap's Nominatim, names in English) ──
+// Runs on Enter/Search only and at most once a second, as Nominatim's usage policy asks.
+const MAP_SEARCH_TYPES=['city','town','village','municipality','borough','suburb','county','state','province','region','state_district','country','island','archipelago','territory','hamlet'];
+let mapSearchAt=0, mapSearchSeq=0;
+async function searchMapPlace(){
+  const input=document.getElementById('mapSearchInput'), box=document.getElementById('mapSearchResults');
+  const q=input.value.trim().slice(0,100);
+  if(q.length<2){ box.hidden=true; return; }
+  const seq=++mapSearchSeq;
+  box.hidden=false; box.innerHTML=''; const note=document.createElement('div'); note.className='note'; busyText(note,'Searching…'); box.append(note);
+  const wait=1100-(Date.now()-mapSearchAt); if(wait>0) await new Promise(r=>setTimeout(r,wait));
+  if(seq!==mapSearchSeq) return;
+  mapSearchAt=Date.now();
+  let rows=[], failed=false;
+  try{
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&addressdetails=1&accept-language=en&q='+encodeURIComponent(q));
+    if(r.ok) rows=await r.json(); else failed=true;
+  }catch(e){ failed=true; }
+  if(seq!==mapSearchSeq) return;
+  const places=(Array.isArray(rows)?rows:[]).filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon)&&(MAP_SEARCH_TYPES.includes(p.addresstype)||p.category==='place'||p.category==='boundary')).slice(0,5);
+  box.innerHTML='';
+  if(!places.length){ const n=document.createElement('div'); n.className='note'; n.textContent=failed?'Search isn’t reachable right now. Try again in a moment.':'No city, state or country found for “'+q+'”.'; box.append(n); return; }
+  places.forEach(p=>{
+    const a=p.address||{};
+    const name=String(p.name||a.city||a.town||a.state||a.country||q).slice(0,80);
+    const kind=String(p.addresstype||p.type||'').replace(/_/g,' ');
+    const within=[a.state&&a.state!==name?a.state:'', a.country&&a.country!==name?a.country:''].filter(Boolean).join(', ');
+    const b=document.createElement('button'); b.type='button'; b.setAttribute('role','option');
+    const t=document.createElement('span'); t.textContent=name;
+    const s=document.createElement('small'); s.textContent=[kind?kind[0].toUpperCase()+kind.slice(1):'',within].filter(Boolean).join(' · ');
+    b.append(t,s); b.onclick=()=>goToSearchPlace(p,name); box.append(b);
+  });
+}
+function goToSearchPlace(p,name){
+  document.getElementById('mapSearchResults').hidden=true;
+  document.getElementById('mapSearchInput').value=name;
+  initLeafletMap(); if(!leafletMap) return;
+  const lat=+p.lat, lon=+p.lon, bb=(p.boundingbox||[]).map(Number);
+  // towns and cities: centre on the place (some city limits reach far-off islands); bigger areas: show all of them
+  const wide=['state','province','region','state_district','country','territory','archipelago','county'].includes(p.addresstype);
+  // (countries too can reach overseas: if the outline would zoom out past a continent, centre at country level instead)
+  if(wide&&bb.length===4&&bb.every(Number.isFinite)){
+    const z=leafletMap.getBoundsZoom([[bb[0],bb[2]],[bb[1],bb[3]]]);
+    if(z>=4) leafletMap.fitBounds([[bb[0],bb[2]],[bb[1],bb[3]]],{maxZoom:12,padding:[10,10]});
+    else leafletMap.setView([lat,lon],5);
+  } else leafletMap.setView([lat,lon],11);
+  // Local Listening: listen there. Biome Beats: tap the map to add a saved place.
+  if(appMode==='local') moveListenPinTo(+lat.toFixed(5),+lon.toFixed(5));
+  else spotifyShowSnack('Tap the map to add a saved place around '+name+'.');
+}
+document.addEventListener('click',e=>{ const box=document.getElementById('mapSearchResults'); if(box&&!box.hidden&&!e.target.closest('#mapSearchResults,#mapSearchForm')) box.hidden=true; });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ const box=document.getElementById('mapSearchResults'); if(box&&!box.hidden){ box.hidden=true; document.getElementById('mapSearchInput')?.focus(); } } });
+
 // ── Saved songs, stations and spots on the map (Local Listening). Several at one place share an icon with a list ──
 let savedLayer=null;
 function renderSavedMarkers(){
@@ -1896,7 +1949,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.14';
+const MM_VERSION = '1.15';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3327,7 +3380,7 @@ async function pollLocation(isFirstPoll,opts){
   },{timeout:15000,enableHighAccuracy:true,maximumAge:20000});
 }
 async function revGeo(lat,lon){
-  try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);const d=await r.json();const a=d.address||{};return[a.city||a.town||a.village||a.county,a.state].filter(Boolean).join(', ');}catch(e){return null;}
+  try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=en`);const d=await r.json();const a=d.address||{};return[a.city||a.town||a.village||a.county,a.state].filter(Boolean).join(', ');}catch(e){return null;}
 }
 // ── OSM TAG → BIOME MAPPING ──
 const OSM_BIOME_MAP = [

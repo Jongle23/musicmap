@@ -476,6 +476,15 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
 .cast-menu .cast-note{font-size:11px;color:var(--muted);padding:6px 10px 4px;line-height:1.5}
 #miTabs[hidden],#miSortChoices[hidden],#miSortAi[hidden]{display:none!important}
 .local-item-art.artist-photo{border-radius:50%;object-fit:cover;background:rgba(255,255,255,.08)}
+.map-search{display:flex;gap:8px;margin-bottom:8px}
+.map-search .form-input{flex:1;min-width:0;min-height:40px}
+.map-search .pill-btn{flex:0 0 auto;padding:0 14px}
+.map-search-results{display:flex;flex-direction:column;gap:4px;margin:-2px 0 8px;padding:6px;border-radius:12px;border:1px solid var(--border2);background:var(--surface,#16213e)}
+.map-search-results[hidden]{display:none!important}
+.map-search-results button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;padding:8px 10px;border:0;border-radius:8px;background:none;color:var(--text);cursor:pointer;font-size:13px}
+.map-search-results button:hover,.map-search-results button:focus-visible{background:rgba(255,255,255,.07)}
+.map-search-results small{color:var(--muted);font-size:11px}
+.map-search-results .note{font-size:12px;color:var(--muted);padding:6px 8px}
 .mi-source-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
 .mi-source-note b{color:var(--text)}
 .mi-sort-done{font-size:14px;font-weight:700;color:var(--green,#4ade80);margin:16px 0 4px}

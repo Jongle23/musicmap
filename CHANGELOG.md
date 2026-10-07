@@ -1,6 +1,15 @@
 # MusicMap Changelog
 
-## v1.14 — Current
+## v1.15 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Search the map**: a search box above the map finds cities, towns, states, regions and countries (OpenStreetMap's Nominatim, names in English). Pick a result to go there: in Local Listening it also moves your listening pin there; in Biome Beats tap the map to add a saved place. Cities are centred on the place itself; states, regions and countries show their whole area (countries with far-off territories are centred at country level)
+
+### Changed
+- Place names in Biome Beats' location line are now in English too (Local Listening already was)
+
+## v1.14
 **Release date:** 2026-10-07
 
 ### Added

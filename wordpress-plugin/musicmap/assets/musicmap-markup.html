@@ -109,6 +109,11 @@
         <button class="shuffle-btn" id="mapToggleBtn" type="button" aria-expanded="true" aria-controls="mapBody" onclick="toggleMap()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg><span>Hide map</span></button>
       </div>
       <div id="mapBody">
+        <form class="map-search" id="mapSearchForm" role="search" onsubmit="event.preventDefault();searchMapPlace()">
+          <input class="form-input" id="mapSearchInput" type="search" placeholder="Search a city, state, region or country…" autocomplete="off" maxlength="100" aria-label="Search for a place" aria-controls="mapSearchResults">
+          <button class="pill-btn" type="submit" aria-label="Search"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+        </form>
+        <div class="map-search-results" id="mapSearchResults" role="listbox" aria-label="Places found" hidden></div>
         <div id="leafletMap"></div>
         <div class="map-hint" id="mapHint"></div>
         <div class="map-legend" id="mapLegend" aria-label="Map key"></div>
@@ -659,7 +664,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.14</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.15</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a></div>
 </div>
 </div><!-- #geovibes-app -->
