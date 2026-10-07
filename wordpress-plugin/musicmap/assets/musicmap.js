@@ -1865,7 +1865,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.12.2';
+const MM_VERSION = '1.12.3';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6052,7 +6052,7 @@ const CREDITS=[
   {name:'Overpass API', role:'Reads nearby map features to pick your biome', lic:'ODbL', url:'https://overpass-api.de', icon:'https://www.openstreetmap.org/favicon.ico'},
   {name:'Leaflet', role:'The interactive map', lic:'BSD-2', url:'https://leafletjs.com', icon:'https://leafletjs.com/docs/images/favicon.ico'},
   {name:'YouTube', role:'Plays game soundtracks and channel songs (IFrame Player API, oEmbed, Data API search)', url:'https://www.youtube.com', icon:'https://www.youtube.com/favicon.ico'},
-  {name:'Apple Music charts', role:'Most-played songs per country for Popular and Genre Mixes', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
+  {name:'Apple Music charts', role:'Most-played songs per country for Popular (top songs and genre mixes)', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
   {name:'Wikidata', role:'Artists born or formed near the pin, for Homegrown', lic:'CC0', url:'https://www.wikidata.org', icon:'https://www.wikidata.org/static/favicon/wikidata.ico'},
   {name:'Spotify', role:'Spotify playback, search and playlist import (Web Playback SDK, Web API)', url:'https://developer.spotify.com', icon:'https://open.spotify.com/favicon.ico'},
   {name:'SoundCloud', role:'SoundCloud tracks in custom packs (embedded player / Widget API)', url:'https://developers.soundcloud.com/docs/api/html5-widget', icon:'https://soundcloud.com/favicon.ico'},
@@ -6060,7 +6060,8 @@ const CREDITS=[
   {name:'Google Fonts', role:'Press Start 2P and DM Sans typefaces', lic:'OFL', url:'https://fonts.google.com', icon:'https://www.gstatic.com/images/icons/material/apps/fonts/1x/catalog/v5/favicon.svg'},
   {name:'Lucide', role:'Icon designs', lic:'ISC', url:'https://lucide.dev', icon:'https://lucide.dev/favicon.ico'},
   {name:'unpkg', role:'Delivers the Leaflet library', url:'https://unpkg.com', icon:'https://unpkg.com/favicon.ico'},
-  {name:'WordPress', role:'Hosts MusicMap and its share-code API (MusicMap plugin)', lic:'GPL', url:'https://wordpress.org', icon:'https://s.w.org/favicon.ico'},
+  {name:'Nighthawk.club', role:'Hosts MusicMap', url:'https://nighthawk.club', icon:'https://nighthawk.club/favicon.ico'},
+  {name:'WordPress', role:'MusicMap runs on it as a plugin: the site, share codes and saved lookups', lic:'GPL', url:'https://wordpress.org', icon:'https://s.w.org/favicon.ico'},
 ];
 let creditsRendered=false;
 function renderCredits(){

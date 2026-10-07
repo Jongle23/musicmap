@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.12.2 — Current
+## v1.12.3 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- Credits: **Nighthawk.club** is listed as MusicMap's host; WordPress is credited as what MusicMap runs on (as a plugin) rather than its host. The Apple Music charts credit now says Popular (top songs and genre mixes)
+
+## v1.12.2
 **Release date:** 2026-10-07
 
 ### Changed
