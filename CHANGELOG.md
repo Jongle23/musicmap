@@ -1,6 +1,15 @@
 # MusicMap Changelog
 
-## v1.11.2 — Current
+## v1.11.3 — Current
+**Release date:** 2026-10-07
+
+### Fixed
+- The Spotify cast button no longer covers the song title when it shows a device's name: it now sits on its own small row at the top of the player
+
+### Changed
+- **Wide-screen layout tidied up**: the player is a rounded card that stays in view, sized to the window with the player centred in it; the right side has a sticky tab header, even spacing between sections, and the map key laid out in a row
+
+## v1.11.2
 **Release date:** 2026-10-07
 
 ### Changed

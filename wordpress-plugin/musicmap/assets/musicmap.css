@@ -73,11 +73,16 @@
 /* Wide screens: the player on the left (stays in view while you scroll), the tabs beside it.
    Switched by the app's own width (.mm-wide, see fitWideLayout), so a narrow site column keeps the phone layout. */
 @media (min-width:1000px){ #geovibes-app{max-width:1240px} }
-#geovibes-app.mm-wide{display:grid;grid-template-columns:minmax(380px,440px) minmax(0,1fr);grid-template-areas:"hero main" "foot foot";align-items:start;overflow:clip}
-#geovibes-app.mm-wide #heroBanner{grid-area:hero;position:sticky;top:0;align-self:start;min-height:100vh;max-height:100vh;overflow-y:auto;justify-content:flex-start;padding-top:28px;scrollbar-width:thin}
-#geovibes-app.mm-wide #mainContent{grid-area:main;max-width:none;padding:0 28px 60px}
-#geovibes-app.mm-wide .app-footer{grid-area:foot;max-width:none!important}
-#geovibes-app.mm-wide .tab-bar{position:sticky;top:0;z-index:5;background:var(--bg);margin-top:0;padding-top:12px}
+#geovibes-app.mm-wide{display:grid;grid-template-columns:minmax(380px,430px) minmax(0,1fr);grid-template-areas:"hero main" "hero foot";column-gap:24px;align-items:start;overflow:clip;padding:20px;box-sizing:border-box;background:var(--bg)}
+/* left: the player as a card that stays in view, centred in the window's height */
+#geovibes-app.mm-wide #heroBanner{grid-area:hero;position:sticky;top:20px;align-self:start;height:calc(100vh - 40px);max-height:900px;min-height:560px;overflow-y:auto;justify-content:center;padding:24px 22px;border-radius:22px;border:1px solid rgba(255,255,255,.1);box-shadow:0 14px 40px rgba(0,0,0,.35);scrollbar-width:thin;box-sizing:border-box}
+/* right: everything else, under a sticky tab header */
+#geovibes-app.mm-wide #mainContent{grid-area:main;max-width:none;padding:0 4px 24px;min-width:0}
+#geovibes-app.mm-wide .tab-bar{position:sticky;top:0;z-index:5;margin:0 -4px;padding:14px 4px 0;background:linear-gradient(var(--bg) 85%,transparent)}
+#geovibes-app.mm-wide .app-footer{grid-area:foot;max-width:none!important;padding-top:8px!important}
+#geovibes-app.mm-wide .section{margin-bottom:22px}
+#geovibes-app.mm-wide .map-legend{flex-direction:row;flex-wrap:wrap;gap:10px 18px}
+#geovibes-app.mm-wide .map-legend .legend-item{flex:1 1 220px}
 #geovibes-app.mm-wide #leafletMap{height:min(55vh,460px)}
 #geovibes-app.mm-wide .local-list,#geovibes-app.mm-wide .track-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;align-items:start}
 #geovibes-app.mm-wide .local-list>.local-note,#geovibes-app.mm-wide .local-list>.local-back,#geovibes-app.mm-wide .local-list>.skel-row{grid-column:1/-1}
@@ -445,9 +450,10 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
 .support-link[hidden],.support-note[hidden]{display:none!important}
 .support-note a{color:#ffe27a;font-weight:600}
 .hero-player{position:relative}
-.cast-wrap{position:absolute;top:10px;right:10px;z-index:4}
+.cast-row{display:flex;justify-content:flex-end;margin:-6px -6px 4px 0}
+.cast-row:not(:has(.cast-wrap:not([hidden]))){display:none}
+.cast-wrap{position:relative;z-index:4}
 .cast-wrap[hidden]{display:none!important}
-.hero-player:has(.cast-wrap:not([hidden])) .hero-np-head,.hero-player:has(.cast-wrap:not([hidden])) .hero-np-game{padding-left:44px;padding-right:44px}
 .cast-btn{display:inline-flex;align-items:center;gap:5px;height:32px;min-width:32px;padding:0 9px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.25);color:#fff;cursor:pointer;font-size:11px;font-weight:600}
 .cast-btn.remote{color:#1DB954;border-color:rgba(29,185,84,.6);background:rgba(29,185,84,.15)}
 .cast-name{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
