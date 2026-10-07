@@ -22,6 +22,9 @@ class MusicMap_Settings {
 			'youtube_key'         => '',
 			'contact_email'       => '',
 			'spotify_client_id'   => '',
+			'apple_team_id'       => '',
+			'apple_key_id'        => '',
+			'apple_private_key'   => '',
 			'trusted_ip_header'   => '',
 			'save_rate_per_hour'  => 30,
 			'pack_max_kb'         => 400,
@@ -103,6 +106,29 @@ class MusicMap_Settings {
 			add_settings_error( self::OPTION, 'spotify_client_id', __( 'A Spotify Client ID is 32 letters and numbers; it was not saved.', 'musicmap' ) );
 		}
 
+		// Apple Music (MusicKit): the private key signs short-lived tokens here and never leaves the server
+		foreach ( array( 'apple_team_id', 'apple_key_id' ) as $key ) {
+			$v           = isset( $in[ $key ] ) ? strtoupper( trim( (string) $in[ $key ] ) ) : '';
+			$out[ $key ] = preg_match( '/^[A-Z0-9]{10}$/', $v ) ? $v : '';
+			if ( '' !== $v && '' === $out[ $key ] ) {
+				add_settings_error( self::OPTION, $key, __( 'Apple Team and Key IDs are 10 letters and numbers; one was not saved.', 'musicmap' ) );
+			}
+		}
+		$pk = isset( $in['apple_private_key'] ) ? trim( (string) $in['apple_private_key'] ) : '';
+		if ( ! empty( $in['apple_private_key_clear'] ) ) {
+			$out['apple_private_key'] = '';
+		} elseif ( '' === $pk ) {
+			$out['apple_private_key'] = $old['apple_private_key'];
+		} elseif ( self::is_ec_key( $pk ) ) {
+			$out['apple_private_key'] = $pk;
+		} else {
+			$out['apple_private_key'] = $old['apple_private_key'];
+			add_settings_error( self::OPTION, 'apple_private_key', __( 'That is not a MusicKit private key (.p8), so it was not saved.', 'musicmap' ) );
+		}
+		if ( $out['apple_team_id'] !== $old['apple_team_id'] || $out['apple_key_id'] !== $old['apple_key_id'] || $out['apple_private_key'] !== $old['apple_private_key'] ) {
+			delete_transient( 'musicmap_musickit_token' ); // signed with the old details
+		}
+
 		$header                   = isset( $in['trusted_ip_header'] ) ? (string) $in['trusted_ip_header'] : '';
 		$out['trusted_ip_header'] = in_array( $header, array( '', 'HTTP_CF_CONNECTING_IP', 'HTTP_X_REAL_IP' ), true ) ? $header : '';
 
@@ -114,6 +140,19 @@ class MusicMap_Settings {
 		$out['delete_on_uninstall'] = empty( $in['delete_on_uninstall'] ) ? 0 : 1;
 
 		return $out;
+	}
+
+	/** A PEM private key that OpenSSL reads as an elliptic-curve key (what Apple's .p8 files are). */
+	private static function is_ec_key( $pem ) {
+		if ( strlen( $pem ) > 4000 || false === strpos( $pem, 'PRIVATE KEY-----' ) || ! function_exists( 'openssl_pkey_get_private' ) ) {
+			return false;
+		}
+		$k = openssl_pkey_get_private( $pem );
+		if ( ! $k ) {
+			return false;
+		}
+		$d = openssl_pkey_get_details( $k );
+		return is_array( $d ) && OPENSSL_KEYTYPE_EC === $d['type'];
 	}
 
 	private static function int_between( $in, $key, $min, $max ) {
@@ -163,6 +202,38 @@ class MusicMap_Settings {
 					</tr>
 				</table>
 
+				<h2><?php esc_html_e( 'Apple Music', 'musicmap' ); ?></h2>
+				<p class="description"><?php echo wp_kses( __( 'Optional. Lets visitors play songs with their own Apple Music subscription. Needs an Apple Developer Program membership: under <em>Certificates, Identifiers &amp; Profiles</em>, create a Media ID and a key with MusicKit enabled, then enter its details here. The private key stays on this server; visitors only get short-lived tokens that work on this site.', 'musicmap' ), array( 'em' => array() ) ); ?></p>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="mm_apple_team"><?php esc_html_e( 'Team ID', 'musicmap' ); ?></label></th>
+						<td><input type="text" class="regular-text code" id="mm_apple_team" maxlength="10" name="<?php echo esc_attr( self::OPTION ); ?>[apple_team_id]" value="<?php echo esc_attr( $s['apple_team_id'] ); ?>" placeholder="ABCDE12345"></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="mm_apple_kid"><?php esc_html_e( 'MusicKit Key ID', 'musicmap' ); ?></label></th>
+						<td><input type="text" class="regular-text code" id="mm_apple_kid" maxlength="10" name="<?php echo esc_attr( self::OPTION ); ?>[apple_key_id]" value="<?php echo esc_attr( $s['apple_key_id'] ); ?>" placeholder="XYZ9876543"></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="mm_apple_pk"><?php esc_html_e( 'Private key (.p8)', 'musicmap' ); ?></label></th>
+						<td>
+							<textarea class="large-text code" rows="4" id="mm_apple_pk" name="<?php echo esc_attr( self::OPTION ); ?>[apple_private_key]" autocomplete="off" spellcheck="false"
+								placeholder="<?php echo esc_attr( '' !== $s['apple_private_key'] ? __( 'Saved. Paste a new key to replace it.', 'musicmap' ) : __( 'Paste the whole AuthKey_….p8 file, including the BEGIN and END lines', 'musicmap' ) ); ?>"></textarea>
+							<?php if ( '' !== $s['apple_private_key'] ) : ?>
+								<label><input type="checkbox" name="<?php echo esc_attr( self::OPTION . '[apple_private_key_clear]' ); ?>" value="1"> <?php esc_html_e( 'Remove saved key', 'musicmap' ); ?></label>
+							<?php endif; ?>
+							<p class="description">
+								<?php
+								echo esc_html(
+									class_exists( 'MusicMap_Channels' ) && MusicMap_Channels::apple_music_ready()
+										? __( 'Apple Music is on: visitors can connect it in Settings → Connections.', 'musicmap' )
+										: __( 'Apple Music is off until all three are saved.', 'musicmap' )
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+				</table>
+
 				<h2><?php esc_html_e( 'YouTube usage', 'musicmap' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<?php self::number_row( 'youtube_daily_units', __( 'YouTube units to use per day', 'musicmap' ), 100, 1000000, $s ); ?>
@@ -172,9 +243,9 @@ class MusicMap_Settings {
 							<?php
 							$q = class_exists( 'MusicMap_Channels' ) ? MusicMap_Channels::quota_status() : array( 'used' => 0, 'limit' => $s['youtube_daily_units'] );
 							/* translators: 1: units used, 2: daily limit, 3: songs looked up */
-							echo esc_html( sprintf( __( '%1$d of %2$d units (%3$d new song lookups). Resets at midnight Pacific time.', 'musicmap' ), $q['used'], $q['limit'], (int) floor( $q['used'] / 100 ) ) );
+							echo esc_html( sprintf( __( '%1$d of %2$d units (%3$d new song lookups). Resets at midnight Pacific time.', 'musicmap' ), $q['used'], $q['limit'], (int) floor( $q['used'] / 101 ) ) );
 							?>
-							<p class="description"><?php esc_html_e( 'Each new song lookup costs 100 units; Google gives 10,000 free per day. Lookups are cached for everyone, so each song is only looked up once. Keep this under 10,000 to leave headroom.', 'musicmap' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Each new song lookup costs 101 units (a search, plus a length check that keeps out Shorts); Google gives 10,000 free per day. Lookups are cached for everyone, so each song is only looked up once. Keep this under 10,000 to leave headroom.', 'musicmap' ); ?></p>
 						</td>
 					</tr>
 				</table>

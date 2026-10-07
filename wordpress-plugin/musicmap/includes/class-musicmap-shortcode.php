@@ -89,6 +89,9 @@ class MusicMap_Shortcode {
 		if ( '' !== $spotify ) {
 			$config['spotifyClientId'] = $spotify;
 		}
+		if ( class_exists( 'MusicMap_Channels' ) && MusicMap_Channels::apple_music_ready() ) {
+			$config['appleMusic'] = true; // the key stays on the server; the app asks /musickit for a token
+		}
 		wp_add_inline_script( 'musicmap', 'window.MUSICMAP_CONFIG=' . wp_json_encode( $config ) . ';', 'before' );
 	}
 }
