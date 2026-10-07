@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.2
+# 🎵 MusicMap v1.2.1
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -57,7 +57,7 @@ Each pack card shows where it plays from (YouTube, Spotify or both). Game packs 
 - **Spotify (optional)** — play Spotify tracks in the browser with Premium, import your own playlists as packs
 - **OSM-powered biome detection** — uses real map data, not just address guessing
 - **Custom location pins** — drop multiple pins per location with individual proximity radii
-- **Pack builder** — add any YouTube video or playlist as a custom pack
+- **Pack builder** — add YouTube videos/playlists and Spotify playlists/albums/tracks to a custom pack
 - **Timestamp importer** — paste YouTube chapter lists to populate tracks instantly
 - **AI pack builder** — use the built-in prompt with any AI to generate packs from any OST
 - **Share codes** — share custom packs with a 6-character code
@@ -73,7 +73,7 @@ To enable 6-character share codes:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.2"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.2.1"}`
 5. In `musicmap.html`, find `const API_URL` and set it to `'https://yoursite.com/?mm_action='`
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -88,34 +88,39 @@ Spotify tracks play in the browser through Spotify's Web Playback SDK, which nee
 
 - **Connect:** Settings → Spotify → Connect. MusicMap's shared Spotify app is in Spotify's Development Mode, so only accounts invited to it can sign in; the app warns you before you try.
 - **Your own Client ID:** anyone else can create a free app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) (Web API + Web Playback SDK), add the Redirect URI shown in Settings, and paste the Client ID under "Use my own Spotify app". No Client Secret is needed.
-- **Import a playlist:** Packs → Make or Import Pack → Spotify. Works for playlists you own or collaborate on.
+- **Add Spotify links:** Packs → Make or Import Pack → paste a Spotify playlist, album or track link in the same box as YouTube links. Playlists must be ones you own or collaborate on; any album or track works. Packs can mix YouTube and Spotify.
 - Spotify-only packs have no YouTube fallback; without Spotify connected, the app explains what's needed instead of playing.
 
 ---
 
 ## 🤖 AI Pack Builder
 
-MusicMap includes a built-in prompt for generating packs with any AI assistant:
+MusicMap includes two built-in prompts for any AI assistant (ChatGPT, Claude, Gemini…), under **Packs → Make or Import Pack → Import**:
 
+**YouTube — build a pack**
 1. Find a full game OST on YouTube
-2. Open **Packs → Make or Import Pack → Import**
-3. Tap **Copy prompt**, fill in the YouTube URL and timestamps
-4. Paste into ChatGPT, Claude, Gemini or any AI
-5. Paste the JSON response back into the Import box
+2. Choose **YouTube**, tap **Copy YouTube prompt**, fill in the URL(s) and timestamps
+3. Paste the AI's JSON answer back into the Import box
 
-The AI format supports multiple videos and playlists.
+**Spotify — sort a pack's songs into places**
+1. Add a Spotify playlist, album or track link in **Make a Pack** and save it
+2. Choose **Spotify**, pick the pack, tap **Copy Spotify prompt** (it includes the song list)
+3. Paste the AI's JSON answer back into the Import box; it replaces that pack's places
+
+AIs can't open Spotify links, so the Spotify prompt sorts songs you already have instead of inventing new ones. Both formats cover the 9 biomes plus Home, Work, School and Gym.
 
 ---
 
 ## 🔜 Coming Soon: Local Music Vibes Mode
 
-A second mode, switched from the menu, that plays real-world music from wherever you are instead of game packs:
+A second mode, switched from the menu, that plays real-world music from wherever you are instead of game packs. Drag the pin anywhere on the map, or turn on live tracking and let it follow you:
 
-- **Made Here** — artists who originated in your city, region or country
-- **Most Popular Here** — your country's charts
-- **Genre Popular Songs** — genre playlists built from local top artists
+- **Popular Here** — the most-played songs in that country right now
+- **Made Here** — artists from that city or nearby, ranked by how well known they are
+- **Genre Mixes** — playlists built from the area's top genres
+- **Local Radio** — live stations broadcasting near the pin, which keep playing with the screen off
 
-It will run on the same `musicmap-api.php`, extended with routes that look up music from MusicBrainz, Last.fm and YouTube. An early prototype lives in `alpha/` and isn't part of the live app yet.
+It will use free data sources only (Apple Music charts, Last.fm, Wikidata, MusicBrainz, Radio Browser, YouTube's free quota), looked up through the same `musicmap-api.php` with server-side caching. Most-popular charts are country-level, because no free source has city-level charts; Made Here and Local Radio are city-level. An early prototype lives in `alpha/` and isn't part of the live app yet.
 
 ---
 
