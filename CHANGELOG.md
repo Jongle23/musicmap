@@ -1,6 +1,16 @@
 # MusicMap Changelog
 
-## v1.10 — Current
+## v1.11 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- **The map moved into Channels (Local Listening) and Biomes (Biome Beats)**: it sits at the top of that tab with a **Hide map / Show map** toggle (remembered), so the tab bar is now just Channels/Biomes, Saved/Packs and Settings. "Move pin" and anything else that opened the Map tab shows the map in place
+
+### Added
+- **Saved items on the map** (Local Listening): saved songs, stations and spots appear as heart icons where they were saved. Tap one to play it or go there; when several were saved at the same place, the icon shows how many and opens a list to pick from. Songs saved from now on remember where you saved them
+- **Edit biomes** button on every pack in the Packs tab: switches to that pack if needed and takes you straight to its biomes
+
+## v1.10
 **Release date:** 2026-10-07
 
 ### Added

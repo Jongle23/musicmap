@@ -78,7 +78,7 @@
 #geovibes-app.mm-wide #mainContent{grid-area:main;max-width:none;padding:0 28px 60px}
 #geovibes-app.mm-wide .app-footer{grid-area:foot;max-width:none!important}
 #geovibes-app.mm-wide .tab-bar{position:sticky;top:0;z-index:5;background:var(--bg);margin-top:0;padding-top:12px}
-#geovibes-app.mm-wide #leafletMap{height:min(70vh,640px)}
+#geovibes-app.mm-wide #leafletMap{height:min(55vh,460px)}
 #geovibes-app.mm-wide .local-list,#geovibes-app.mm-wide .track-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;align-items:start}
 #geovibes-app.mm-wide .local-list>.local-note,#geovibes-app.mm-wide .local-list>.local-back,#geovibes-app.mm-wide .local-list>.skel-row{grid-column:1/-1}
 #geovibes-app.mm-wide .local-list>.skel-row{margin-top:0}
@@ -352,6 +352,10 @@
 
 /* map */
 /* leaflet map */
+#mapBody[hidden]{display:none!important}
+@keyframes mmFlash{0%,100%{box-shadow:0 0 0 0 transparent}30%{box-shadow:0 0 0 3px var(--accent,#7c3aed)}}
+.loc-grid.flash{border-radius:12px;animation:mmFlash 1.4s ease-in-out 1}
+@media (max-width:600px){ #leafletMap{height:280px!important} }
 #leafletMap{width:100%;height:360px;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#0c2d48;cursor:crosshair}
 .map-legend{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .legend-sw{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%}
@@ -547,6 +551,14 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
 .local-note{font-size:12px;color:var(--muted);line-height:1.6;padding:12px;border:1px dashed var(--border2);border-radius:12px}
 .hero-progress.live .hero-progress-fill{width:100%!important;opacity:.35;transition:none}
 .hero-progress.live #progressTime{color:#fca5a5;font-weight:600}
+.mm-saved-marker{position:relative;width:30px;height:30px;border-radius:50%;background:#fff;color:#e11d48;border:2px solid #e11d48;box-shadow:0 3px 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
+.mm-saved-marker svg{width:16px;height:16px}
+.mm-saved-count{position:absolute;top:-7px;right:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#e11d48;color:#fff;font:700 10px/17px var(--sans,sans-serif);text-align:center;box-sizing:border-box}
+.mm-saved-pop{font-family:var(--sans,sans-serif);min-width:190px;max-width:240px}
+.mm-saved-pop .t{font-weight:700;font-size:12px;margin-bottom:6px;color:#111}
+.mm-saved-pop .one{font-size:13px;color:#111;margin-bottom:8px;line-height:1.35;overflow-wrap:anywhere}
+.mm-saved-pop select{width:100%;padding:6px;border-radius:6px;border:1px solid #bbb;margin-bottom:8px;font-size:13px;color:#111;background:#fff}
+.mm-saved-pop button{width:100%;padding:7px 10px;border:0;border-radius:8px;background:#7c3aed;color:#fff;font-weight:700;font-size:13px;cursor:pointer}
 .mm-listen-marker{width:38px;height:38px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:#fff;border:3px solid var(--accent,#7c3aed);box-shadow:0 4px 14px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
 .mm-listen-marker svg{transform:rotate(45deg);width:18px;height:18px;color:#111}
 /* AI prompt switcher (separate from .mi-tab, which miSwitchTab indexes) */

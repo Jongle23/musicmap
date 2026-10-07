@@ -1510,7 +1510,7 @@ async function init(){
   resumePendingSpotifyLink();
   // Apple Music: check the saved sign-in is still good
   if(isAppleConnected()) amLoad().then(m=>{ if(!m.isAuthorized){ ss('appleMusicLinked',false); renderConnectionsUI(); } }).catch(()=>{});
-  applyLogo(); applySupportLink(); fitWideLayout();
+  applyLogo(); applySupportLink(); fitWideLayout(); setMapShown(mapShown(),false,true);
   applyModeUI();
   // the last known location, shared by both modes (a week at most)
   const lf=gs('lastFix',null);
@@ -1593,7 +1593,8 @@ function goToPacks(){
 }
 
 function switchTab(id){
-  const order=isLocalMode()?['player','saved','map','settings']:['player','packs','map','settings'];
+  const order=isLocalMode()?['player','saved','settings']:['player','packs','settings'];
+  const toMap=id==='map'; if(toMap) id='player'; // the map lives at the top of Channels / Biomes
   if(isLocalMode()&&id==='packs') id='saved';      // Packs don't apply in Local Listening
   if(!isLocalMode()&&id==='saved') id='packs';
   document.querySelectorAll('.tab-btn').forEach((b,i)=>{
@@ -1612,19 +1613,82 @@ function switchTab(id){
     // load Apple Music ahead of time, so the sign-in window can open straight from the Connect tap
     if(APPLE_MUSIC_ON&&!isAppleConnected()) amLoad().catch(()=>{});
   }
-  if(id==='map'){
-    // Init Leaflet on first open (Leaflet needs the container visible)
-    setTimeout(()=>{
-      initLeafletMap();
-      renderCustomPins();
-      if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
-      renderListenPin(true);
-      renderMapLegend();
-    },50);
+  if(id==='player'){
+    if(toMap) setMapShown(true,true);
+    else if(mapShown()) refreshMap();
   }
   if(id==='packs')renderPacksList();
   if(id==='saved')renderSavedList();
 }
+// ── The map, at the top of Channels / Biomes (hide it with its toggle; remembered) ──
+function mapShown(){ return gs('mapShown',true)!==false; }
+function refreshMap(){
+  // Leaflet needs its box visible to measure it: set up on first show, re-measure after
+  setTimeout(()=>{
+    initLeafletMap(); if(!leafletMap) return;
+    leafletMap.invalidateSize();
+    renderCustomPins(); renderSavedMarkers();
+    if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
+    renderListenPin(true); renderMapLegend();
+  },50);
+}
+function setMapShown(on,scroll,quiet){ // quiet: only set the toggle (page start; the map loads when the tab shows)
+  ss('mapShown',!!on);
+  const body=document.getElementById('mapBody'), btn=document.getElementById('mapToggleBtn');
+  if(body) body.hidden=!on;
+  if(btn){ btn.setAttribute('aria-expanded',!!on); btn.querySelector('span').textContent=on?'Hide map':'Show map'; }
+  if(on&&!quiet){ refreshMap(); if(scroll) setTimeout(()=>document.getElementById('mapSection')?.scrollIntoView({block:'start',behavior:'smooth'}),80); }
+}
+function toggleMap(){ setMapShown(!mapShown()); }
+// ── Saved songs, stations and spots on the map (Local Listening). Several at one place share an icon with a list ──
+let savedLayer=null;
+function renderSavedMarkers(){
+  if(!leafletMap) return;
+  if(!savedLayer) savedLayer=L.layerGroup().addTo(leafletMap);
+  savedLayer.clearLayers();
+  if(appMode!=='local') return;
+  const d=getSaved(), groups=new Map();
+  const add=(lat,lon,item)=>{
+    if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180) return;
+    const k=lat.toFixed(3)+','+lon.toFixed(3); // about 100 m: "the same place"
+    if(!groups.has(k)) groups.set(k,{lat,lon,items:[]});
+    groups.get(k).items.push(item);
+  };
+  d.spots.forEach(sp=>add(sp.lat,sp.lon,{label:'📍 '+(placeLabel(sp.place)||'Saved spot'), act:'Go there', go:()=>goToSavedSpot(sp)}));
+  d.stations.forEach(st=>add(st.lat,st.lon,{label:'📻 '+st.name, act:'Play station', go:()=>playSavedStation(st)}));
+  d.songs.forEach((so,i)=>add(so.lat,so.lon,{label:'♪ '+so.title+' — '+so.artist, act:'Play song', go:()=>playSavedSongs(i)}));
+  groups.forEach(g=>{
+    const n=g.items.length;
+    const icon=L.divIcon({className:'',iconSize:[30,30],iconAnchor:[15,15],popupAnchor:[0,-14],
+      html:'<div class="mm-saved-marker">'+SAVE_BTN_HTML+(n>1?'<span class="mm-saved-count">'+n+'</span>':'')+'</div>'});
+    const m=L.marker([g.lat,g.lon],{icon,bubblingMouseEvents:false,keyboard:true,title:n>1?n+' saved here':g.items[0].label.slice(2)});
+    m.bindPopup(()=>savedPopup(g.items,m),{closeButton:true});
+    savedLayer.addLayer(m);
+  });
+}
+// Popup (built from text, never HTML strings): one item = its name and a button; several = a list to pick from
+function savedPopup(items,marker){
+  const box=document.createElement('div'); box.className='mm-saved-pop';
+  const t=document.createElement('div'); t.className='t'; t.textContent=items.length>1?items.length+' saved here':'Saved';
+  box.append(t);
+  let pick=()=>items[0];
+  if(items.length>1){
+    const sel=document.createElement('select'); sel.setAttribute('aria-label','Pick a saved item');
+    items.forEach((it,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=it.label; sel.append(o); });
+    box.append(sel); pick=()=>items[Number(sel.value)]||items[0];
+    const btn=document.createElement('button'); btn.type='button';
+    const label=()=>{ btn.textContent=pick().act; }; sel.onchange=label; label();
+    btn.onclick=()=>{ marker.closePopup(); pick().go(); };
+    box.append(btn);
+  } else {
+    const one=document.createElement('div'); one.className='one'; one.textContent=items[0].label; box.append(one);
+    const btn=document.createElement('button'); btn.type='button'; btn.textContent=items[0].act;
+    btn.onclick=()=>{ marker.closePopup(); items[0].go(); };
+    box.append(btn);
+  }
+  return box;
+}
+
 // Safe to call before the Local Listening section has initialised
 function isLocalMode(){ try{ return appMode==='local'; }catch(e){ return false; } }
 
@@ -1689,6 +1753,12 @@ function renderPacksList(){
     // Button row (separate line)
     const actionsDiv=document.createElement('div');
     actionsDiv.className='pack-actions';
+    const biomesBtn=document.createElement('button');
+    biomesBtn.className='pack-action-btn';
+    biomesBtn.innerHTML=ic('mapPin','ic-sm')+' Edit biomes';
+    biomesBtn.title='Choose which tracks play in each biome';
+    biomesBtn.onclick=(e)=>{ e.stopPropagation(); editPackBiomes(pack.id); };
+    actionsDiv.appendChild(biomesBtn);
     const editBtn=document.createElement('button');
     editBtn.className='pack-action-btn';
     editBtn.innerHTML=ic('edit','ic-sm')+' Edit';
@@ -1733,6 +1803,16 @@ function activatePack(id){
   switchTab('player');
 }
 
+// From the Packs tab straight to a pack's biomes (switching to that pack first if needed)
+function editPackBiomes(id){
+  if(getActivePackId()!==id) activatePack(id); else switchTab('player');
+  setTimeout(()=>{
+    const grid=document.getElementById('locGrid'); if(!grid) return;
+    grid.closest('.section')?.scrollIntoView({block:'start',behavior:'smooth'});
+    grid.classList.add('flash'); setTimeout(()=>grid.classList.remove('flash'),1600);
+    spotifyShowSnack('Tap a biome to see its tracks, or its ✎ to rename it. Add tracks under the list.');
+  },120);
+}
 function deletePack(id){
   if(!confirm('Delete this pack?'))return;
   saveUserPacks(getUserPacks().filter(p=>p.id!==id));
@@ -1781,7 +1861,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.10';
+const MM_VERSION = '1.11';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -5318,7 +5398,7 @@ function applyModeUI(){
   });
   const tl=document.getElementById('tabLabelPlayer'); if(tl) tl.textContent=appMode==='local'?'Channels':'Biomes';
   syncVideoBtnForMode();
-  renderCustomPins(); renderMapLegend();
+  renderCustomPins(); renderSavedMarkers(); renderMapLegend();
 }
 // In Local Listening the video button saves the current station instead
 let videoBtnPacksHtml=null;
@@ -5747,7 +5827,9 @@ function cleanSavedSong(s){
   return {title:String(s.title).slice(0,160), artist:String(s.artist).slice(0,120),
     art:ART_OK.test(s.art||'')?s.art:'', am:AM_ID.test(String(s.am||''))?String(s.am):'',
     sp:/^spotify:track:[A-Za-z0-9]{22}$/.test(s.sp||'')?s.sp:'', yt:YT_ID.test(s.yt||'')?s.yt:'',
-    where:String(s.where||'').slice(0,80)};
+    where:String(s.where||'').slice(0,80),
+    lat:Number.isFinite(s.lat)&&Math.abs(s.lat)<=90?+(+s.lat).toFixed(4):undefined,
+    lon:Number.isFinite(s.lon)&&Math.abs(s.lon)<=180?+(+s.lon).toFixed(4):undefined};
 }
 function getSaved(){
   const d=gs(SAVED_KEY,{})||{};
@@ -5762,10 +5844,11 @@ function isSongSaved(s){ return !!s&&getSaved().songs.some(x=>songKey(x)===songK
 // The song playing in a song channel, in the shape Saved keeps (Made Here: once we know which song it is)
 function currentSongForSave(){
   const it=chanItems[chanIdx]; if(!it) return null;
+  const here={where:placeLabel(localPoint?.place), lat:localPoint?.lat, lon:localPoint?.lon};
   if(it.kind==='song') return cleanSavedSong({title:it.title, artist:it.artist, art:it.art, am:it.am,
-    sp:/^spotify:track:/.test(it._sp||'')?it._sp:'', yt:it._yt?.id, where:placeLabel(localPoint?.place)});
+    sp:/^spotify:track:/.test(it._sp||'')?it._sp:'', yt:it._yt?.id, ...here});
   if(it.kind==='artist'&&it._song) return cleanSavedSong({title:it._song, artist:it.name,
-    yt:chanVia==='youtube'?ytPlayer?.getVideoData?.()?.video_id:'', where:placeLabel(localPoint?.place)});
+    yt:chanVia==='youtube'?ytPlayer?.getVideoData?.()?.video_id:'', ...here});
   return null;
 }
 function toggleSongSaved(s){
@@ -5787,7 +5870,7 @@ function playSavedSongs(start){
   renderChanList(); switchTab('player');
   playChanItem(Number.isInteger(start)?start:(chanOrder[0]??0));
 }
-function putSaved(d){ ss(SAVED_KEY,d); }
+function putSaved(d){ ss(SAVED_KEY,d); renderSavedMarkers(); }
 function isStationSaved(uuid){ return getSaved().stations.some(s=>s.uuid===uuid); }
 function toggleStationSaved(st){
   if(!st) return;
@@ -6062,6 +6145,9 @@ function renderMapLegend(){
     item('<span class="mm-listen-marker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></span>',
       'Listening pin', localPoint?('Listening near '+(placeLabel(localPoint.place)||'this spot')+'. Drag it or tap the map.'):'Tap the map to drop it');
     item(YOU,'You',youSub);
+    const sv=getSaved(); const onMap=[...sv.songs,...sv.stations,...sv.spots].filter(x=>Number.isFinite(x.lat)&&Number.isFinite(x.lon)).length;
+    item('<span class="mm-saved-marker" style="width:24px;height:24px">'+SAVE_BTN_HTML+'</span>','Saved',
+      onMap?'Your saved songs, stations and spots. Tap one to play it or go there; a number means several were saved at that place.':'Songs, stations and spots you save show here, where you saved them.');
     return;
   }
   hint.textContent='Tap the map to add a saved place (Home, Gym…) · Pinch or scroll to zoom';
