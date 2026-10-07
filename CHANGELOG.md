@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.12.5 — Current
+## v1.12.6 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Scrolling titles**: when the song title (or the line under it) is too long for the player, it slides across with soft faded edges, pauses at the end, and slides back. Short titles stay still; with "reduce motion" on, long ones are trimmed with "…" instead
+
+## v1.12.5
 **Release date:** 2026-10-07
 
 ### Added

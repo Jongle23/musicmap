@@ -1386,6 +1386,31 @@ function applySupportLink(){ // runs from init(), once the site's settings (MM_C
   ['supportLink','amSupportNote','creditsSupport'].forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=false; });
 }
 
+// ── SCROLLING TITLES ── the now-playing lines slide when the text is too long to fit
+let mqBusy=false;
+function fitMarquee(el){
+  if(!el) return;
+  const text=el.textContent;
+  let inner=el.firstElementChild;
+  if(!inner||!inner.classList.contains('mq-inner')||el.childNodes.length!==1||inner.textContent!==text){
+    mqBusy=true; el.textContent=''; inner=document.createElement('span'); inner.className='mq-inner'; inner.textContent=text; el.append(inner); mqBusy=false;
+  }
+  el.classList.remove('mq-on');
+  const over=inner.scrollWidth-el.clientWidth;
+  if(over>4){
+    el.style.setProperty('--mq-shift',-(over+28)+'px'); // +28: the faded edges added while it scrolls
+    el.style.setProperty('--mq-dur',Math.min(14,Math.max(6,3+over/30)).toFixed(1)+'s'); // about the same speed for any length
+    el.classList.add('mq-on');
+  }
+}
+['npTrack','npGame'].forEach(id=>{
+  const el=document.getElementById(id); if(!el) return;
+  let t=null; const refit=()=>{ if(mqBusy) return; clearTimeout(t); t=setTimeout(()=>fitMarquee(el),30); };
+  new MutationObserver(refit).observe(el,{childList:true,characterData:true,subtree:true});
+  if(window.ResizeObserver) new ResizeObserver(refit).observe(el);
+  refit();
+});
+
 // ── WIDE LAYOUT ── player beside the tabs when the app itself is wide enough
 function fitWideLayout(){
   const app=document.getElementById('geovibes-app'); if(!app) return;
@@ -1865,7 +1890,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.12.5';
+const MM_VERSION = '1.12.6';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")

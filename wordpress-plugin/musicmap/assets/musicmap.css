@@ -111,6 +111,13 @@
 .hero-np-head .playing-bars span{background:#fff}
 .hero-np-track{font-size:16px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;min-width:0}
 .hero-np-game{font-size:12px;color:rgba(255,255,255,.6);text-align:center;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Scrolling titles: text too long for its line slides across, pauses, and slides back (see fitMarquee) */
+.mq-inner{display:inline-block;white-space:nowrap}
+#npGame.mq{display:inline-block;max-width:calc(100% - 26px);vertical-align:bottom;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mq.mq-on{text-overflow:clip;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 14px,#000 calc(100% - 14px),transparent);padding:0 14px;box-sizing:border-box}
+.mq.mq-on .mq-inner{animation:mqScroll var(--mq-dur,8s) ease-in-out infinite alternate}
+@keyframes mqScroll{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--mq-shift,0))}}
+@media (prefers-reduced-motion:reduce){.mq.mq-on .mq-inner{animation:none}.mq.mq-on{text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none;padding:0}}
 .hero-progress{display:flex;align-items:center;gap:10px;margin:14px 0 12px}
 .hero-progress-bg{flex:1;height:4px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden}
 .hero-progress-fill{height:100%;background:#fff;border-radius:2px;width:0%;transition:width .5s linear}
