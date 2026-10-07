@@ -1865,7 +1865,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.12.4';
+const MM_VERSION = '1.12.5';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -5112,6 +5112,7 @@ function renderConnectionsUI(){
   updateSpotifySettingsUI(); renderCastBtn();
   const logoSp=document.getElementById('connLogoSpotify'); if(logoSp&&!logoSp.innerHTML) logoSp.innerHTML=SOURCE_ICONS.spotify;
   const logoAm=document.getElementById('connLogoApple'); if(logoAm&&!logoAm.innerHTML) logoAm.innerHTML=SOURCE_ICONS.apple;
+  const logoSc=document.getElementById('connLogoSoundcloud'); if(logoSc&&!logoSc.innerHTML) logoSc.innerHTML=SOURCE_ICONS.soundcloud;
   // where Spotify plays
   const row=document.getElementById('spotifyDeviceRow'), hint=document.getElementById('spotifyDeviceHint'), sel=document.getElementById('spotifyDeviceSelect');
   const spOn=isSpotifyConnected();

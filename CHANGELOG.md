@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.12.4 — Current
+## v1.12.5 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **SoundCloud in Settings → Connections**: a card explaining that SoundCloud needs no sign-in and plays the tracks and playlists you add to custom packs in SoundCloud's own player (with the note about 30-second Go+ previews and tracks that can't be played on other sites)
+
+## v1.12.4
 **Release date:** 2026-10-07
 
 ### Changed
