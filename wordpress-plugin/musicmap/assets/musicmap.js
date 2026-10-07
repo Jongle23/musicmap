@@ -1263,6 +1263,7 @@ async function init(){
   updateSpotifySettingsUI();
   syncSpotifyOwnAppUI();
   resumePendingSpotifyLink();
+  applyLogo();
   applyModeUI();
   if(readShareLink()){ appMode='local'; ss('appMode','local'); applyModeUI(); }
   if(appMode==='local'){
@@ -2054,24 +2055,31 @@ async function playCurrentTrack(useFade){
   const allTracks=getAllPackTracks(pack);
   const t=allTracks[tIdx];
   if(!t)return;
-  // Spotify path: track has URI, player ready, token valid
+  const token=++packsPlayToken;
+  stopPacksTicker();
+  // Spotify path: hand Spotify the whole upcoming queue, so it keeps playing with the screen off
   if(t.spotifyUri && spotifyReady && isSpotifyConnected()){
-    getActiveIframe().src='';
-    const ok=await spotifyPlayUri(t.spotifyUri);
+    if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
+    const queue=packsSpotifyQueue();
+    const ok=await spotifyPlayUris(queue.map(q=>q.uri));
+    if(token!==packsPlayToken) return;
     if(ok){
+      packsSpQueue=queue;
       spotifyActive=true;
-      setPlayIcon(true);startProgress(t.dur||180);
+      setPlayIcon(true);
       document.getElementById('playingBars').style.display='flex';
       updateSpotifyNowPlaying(true, t);
+      setPacksMediaSession(t);
+      startPacksTicker(t);
       return;
     }
   }
-  spotifyActive=false;
+  spotifyActive=false; packsSpQueue=null;
   updateSpotifyNowPlaying(false, t);
   // Spotify-only track and Spotify can't play it: there is no YouTube to fall back to
   if(t.spotifyUri && !t.videoId){
     isPlaying=false;
-    getActiveIframe().src='';
+    if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
     setPlayIcon(false); stopProgress();
     document.getElementById('playingBars').style.display='none';
     if(isSpotifyConnected() && spotifyInitFailed) spotifyShowSnack('This browser can’t play Spotify. Try Chrome, Edge, Firefox or Safari.');
@@ -2080,19 +2088,28 @@ async function playCurrentTrack(useFade){
     else openSpotifyNeeded();
     return;
   }
-  // YouTube fallback
-  const src=getTrackSrc(pack,t,true);
-  if(useFade){crossfadeTo(src);}else{hardSwitchTo(src);}
-  setPlayIcon(true);startProgress(t.dur);
+  // YouTube: the IFrame API player, started at the track's timestamp. No end time is set, so with
+  // the screen off the soundtrack simply carries on into its next track instead of stopping.
+  const vid=t.videoId||pack.videoId;
+  if(!YT_ID.test(vid||'')){ spotifyShowSnack('This track has no playable video.'); return; }
+  try{
+    const p=await ensureYtPlayer();
+    if(token!==packsPlayToken) return;
+    p.loadVideoById({videoId:vid, startSeconds:Math.max(0,Number(t.start)||0)});
+    packsYtTrack={key:vid+'@'+t.start, vid, start:Number(t.start)||0, dur:Number(t.dur)||0};
+  }catch(e){ spotifyShowSnack('YouTube could not load. Check your connection.'); return; }
+  setPlayIcon(true);
   document.getElementById('playingBars').style.display='flex';
+  setPacksMediaSession(t);
+  startPacksTicker(t);
 }
 async function pauseTrack(){
   if(spotifyActive){
     await spotifyPausePlayback();
-  } else {
-    getActiveIframe().src='';
+  } else if(ytPlayer?.pauseVideo){
+    try{ ytPlayer.pauseVideo(); }catch(e){}
   }
-  setPlayIcon(false);stopProgress();
+  setPlayIcon(false);
   document.getElementById('playingBars').style.display='none';
 }
 async function togglePlay(){
@@ -2100,16 +2117,17 @@ async function togglePlay(){
   if(isPlaying){
     isPlaying=false;
     await pauseTrack();
-    pauseProgress();
   } else {
     isPlaying=true;
     if(spotifyActive){
       await spotifyResumePlayback();
-      resumeProgress();
+      setPlayIcon(true);
+      document.getElementById('playingBars').style.display='flex';
+    } else if(packsYtTrack&&ytPlayer?.playVideo&&packsYtTrack.key===currentPacksTrackKey()){
+      ytPlayer.playVideo(); // resume where it paused (it used to restart the track)
       setPlayIcon(true);
       document.getElementById('playingBars').style.display='flex';
     } else {
-      resumeProgress();
       playCurrentTrack();
     }
   }
@@ -4179,7 +4197,15 @@ async function initSpotifySdk(){
         if(!state||!spotifyActive) return;
         const cur=state.track_window?.current_track;
         if(cur) setSpotifyArt(cur.album?.images, cur.album?.name);
-        if(state.paused && state.position===0 && !state.loading){ nextTrack(); }
+        const uris=[cur?.uri,cur?.linked_from?.uri].filter(Boolean);
+        // Spotify moved on by itself (screen may be off): follow it instead of starting anything
+        if(appMode!=='local' && packsSpQueue && followPacksSpotify(uris)) return;
+        if(appMode==='local' && followChanSpotify(uris)) return;
+        if(state.paused && state.position===0 && !state.loading){
+          // end of what we handed Spotify: move on ourselves
+          if(appMode!=='local' && packsSpQueue && packsSpQueue.length>1) return;
+          nextTrack();
+        }
       });
       // e.g. no Widevine/DRM (some embedded or privacy browsers) — say so instead of "Connecting…" forever
       spotifyPlayer.addListener('initialization_error',()=>{
@@ -4541,6 +4567,10 @@ const LOCAL_CHANNELS=[
 function placeLabel(pl){ return pl?[pl.city,pl.region].filter(Boolean).join(', ')||pl.country||'':''; }
 
 // ── Mode switching ──
+function applyLogo(){
+  const el=document.getElementById('mmLogo');
+  if(el&&typeof MM_CONFIG.logoUrl==='string'&&/^https?:\/\//.test(MM_CONFIG.logoUrl)) el.src=MM_CONFIG.logoUrl.replace('-512.png','-192.png');
+}
 function applyModeUI(){
   const root=document.getElementById('geovibes-app');
   if(root){ root.classList.toggle('mode-local',appMode==='local'); root.classList.toggle('mode-packs',appMode!=='local'); }
@@ -4576,8 +4606,9 @@ async function setAppMode(mode){
   if(onPacksTab) switchTab(mode==='local'?'saved':'packs');
   if(mode==='local'){
     // stop pack playback (YouTube or Spotify) before radio takes over
-    if(isPlaying){ isPlaying=false; await pauseTrack(); pauseProgress(); }
-    getActiveIframe().src='';
+    if(isPlaying){ isPlaying=false; await pauseTrack(); }
+    stopPacksTicker(); packsSpQueue=null;
+    if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
     enterLocalMode(true);
   } else {
     stopRadio();
@@ -5187,6 +5218,119 @@ function renderMapLegend(){
 }
 
 
+
+// ═══════════════════════════════════════════
+// BIOME BEATS PLAYBACK HELPERS
+// Real positions (not a stopwatch) drive the seek bar; Spotify gets the upcoming queue so it
+// can keep going while the phone is locked; YouTube soundtracks run on past a track's end when
+// the page is hidden.
+// ═══════════════════════════════════════════
+let packsPlayToken=0, packsTicker=null, packsYtTrack=null, packsSpQueue=null, packsBiomeChecked=false;
+function currentPacksTrack(){
+  const pack=getActivePack(); const idxs=getLocTracks(getPackId(),currentLocId);
+  const t=getAllPackTracks(pack)[idxs[currentTrackPlayIdx]??idxs[0]];
+  return t?{pack,t}:null;
+}
+function currentPacksTrackKey(){ const c=currentPacksTrack(); return c?(c.t.videoId||c.pack.videoId)+'@'+c.t.start:''; }
+// Upcoming Spotify tracks in play order (current first), stopping at the first non-Spotify track
+function packsSpotifyQueue(){
+  const pack=getActivePack(); const idxs=getLocTracks(getPackId(),currentLocId); const all=getAllPackTracks(pack);
+  const order=[currentTrackPlayIdx,...shuffleQueue];
+  const out=[];
+  for(const k of order){
+    const t=all[idxs[k]];
+    if(!t||!/^spotify:track:[A-Za-z0-9]{22}$/.test(t.spotifyUri||'')) break;
+    out.push({k,uri:t.spotifyUri});
+    if(out.length>=50) break;
+  }
+  return out;
+}
+async function spotifyPlayUris(uris){
+  const token=await getValidSpotifyToken();
+  if(!token||!spotifyDeviceId||!uris.length) return false;
+  try{
+    const r=await fetch('https://api.spotify.com/v1/me/player/play?device_id='+encodeURIComponent(spotifyDeviceId),{
+      method:'PUT',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({uris})});
+    return r.ok||r.status===204;
+  }catch(e){ return false; }
+}
+// Spotify reached a later track in our queue: catch our state up (no playback calls)
+function followPacksSpotify(uris){
+  const at=packsSpQueue.findIndex(q=>uris.includes(q.uri));
+  if(at<=0) return at===0;
+  if(pendingBiomeId&&pendingBiomeId!==currentLocId){ packsSpQueue=null; nextTrack(); return true; } // biome change waits for a track boundary
+  const step=packsSpQueue[at];
+  shuffleQueue=shuffleQueue.slice(at); // the queue was [current, ...shuffleQueue]: drop everything up to and including this track
+  currentTrackPlayIdx=step.k;
+  packsSpQueue=packsSpQueue.slice(at);
+  renderTrackList(); updateNowPlaying();
+  const c=currentPacksTrack(); if(c){ updateSpotifyNowPlaying(true,c.t); setPacksMediaSession(c.t); startPacksTicker(c.t); }
+  return true;
+}
+function stopPacksTicker(){ clearInterval(packsTicker); packsTicker=null; }
+function startPacksTicker(t){
+  stopPacksTicker(); packsBiomeChecked=false;
+  const show=(pos,dur)=>{
+    pos=Math.max(0,pos);
+    document.getElementById('progressTime').textContent=fmt(Math.floor(Math.min(pos,dur||pos)));
+    document.getElementById('progressDur').textContent=dur?fmt(Math.floor(dur)):'';
+    document.getElementById('progressFill').style.width=dur?Math.min(100,pos/dur*100)+'%':'0%';
+    // look ahead for a biome change ~10s before the end
+    if(trackingActive&&dur>15&&!packsBiomeChecked&&dur-pos<=10){ packsBiomeChecked=true; checkBiomeInBackground(); }
+  };
+  const tick=async()=>{
+    if(appMode==='local'){ stopPacksTicker(); return; }
+    if(spotifyActive){
+      const st=await spotifyPlayer?.getCurrentState?.(); if(!st) return;
+      show(st.position/1000, st.duration/1000);
+      return;
+    }
+    if(!ytPlayer?.getCurrentTime||!packsYtTrack) return;
+    const cur=ytPlayer.getCurrentTime()||0, dur=packsYtTrack.dur||(ytPlayer.getDuration()-packsYtTrack.start);
+    const pos=cur-packsYtTrack.start;
+    if(dur&&pos>=dur&&isPlaying){
+      if(document.visibilityState==='visible'){ nextTrack(); return; }
+      followPacksYouTube(cur); // hidden: let the soundtrack play on, just keep the labels right
+      return;
+    }
+    show(pos,dur);
+  };
+  tick(); packsTicker=setInterval(tick,500);
+}
+// Screen off on a YouTube soundtrack: name whichever pack track the video has run into
+function followPacksYouTube(cur){
+  const c=currentPacksTrack(); if(!c) return;
+  const vid=packsYtTrack.vid;
+  const next=getAllPackTracks(c.pack).find(x=>(x.videoId||c.pack.videoId)===vid&&cur>=x.start&&cur<x.start+(x.dur||0));
+  if(!next||next.start===packsYtTrack.start) return;
+  packsYtTrack={key:vid+'@'+next.start, vid, start:Number(next.start)||0, dur:Number(next.dur)||0};
+  document.getElementById('npTrack').textContent=next.title;
+  setPacksMediaSession(next);
+}
+// Coming back to the page after the soundtrack ran on: the song that's playing finishes first
+// (the ticker follows it), then the biome's own shuffle carries on at that boundary.
+function packsYtState(e){
+  if(e.data===YT.PlayerState.PLAYING){ isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; }
+  else if(e.data===YT.PlayerState.PAUSED&&document.visibilityState==='visible'&&!isPlaying){ setPlayIcon(false); }
+  else if(e.data===YT.PlayerState.ENDED&&isPlaying){ nextTrack(); } // the whole video finished
+}
+// Lock-screen controls and artwork for Biome Beats
+function setPacksMediaSession(t){
+  if(!('mediaSession' in navigator)) return;
+  const pack=getActivePack();
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({title:t.title, artist:pack?.source||pack?.name||'MusicMap', album:'MusicMap · Biome Beats', artwork:mmLogoArtwork()});
+    navigator.mediaSession.setActionHandler('play',()=>{ if(!isPlaying) togglePlay(); });
+    navigator.mediaSession.setActionHandler('pause',()=>{ if(isPlaying) togglePlay(); });
+    navigator.mediaSession.setActionHandler('nexttrack',()=>nextTrack());
+    navigator.mediaSession.setActionHandler('previoustrack',()=>prevTrack());
+  }catch(e){}
+}
+function mmLogoArtwork(){
+  const big=typeof MM_CONFIG.logoUrl==='string'&&/^https?:\/\//.test(MM_CONFIG.logoUrl)?MM_CONFIG.logoUrl:'';
+  return big?[{src:big,sizes:'512x512',type:'image/png'}]:[{src:document.getElementById('mmLogo')?.src||'',sizes:'96x96',type:'image/png'}];
+}
+
 // ═══════════════════════════════════════════
 // SONG CHANNELS: Popular · Made Here · Genre Mixes
 // Data comes from the MusicMap plugin (MM_CONFIG.restBase): country charts (Apple Music),
@@ -5195,7 +5339,7 @@ function renderMapLegend(){
 // ═══════════════════════════════════════════
 let chanItems=[], chanIdx=-1, chanPlaying=false, chanVia=null, chanGenre=null, chanData=null;
 let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
-let chanPlayToken=0, chanStartedToken=-1; // newest play wins; 'ended' only counts for a song that really started
+let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null; // newest play wins; 'ended' only counts for a song that really started
 const chanCache={};
 const YT_ID=/^[A-Za-z0-9_-]{11}$/;
 const ART_OK=/^https:\/\/is\d+-ssl\.mzstatic\.com\/image\/thumb\/[^\s"'<>]+$/;
@@ -5367,6 +5511,7 @@ function openMix(genre,autoplay){
 // ── Playback ──
 function stopChanPlayback(){
   clearInterval(chanProgTimer); chanProgTimer=null;
+  stopPacksTicker();
   if(ytPlayer&&ytPlayer.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
   document.getElementById('ytContainer')?.classList.remove('local-video');
   if(chanVia==='spotify'&&spotifyActive){ spotifyPausePlayback(); spotifyActive=false; }
@@ -5433,7 +5578,13 @@ async function ensureYtPlayer(){
       events:{
         onReady:()=>resolve(ytPlayer),
         onStateChange:e=>{
+          if(appMode!=='local') return packsYtState(e);
           if(chanVia!=='youtube'&&chanVia!==null) return;
+          if(e.data===YT.PlayerState.PLAYING&&chanYtNext&&chanYtNext.token===chanPlayToken&&ytPlayer.getPlaylistIndex?.()===1){
+            // YouTube moved on to the queued next song by itself
+            const nx=chanYtNext; chanYtNext=null; chanIdx=nx.idx; chanSkips=0;
+            setChanNowPlaying(chanItems[chanIdx],null,null,'youtube'); setChanMediaSession(chanItems[chanIdx]);
+          }
           if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
           else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
           else if(e.data===YT.PlayerState.ENDED){
@@ -5442,7 +5593,7 @@ async function ensureYtPlayer(){
             if(chanItems[chanIdx]?.kind!=='artist'||!ytPlayer.getPlaylist?.()) chanStep(1);
           }
         },
-        onError:()=>{ chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
+        onError:()=>{ if(appMode!=='local'){ if(isPlaying) nextTrack(); return; } chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
       }
     });
   });
@@ -5457,12 +5608,19 @@ async function chanPlayYouTube(it,token){
     it._yt={list:'UU'+it.youtube.slice(2)};
     return;
   }
-  const q='resolve?artist='+encodeURIComponent(it.kind==='artist'?it.name:it.artist)+(it.kind==='song'?'&title='+encodeURIComponent(it.title):'');
-  const r=await mmApi(q);
+  const lookup=x=>mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
+  const nextIdx=chanItems.length>1?(chanIdx+1)%chanItems.length:-1;
+  const nextIt=nextIdx>=0&&chanItems[nextIdx]?.kind==='song'?chanItems[nextIdx]:null;
+  // look up this song and the next together, so YouTube can move on by itself (e.g. screen off)
+  const [r,rn]=await Promise.all([lookup(it), nextIt?lookup(nextIt).catch(()=>null):Promise.resolve(null)]);
   if(token!==chanPlayToken) return;
   if(!YT_ID.test(r.videoId||'')) throw Object.assign(new Error('No playable video found.'),{code:'not_found'});
   it._yt={id:r.videoId};
-  p.loadVideoById(r.videoId);
+  if(rn&&YT_ID.test(rn.videoId||'')){
+    nextIt._yt={id:rn.videoId};
+    chanYtNext={idx:nextIdx,id:rn.videoId,token};
+    p.loadPlaylist({playlist:[r.videoId,rn.videoId],index:0});
+  } else { chanYtNext=null; p.loadVideoById(r.videoId); }
 }
 // Spotify: search with the visitor's own Spotify sign-in (no server key involved)
 async function chanPlaySpotify(it,playTok){
@@ -5486,9 +5644,33 @@ async function chanPlaySpotify(it,playTok){
   if(!resp.ok&&resp.status!==204) throw new Error('Spotify couldn’t start playback.');
   it._sp=uri||ctx;
   spotifyActive=true; chanPlaying=true;
+  if(uri) queueNextChanSpotify(playTok,token);
   setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
   startChanProgress();
 }
+
+// Spotify song channels: put the next song in Spotify's own queue so it plays on by itself
+async function queueNextChanSpotify(playTok,token){
+  chanSpNext=null;
+  const nextIdx=chanItems.length>1?(chanIdx+1)%chanItems.length:-1;
+  const it=chanItems[nextIdx]; if(!it||it.kind!=='song') return;
+  try{
+    const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
+    const uri=r?.tracks?.items?.[0]?.uri||'';
+    if(playTok!==chanPlayToken||!/^spotify:track:[A-Za-z0-9]{22}$/.test(uri)) return;
+    const q=await fetch('https://api.spotify.com/v1/me/player/queue?uri='+encodeURIComponent(uri)+'&device_id='+encodeURIComponent(spotifyDeviceId),{method:'POST',headers:{'Authorization':'Bearer '+token}});
+    if(q.ok||q.status===204){ it._sp=uri; chanSpNext={idx:nextIdx,uri,token:playTok}; }
+  }catch(e){}
+}
+function followChanSpotify(uris){
+  if(!chanSpNext||chanSpNext.token!==chanPlayToken||!uris.includes(chanSpNext.uri)) return false;
+  chanIdx=chanSpNext.idx; chanSpNext=null; chanSkips=0;
+  const it=chanItems[chanIdx];
+  renderChanList(); setChanNowPlaying(it,null,null,'spotify'); setChanMediaSession(it);
+  getValidSpotifyToken().then(tok=>{ if(tok) queueNextChanSpotify(chanPlayToken,tok); });
+  return true;
+}
+
 function startChanProgress(){
   clearInterval(chanProgTimer);
   const tick=async()=>{
@@ -5525,7 +5707,7 @@ function setChanMediaSession(it){
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
       title:it.kind==='song'?it.title:it.name, artist:it.kind==='song'?it.artist:(it.genre||'Made Here'),
-      album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:[]
+      album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:mmLogoArtwork()
     });
     navigator.mediaSession.setActionHandler('play',()=>chanToggle());
     navigator.mediaSession.setActionHandler('pause',()=>chanToggle());
@@ -5603,7 +5785,7 @@ function setRadioMediaSession(st){
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
       title:st.name, artist:'Local Radio', album:placeLabel(localPoint?.place)||'MusicMap',
-      artwork:st.favicon?[{src:st.favicon,sizes:'256x256'}]:[]
+      artwork:st.favicon?[{src:st.favicon,sizes:'256x256'}]:mmLogoArtwork()
     });
     navigator.mediaSession.setActionHandler('play',()=>localTogglePlay());
     navigator.mediaSession.setActionHandler('pause',()=>radioAudio?.pause());
