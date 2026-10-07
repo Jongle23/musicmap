@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.12.3 — Current
+## v1.12.4 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- Credits: OpenStreetMap, Nominatim and the Overpass API are one OpenStreetMap entry (map tiles and data, place names, and the map features that pick your biome)
+
+## v1.12.3
 **Release date:** 2026-10-07
 
 ### Changed

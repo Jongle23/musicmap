@@ -1865,7 +1865,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.12.3';
+const MM_VERSION = '1.12.4';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6047,9 +6047,8 @@ function goToSavedSpot(sp){
 // Static list (no user data). Logos load from each project's own site, only when Settings is opened,
 // without a referrer; a letter badge shows if a logo can't load.
 const CREDITS=[
-  {name:'OpenStreetMap', role:'Map tiles and map data. © OpenStreetMap contributors', lic:'ODbL', url:'https://www.openstreetmap.org/copyright', icon:'https://www.openstreetmap.org/favicon.ico'},
-  {name:'Nominatim', role:'Place names for your location and the listening pin', lic:'ODbL', url:'https://nominatim.org', icon:'https://www.openstreetmap.org/favicon.ico'},
-  {name:'Overpass API', role:'Reads nearby map features to pick your biome', lic:'ODbL', url:'https://overpass-api.de', icon:'https://www.openstreetmap.org/favicon.ico'},
+  // one entry for everything from OpenStreetMap (its data, plus the Nominatim and Overpass services built on it)
+  {name:'OpenStreetMap', role:'Map tiles and data, place names (Nominatim) and the nearby map features that pick your biome (Overpass API). © OpenStreetMap contributors', lic:'ODbL', url:'https://www.openstreetmap.org/copyright', icon:'https://www.openstreetmap.org/favicon.ico'},
   {name:'Leaflet', role:'The interactive map', lic:'BSD-2', url:'https://leafletjs.com', icon:'https://leafletjs.com/docs/images/favicon.ico'},
   {name:'YouTube', role:'Plays game soundtracks and channel songs (IFrame Player API, oEmbed, Data API search)', url:'https://www.youtube.com', icon:'https://www.youtube.com/favicon.ico'},
   {name:'Apple Music charts', role:'Most-played songs per country for Popular (top songs and genre mixes)', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
