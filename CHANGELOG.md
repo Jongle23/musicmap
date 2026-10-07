@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.12 — Current
+## v1.12.1 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- Support wording is now "If you're enjoying it, please consider buying me a coffee" (footer and Apple Music note), and **Credits & Sources** opens with a "Support MusicMap" note ("MusicMap is built by Jongle…") so anyone reading the credits sees where to support. All of it shows only when a support link is set in MusicMap → Settings
+
+## v1.12
 **Release date:** 2026-10-07
 
 ### Added

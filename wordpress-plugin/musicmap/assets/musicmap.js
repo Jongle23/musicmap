@@ -1382,8 +1382,8 @@ function stopSoundCloud(){
 function applySupportLink(){ // runs from init(), once the site's settings (MM_CONFIG) exist
   const url=/^https:\/\/[^\s"'<>]{4,200}$/.test(MM_CONFIG.supportUrl||'')?MM_CONFIG.supportUrl:'';
   if(!url) return;
-  const a=document.getElementById('supportLink'); if(a){ a.href=url; a.hidden=false; }
-  const n=document.getElementById('amSupportNote'); if(n){ n.querySelector('a').href=url; n.hidden=false; }
+  document.querySelectorAll('a[data-support]').forEach(a=>{ a.href=url; });
+  ['supportLink','amSupportNote','creditsSupport'].forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=false; });
 }
 
 // ── WIDE LAYOUT ── player beside the tabs when the app itself is wide enough
@@ -1865,7 +1865,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.12';
+const MM_VERSION = '1.12.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")

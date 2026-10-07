@@ -217,7 +217,7 @@ class MusicMap_Settings {
 						<th scope="row"><label for="mm_support"><?php esc_html_e( 'Buy Me a Coffee (or similar) link', 'musicmap' ); ?></label></th>
 						<td>
 							<input type="url" class="regular-text code" id="mm_support" maxlength="200" name="<?php echo esc_attr( self::OPTION ); ?>[support_url]" value="<?php echo esc_attr( $s['support_url'] ); ?>" placeholder="https://buymeacoffee.com/yourname">
-							<p class="description"><?php esc_html_e( 'Optional. When set, the app shows "Enjoying MusicMap? Buy me a coffee" in its footer, and a note beside Apple Music that the Apple developer account it needs costs money.', 'musicmap' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Optional. When set, the app shows "If you\'re enjoying it, please consider buying me a coffee" in its footer and at the top of its Credits, and a note beside Apple Music that the Apple developer account it needs costs money.', 'musicmap' ); ?></p>
 						</td>
 					</tr>
 				</table>

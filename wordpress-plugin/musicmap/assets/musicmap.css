@@ -445,10 +445,11 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
   .mm-spinner,#geovibes-app.player-busy #playBtn::after,button[aria-busy="true"] svg{animation-duration:2.4s}
   #geovibes-app.player-busy .hero-progress-bg::after,.skel-row{animation:none}
 }
-.support-link{display:inline-flex;align-items:center;gap:6px;margin-bottom:4px;padding:7px 14px;border-radius:999px;background:rgba(255,221,0,.12);border:1px solid rgba(255,221,0,.35);color:#ffe27a;font-size:12px;font-weight:600;text-decoration:none}
-.support-link:hover{background:rgba(255,221,0,.2)}
-.support-link[hidden],.support-note[hidden]{display:none!important}
-.support-note a{color:#ffe27a;font-weight:600}
+.support-link{display:inline-block;margin-bottom:4px;padding:7px 14px;border-radius:999px;background:rgba(255,221,0,.12);border:1px solid rgba(255,221,0,.35);color:#ffe9a3;font-size:12px;line-height:1.5;text-align:center}
+.support-link a,.support-note a,.support-credit a{color:#ffe27a;font-weight:700}
+.support-link[hidden],.support-note[hidden],.support-credit[hidden]{display:none!important}
+.support-credit{font-size:12px;line-height:1.6;color:var(--text);padding:12px 14px;margin-bottom:12px;border-radius:12px;background:rgba(255,221,0,.08);border:1px solid rgba(255,221,0,.3)}
+.support-credit-title{font-weight:700;color:#ffe27a;margin-bottom:4px}
 .hero-player{position:relative}
 .cast-row{display:flex;justify-content:flex-end;margin:-6px -6px 4px 0}
 .cast-row:not(:has(.cast-wrap:not([hidden]))){display:none}
