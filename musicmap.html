@@ -5101,7 +5101,7 @@ function spotifySignedOut(){
 
 function cleanSpotifyUrlParams(){
   const url=new URL(window.location);
-  ['code','state','error'].forEach(k=>url.searchParams.delete(k));
+  ['code','state','error','ubi'].forEach(k=>url.searchParams.delete(k)); // ubi: Spotify's own tracking tag
   history.replaceState({},'',url.toString());
 }
 
@@ -5141,7 +5141,7 @@ async function initSpotifySdk(){
         if(!state||!spotifyActive||spRemoteDevice()) return;
         const cur=state.track_window?.current_track;
         onSpotifyState({uris:[cur?.uri,cur?.linked_from?.uri].filter(Boolean), paused:state.paused, position:state.position,
-          duration:state.duration, loading:state.loading, images:cur?.album?.images, album:cur?.album?.name});
+          duration:state.duration, loading:state.loading, images:cur?.album?.images, album:cur?.album?.name, name:cur?.name});
       });
       // e.g. no Widevine/DRM (some embedded or privacy browsers) — say so instead of "Connecting…" forever
       spotifyPlayer.addListener('initialization_error',()=>{
@@ -5236,7 +5236,7 @@ async function pollSpotifyRemote(){
     if(!r.ok) return;
     const d=await r.json(), it=d.item;
     if(!it) return;
-    const s={uris:[it.uri,it.linked_from?.uri].filter(Boolean), paused:!d.is_playing, position:d.progress_ms||0, duration:it.duration_ms||0, loading:false, images:it.album?.images, album:it.album?.name};
+    const s={uris:[it.uri,it.linked_from?.uri].filter(Boolean), paused:!d.is_playing, position:d.progress_ms||0, duration:it.duration_ms||0, loading:false, images:it.album?.images, album:it.album?.name, name:it.name};
     spRemoteLast={s,at:Date.now()};
     if(spotifyActive) onSpotifyState(s);
   }catch(e){}
@@ -5247,6 +5247,7 @@ setInterval(()=>{ if(spotifyActive&&spRemoteDevice()) pollSpotifyRemote(); },300
 function onSpotifyState(s){
   if(!spotifyActive) return;
   setSpotifyArt(s.images, s.album);
+  if(appMode==='local'&&chanVia==='spotify'&&s.name) showArtistSong(s.name);
   // Spotify moved on by itself (screen may be off): follow it instead of starting anything
   if(appMode!=='local' && packsSpQueue && followPacksSpotify(s.uris)) return;
   if(appMode==='local' && chanVia==='spotify' && followChanSpotify(s.uris)) return;
@@ -5430,6 +5431,7 @@ async function chanPlayApple(it,playTok){
 function amOnItem(){
   if(!amActive||!amQueue||amQueue.token!==chanPlayToken) return;
   const id=String(amMusic?.nowPlayingItem?.id||''); const q=amQueue.items.find(x=>x.id===id);
+  if(q&&q.idx===chanIdx) showArtistSong(amMusic.nowPlayingItem?.title||amMusic.nowPlayingItem?.attributes?.name);
   if(!q||q.idx===chanIdx) return;
   chanIdx=q.idx; chanSkips=0;
   const it=chanItems[chanIdx]; if(!it) return;
@@ -6794,6 +6796,7 @@ async function playChanItem(i,via,opts){
   if(via!=='spotify'&&via!=='apple') via='youtube';
   if(!opts?.fallback) chanWantVia=via;
   if(via==='spotify') spotifyUnlockAudio();
+  it._song=null;
   const token=++chanPlayToken;
   stopRadio(); stopChanPlayback();
   chanIdx=i; renderChanList();
@@ -6879,6 +6882,7 @@ async function ensureYtPlayer(){
             // an artist's uploads also hold interviews, trailers and vlogs: skip on to one that looks like a song
             else if(!ytLooksLikeSong()&&(curIt._ytSkips=(curIt._ytSkips||0)+1)<=8){ ytPlayer.nextVideo(); return; }
             else curIt._ytStart=pi;
+            if(curIt._ytStart===pi) showArtistSong(cleanVideoTitle(ytPlayer.getVideoData?.()?.title,curIt.name));
           }
           if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
           else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
@@ -6903,11 +6907,21 @@ async function chanPlayYouTube(it,token){
   const p=await ensureYtPlayer();
   if(token!==chanPlayToken) return;
   document.getElementById('ytContainer').classList.add('local-video');
-  if(it.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(it.youtube||'')){
+  if(it.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(it.youtube||'')&&!it._ytEmpty){
     // the artist's own uploads, long-form only ("UULF": no Shorts or live streams): no lookup (and no quota) needed
-    const list='UULF'+it.youtube.slice(2);
-    p.loadPlaylist({list,listType:'playlist',index:Math.floor(Math.random()*5)});
-    it._yt={list}; it._ytStart=null; it._ytSkips=0; // _ytStart is set when a song starts; moving off it = next artist
+    const load=prefix=>{
+      const list=prefix+it.youtube.slice(2);
+      p.loadPlaylist({list,listType:'playlist',index:prefix==='UULF'?Math.floor(Math.random()*5):0});
+      it._yt={list}; it._ytStart=null; it._ytSkips=0; // _ytStart is set when a song starts; moving off it = next artist
+    };
+    load('UULF');
+    // some channels have no long-form list: use all their uploads instead (the song check still skips Shorts)
+    // and if the channel has nothing playable at all, look the artist up like any other song
+    const check=(prefix,next)=>setTimeout(()=>{
+      if(token!==chanPlayToken||it._yt?.list!==prefix+it.youtube.slice(2)||(p.getPlaylist?.()||[]).length) return;
+      next();
+    },3500);
+    check('UULF',()=>{ load('UU'); check('UU',()=>{ it._ytEmpty=true; playChanItem(chanIdx,'youtube',{fallback:true}); }); });
     return;
   }
   const lookup=x=>mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
@@ -6918,6 +6932,7 @@ async function chanPlayYouTube(it,token){
   if(token!==chanPlayToken) return;
   if(!YT_ID.test(r.videoId||'')) throw Object.assign(new Error('No playable video found.'),{code:'not_found'});
   it._yt={id:r.videoId};
+  if(it.kind==='artist'&&r.title) it._song=cleanVideoTitle(r.title,it.name); // shown once playback starts
   if(rn&&YT_ID.test(rn.videoId||'')){
     nextIt._yt={id:rn.videoId};
     chanYtNext={idx:nextIdx,id:rn.videoId,token};
@@ -6992,8 +7007,8 @@ function startChanProgress(){
 function setChanNowPlaying(it,title,sub,via){
   const pl=localPoint?.place;
   const where=localChannel==='made'?'Made around '+(pl?.city||'the pin'):localChannel==='popular'?'Popular in '+(pl?.country||'this country'):(chanGenre||'Genre')+' mix · '+(pl?.country||'');
-  document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:it.name):'');
-  document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'?it.artist+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
+  document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:(it._song||it.name)):'');
+  document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'||it._song?(it.artist||it.name)+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
   const src=document.getElementById('npSource');
   const s2=it?(via==='spotify'||via==='apple'?via:'youtube'):null;
   src.innerHTML=s2?SOURCE_ICONS[s2]:''; src.title=s2?'Playing from '+SOURCE_LABELS[s2]:'';
@@ -7009,11 +7024,25 @@ function setChanNowPlaying(it,title,sub,via){
   yb.onclick=link?()=>window.open(link,'_blank','noopener'):null;
   updateSaveStationBtn();
 }
+// Made Here plays an artist: once we know which song is on, show it (player and lock screen)
+function showArtistSong(title){
+  const it=chanItems[chanIdx]; title=String(title||'').trim().slice(0,160);
+  if(!it||it.kind!=='artist'||!title||it._song===title) return;
+  it._song=title;
+  setChanNowPlaying(it,null,null,chanVia||'youtube'); setChanMediaSession(it);
+}
+// "Artist - Song (Official Video)" -> "Song"
+function cleanVideoTitle(t,artist){
+  const raw=String(t||''); let s=raw;
+  if(artist) s=s.replace(new RegExp('^\\s*'+artist.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[-–—:|]\\s*','i'),'');
+  s=s.replace(/\s*[(\[](official(\s+music)?(\s+(video|audio|lyric video|visuali[sz]er))?|lyrics?|lyric video|audio|hd|hq|4k|visuali[sz]er|remaster(ed)?[^)\]]*)[)\]]/gi,'');
+  return s.trim()||raw.trim();
+}
 function setChanMediaSession(it){
   if(!('mediaSession' in navigator)) return;
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
-      title:it.kind==='song'?it.title:it.name, artist:it.kind==='song'?it.artist:(it.genre||'Made Here'),
+      title:it.kind==='song'?it.title:(it._song||it.name), artist:it.kind==='song'?it.artist:(it._song?it.name:(it.genre||'Made Here')),
       album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:mmLogoArtwork()
     });
     navigator.mediaSession.setActionHandler('play',()=>chanToggle());

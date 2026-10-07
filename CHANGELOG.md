@@ -8,11 +8,15 @@
 - **Apple Music** (MusicKit): visitors sign in with their own Apple Account and play Local Listening songs (full songs with a subscription, 30-second previews without). Chart songs carry their Apple Music id, so the exact song plays and the rest of the list queues up behind it. The site owner adds a MusicKit key under **MusicMap → Settings → Apple Music**; the private key stays on the server and visitors only get day-long tokens locked to the site
 - **Spotify "Plays on"**: play through any of your Spotify apps (Spotify Connect) instead of the browser. On a phone, pick the Spotify app so music keeps going with the screen off; it also makes Spotify work where the browser player can't (iPhone)
 - If your chosen service doesn't have a song (or can't play here), that one song plays from YouTube and the next goes back to your choice
+- **Shuffle button** on Popular, Genre Mixes, Made Here and Radio: turning it on starts a random song or station, and next/previous (and the songs YouTube, Spotify or Apple Music move on to by themselves) follow the shuffled order. Remembered per channel; Made Here starts shuffled
+- **Song titles for Made Here**: while an artist plays, the player and lock screen show the actual song (from YouTube, Spotify or Apple Music) with "Artist · Made around …" underneath
 
 ### Fixed
 - **Spotify kept disconnecting**: after an hour the expired access token counted as "not connected", so a reload or mode change dropped you. The saved sign-in is now renewed automatically; only Spotify itself ending the sign-in signs you out (network blips no longer do), two tabs no longer fight over the renewal, and the browser player reconnects after sleep
 - **Spotify stopping after a song with the screen off**: the end of a song no longer races Spotify's own queue, and coming back to the page carries on (or resumes where it paused). If the phone won't start audio without a tap, the player says "Tap play to carry on" instead of pretending to play
 - **Location forgotten when switching modes**: live location is now one setting shared by both modes and remembered between visits (it switches back on by itself if the browser already allows it). Switching to Local Listening moves the pin to where you are; switching to Biome Beats finds your biome. Both modes take a fresh reading near the end of each track, as well as on the regular timer
+- Spotify's `ubi` tracking tag no longer stays in the page address after signing in
+- Made Here artists whose YouTube channel has no playable uploads are looked up by name instead of sitting silent
 - **YouTube playing Shorts and non-music videos**: song lookups now check the top five results, skip Shorts, interviews, trailers, reactions and similar, and prefer official audio and artist "Topic" channels (each new lookup costs 101 units instead of 100). Made Here plays an artist's long-form uploads only and skips anything that doesn't look like a song
 
 ## v1.4.1
