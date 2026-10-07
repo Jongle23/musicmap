@@ -1,6 +1,39 @@
 # MusicMap Changelog
 
-## v1.3 — Current
+## v1.4 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Popular**, **Made Here** and **Genre Mixes** channels are live:
+  - Popular: the country's 100 most-played songs (Apple Music charts), with album art
+  - Made Here: well-known artists born or formed near the pin (Wikidata), most famous first; only artists with a Spotify, YouTube or record-label presence
+  - Genre Mixes: the country's chart grouped into genre playlists (no Last.fm needed)
+- Songs play through YouTube's official player (the video shows while it plays; the next song starts when one ends); artists with a YouTube channel play their uploads without using any quota
+- A **Spotify** button on every song/artist row, shown only to visitors who connected Spotify
+- A **share** button on every channel row (stations, songs, artists, genre mixes): the link, built on tap, opens MusicMap at the same spot and channel with that item ready to play
+- Plugin routes `/wp-json/musicmap/v1/chart`, `/made` and `/resolve`, cached in the plugin's database for every visitor; a daily YouTube budget (Settings → YouTube usage shows today's use)
+- Credits list Apple Music charts and Wikidata
+
+### Fixed
+- **Seek bar out of sync**: Biome Beats timed tracks with a stopwatch from when it asked YouTube/Spotify to play, so buffering, ads and pauses made it drift. It now reads the real position from YouTube's player and from Spotify
+- **Pause restarted the track** in Biome Beats; it now resumes where it stopped
+- **Music stopping after a song with the screen off**: Spotify is now handed the upcoming queue (Biome Beats) or the next song is added to Spotify's own queue (channels), so Spotify moves on by itself; YouTube channels hand the player the current and next song; Biome Beats soundtracks keep playing into their next track while the screen is off (labels and the lock screen follow along), and the biome's shuffle resumes once that song ends
+- Biome Beats now uses YouTube's IFrame Player API (the same player as the channels) and has lock-screen controls
+
+### Changed
+- The MusicMap logo is now in the header (replacing the text title), the browser tab and home-screen icon, and is the lock-screen artwork fallback; the plugin serves crisp 192/512 px copies
+- Share, heart and Spotify buttons are now small icons inside each row, like the Biome Beats track list
+- The game-pack mode is now called **Biome Beats**, a nod to MusicMap's original name
+- The map and the first Local Listening spot default to Tampa, FL
+- The bottom tab bar no longer shows a scrollbar
+
+### Security
+- All channel data is validated server-side (country codes, coordinates, text lengths), upstream hosts are fixed, artwork only loads from Apple's image host, and YouTube video IDs are checked; the YouTube key never leaves the server
+- Shared links are validated before use and removed from the address bar
+
+---
+
+## v1.3
 **Release date:** 2026-10-05
 
 ### Added

@@ -83,6 +83,7 @@ class MusicMap_Shortcode {
 			// (add_query_arg() would drop the "=" for an empty value)
 			'shareApi' => esc_url_raw( home_url( '/' ) ) . ( false === strpos( home_url( '/' ), '?' ) ? '?' : '&' ) . 'mm_action=',
 			'restBase' => esc_url_raw( rest_url( 'musicmap/v1/' ) ),
+			'logoUrl'  => MUSICMAP_URL . 'assets/musicmap-logo-512.png', // header uses the 192px copy; lock screens the 512px one
 		);
 		$spotify = (string) MusicMap_Settings::get( 'spotify_client_id' );
 		if ( '' !== $spotify ) {

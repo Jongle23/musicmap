@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.3
+# 🎵 MusicMap v1.4
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -78,7 +78,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.3"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.4"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -116,18 +116,20 @@ AIs can't open Spotify links, so the Spotify prompt sorts songs you already have
 
 ---
 
-## 🔜 Coming Soon: Local Music Vibes Mode
+## 📻 Local Listening Mode
 
-**Started in v1.3:** the **Biome Packs | Local Listening** switch sits above the player. Local Listening has a draggable pin and live tracking, and the **Local Radio** channel works today. The other channels are next.
+Switch between **Biome Beats** (the game-pack mode — a nod to MusicMap's original name) and **Local Listening** with the control right above the player. Local Listening plays real-world music from wherever the listening pin is: drag it anywhere on the map, tap the map to jump there (playback switches right away), or turn on live tracking. It starts in Tampa, FL until you choose a spot.
 
-A second mode that plays real-world music from wherever you are instead of game packs. Drag the pin anywhere on the map, or turn on live tracking and let it follow you:
+Pick a channel from the sub-menu at the top of the **Channels** tab:
 
-- **Popular** — the most-played songs in that country right now (always labelled with the country)
-- **Made Here** — artists from that city or nearby, ranked by how well known they are
-- **Genre Mixes** — playlists built from the area's top genres
-- **Local Radio** — live stations broadcasting near the pin, which keep playing with the screen off
+- **Popular** — the country's 100 most-played songs right now (always labelled with the country)
+- **Made Here** — well-known artists born or formed near the pin, most famous first
+- **Genre Mixes** — the country's top songs grouped into genre playlists (Hip-Hop/Rap, Country, Pop…)
+- **Radio** — live stations broadcasting near the pin; keeps playing with the screen off
 
-It will use free data sources only (Apple Music charts, Last.fm, Wikidata, MusicBrainz, Radio Browser, YouTube's free quota), looked up through the same `musicmap-api.php` with server-side caching. Most-popular charts are country-level, because no free source has city-level charts; Made Here and Local Radio are city-level. An early prototype lives in `alpha/` and isn't part of the live app yet.
+Songs and artists play through YouTube (the video shows while it plays, as YouTube requires). Visitors who connected Spotify also get a Spotify button on every row. Every row has a **share** button: the link opens MusicMap at the same spot, on the same channel, with that item ready to play. Favourite stations and spots go in the **Saved** tab.
+
+Data comes from free sources only — Apple Music charts, Wikidata, Radio Browser and your free YouTube Data API key — fetched by the WordPress plugin and cached in its database for every visitor. Each new song costs 100 of YouTube's 10,000 free daily units (about 100 new songs a day); songs played before are free. Set the daily budget and see today's usage under **MusicMap → Settings**. Charts are country-level (no free source has city charts); Made Here and Radio are local. An early prototype of this mode lives in `alpha/`.
 
 ---
 

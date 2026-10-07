@@ -32,6 +32,7 @@
 
 #heroBanner::after{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none}
 .pack-eyebrow{font-family:var(--pixel);font-size:7px;letter-spacing:2px;margin-bottom:4px;opacity:.85;position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--accent2,#aaa);text-align:center}
+.mm-logo{display:block;width:76px;height:76px;border-radius:18px;image-rendering:pixelated;box-shadow:0 6px 18px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.12)}
 .pack-eyebrow-title{font-family:var(--pixel);font-size:clamp(14px,4vw,20px);color:#fff;letter-spacing:2px;text-shadow:2px 2px 0 rgba(0,0,0,.5);line-height:1.2}
 .pack-eyebrow-tagline{font-size:10px;color:rgba(255,255,255,.55);font-family:var(--sans);letter-spacing:.5px;font-style:italic;font-weight:300}
 .pack-eyebrow-name{display:flex;align-items:center;gap:8px;padding:9px 18px;border-radius:100px;border:1.5px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:all .2s;margin-top:0}
@@ -153,7 +154,9 @@
 .ic-lg{width:20px;height:20px}
 
 /* tabs */
-.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-top:16px;overflow-x:auto;gap:0}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-top:16px;overflow:visible;gap:0}
+/* four equal tabs always fit, so no scrolling (overflow-x:auto also produced a stray vertical scrollbar) */
+.tab-bar .tab-btn{flex:1 1 0;min-width:0}
 .tab-btn{font-family:var(--pixel);font-size:7px;padding:9px 11px;border:none;background:none;color:var(--muted);cursor:pointer;letter-spacing:1px;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .tab-btn .tab-icon{width:18px;height:18px}
 .tab-btn:hover{color:#fff}
@@ -384,10 +387,16 @@
 .mi-tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
 .mi-pane{display:none}
 .mi-pane.active{display:block}
-/* ── Mode: Biome Packs vs Local Listening (class on #geovibes-app) ── */
+/* ── Mode: Biome Beats vs Local Listening (class on #geovibes-app) ── */
 #geovibes-app.mode-local .packs-only{display:none!important}
 #geovibes-app.mode-packs .local-only{display:none!important}
-#geovibes-app.mode-local #ytContainer{display:none!important}
+/* Local Listening: the pack iframe never shows; the channel YouTube player shows while it plays
+   (YouTube requires a visible player of at least 200x200) */
+#geovibes-app.mode-local #ytContainer:not(.local-video){display:none!important}
+#geovibes-app.mode-local #ytContainer.local-video{display:block!important}
+#geovibes-app.mode-local #spArt{display:none!important}
+#ytFrameA{display:none!important} /* legacy embed; both modes now use the YouTube IFrame API player */
+#localYtWrap iframe{min-height:200px}
 .mode-switch{display:flex;gap:4px;width:100%;max-width:520px;box-sizing:border-box;padding:4px;margin:0 0 12px;border-radius:16px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);position:relative;z-index:1}
 .mode-opt{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;min-height:44px;border:none;border-radius:12px;background:none;color:rgba(255,255,255,.7);font-size:13px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .mode-opt .ic{width:18px;height:18px}
@@ -434,11 +443,20 @@
 .settings-collapse-count{font-size:11px;color:var(--muted)}
 .settings-collapse-chev{margin-left:auto;color:var(--muted);transition:transform .2s}
 .settings-collapse[open] .settings-collapse-chev{transform:rotate(180deg)}
-.local-row-wrap{display:flex;gap:6px;align-items:stretch}
-.local-row-wrap .local-item{flex:1;min-width:0}
-.heart-btn{flex-shrink:0;width:52px;min-height:56px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.heart-btn .ic{width:20px;height:20px}
-.heart-btn.on{color:#f472b6;border-color:rgba(244,114,182,.45)}
+.local-row-wrap{display:flex;gap:2px;align-items:center;padding-right:6px;border-radius:12px;border:1px solid var(--border);background:var(--surface)}
+.local-row-wrap:has(.local-item.active){border-color:var(--accent2);background:rgba(255,255,255,.06)}
+.local-row-wrap .local-item{flex:1;min-width:0;border:none;background:none}
+.row-btn{flex-shrink:0;width:34px;height:34px;border-radius:8px;border:1px solid transparent;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.row-btn:hover{border-color:var(--border);background:rgba(255,255,255,.06);color:#fff}
+.row-btn .ic,.row-btn .src-ic{width:16px;height:16px}
+.row-btn:focus-visible,.heart-btn:focus-visible{outline:2px solid var(--accent2);outline-offset:1px}
+.local-item-art{flex-shrink:0;width:40px;height:40px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,.08)}
+.local-item-rank{flex-shrink:0;width:22px;text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
+.local-back{display:flex;align-items:center;gap:6px;min-height:40px;padding:4px 2px;border:none;background:none;color:var(--accent2);font-size:12px;cursor:pointer}
+.heart-btn{flex-shrink:0;width:34px;height:34px;border-radius:8px;border:1px solid transparent;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.heart-btn:hover{border-color:var(--border);background:rgba(255,255,255,.06)}
+.heart-btn .ic{width:16px;height:16px}
+.heart-btn.on{color:#f472b6}
 .heart-btn.on svg path{fill:currentColor}
 .hero-ctrl-btn.ghost.saved{color:#f472b6}
 .hero-ctrl-btn.ghost.saved svg path{fill:currentColor}
