@@ -9,6 +9,7 @@
 - **Spotify "Plays on"**: play through any of your Spotify apps (Spotify Connect) instead of the browser. On a phone, pick the Spotify app so music keeps going with the screen off; it also makes Spotify work where the browser player can't (iPhone)
 - If your chosen service doesn't have a song (or can't play here), that one song plays from YouTube and the next goes back to your choice
 - **Shuffle button** on Popular, Genre Mixes, Made Here and Radio: turning it on starts a random song or station, and next/previous (and the songs YouTube, Spotify or Apple Music move on to by themselves) follow the shuffled order. Remembered per channel; Made Here starts shuffled
+- **Loading animations** so it's clear the player is still working: a spinning ring on the play button and a sweep across the seek bar while a song, station, channel or biome is starting (cleared once it plays, fails or pauses, and never left spinning); a spinner with placeholder rows while a channel list loads after changing location or channel; spinners for finding the place name, Spotify connecting, finding your Spotify apps, loading Apple Music, share codes, pack imports and Spotify searches
 - **Song titles for Made Here**: while an artist plays, the player and lock screen show the actual song (from YouTube, Spotify or Apple Music) with "Artist · Made around …" underneath
 
 ### Fixed
@@ -16,6 +17,7 @@
 - **Spotify stopping after a song with the screen off**: the end of a song no longer races Spotify's own queue, and coming back to the page carries on (or resumes where it paused). If the phone won't start audio without a tap, the player says "Tap play to carry on" instead of pretending to play
 - **Location forgotten when switching modes**: live location is now one setting shared by both modes and remembered between visits (it switches back on by itself if the browser already allows it). Switching to Local Listening moves the pin to where you are; switching to Biome Beats finds your biome. Both modes take a fresh reading near the end of each track, as well as on the regular timer
 - Spotify's `ubi` tracking tag no longer stays in the page address after signing in
+- Switching from Local Listening to Biome Beats no longer leaves the pause icon showing when nothing plays
 - **Spotify channels playing one song and stopping**: Spotify accepts "add to queue" requests but doesn't reliably play them. Channels now hand Spotify the current song plus the next 15 in play order (shuffled or not) as one list, like Biome Beats, so it plays on by itself for about an hour, screen off or not
 - Made Here artists whose YouTube channel has no playable uploads are looked up by name instead of sitting silent
 - **YouTube playing Shorts and non-music videos**: song lookups now check the top five results, skip Shorts, interviews, trailers, reactions and similar, and prefer official audio and artist "Topic" channels (each new lookup costs 101 units instead of 100). Made Here plays an artist's long-form uploads only and skips anything that doesn't look like a song

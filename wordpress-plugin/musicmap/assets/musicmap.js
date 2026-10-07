@@ -1684,7 +1684,7 @@ async function confirmShare(){
   // Switch to result view BEFORE async work — keep modal open
   document.getElementById('sharePrivacyBox').style.display='none';
   document.getElementById('shareResultBox').style.display='block';
-  document.getElementById('shareCodeDisplay').textContent='Generating…';
+  busyText(document.getElementById('shareCodeDisplay'),'Generating…');
   document.getElementById('copyFlash').textContent='';
 
   let code;
@@ -1781,7 +1781,7 @@ async function importFromCode(){
   const flash=document.getElementById('importFlash');
   if(!raw){flash.textContent='Paste a share code or JSON first.';return;}
 
-  flash.textContent='⏳ Loading…';
+  busyText(flash,'Loading…');
   let pack=null;
 
   if(raw.startsWith('{')){
@@ -2095,7 +2095,7 @@ async function playCurrentTrack(useFade){
   const t=allTracks[tIdx];
   if(!t)return;
   const token=++packsPlayToken;
-  stopPacksTicker();
+  stopPacksTicker(); setPlayerBusy(true);
   // Spotify path: hand Spotify the whole upcoming queue, so it keeps playing with the screen off
   if(t.spotifyUri && spotifyCanPlay() && (preferredPlatform()!=='youtube' || !t.videoId)){
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
@@ -2119,7 +2119,7 @@ async function playCurrentTrack(useFade){
   if(t.spotifyUri && !t.videoId){
     isPlaying=false;
     if(ytPlayer?.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
-    setPlayIcon(false); stopProgress();
+    setPlayIcon(false); stopProgress(); setPlayerBusy(false);
     document.getElementById('playingBars').style.display='none';
     if(isSpotifyConnected() && !spotifyCanPlay()) spotifyShowSnack(spotifyWhyNot());
     else if(isSpotifyConnected()) spotifyShowSnack('Spotify could not play this track.');
@@ -2129,19 +2129,20 @@ async function playCurrentTrack(useFade){
   // YouTube: the IFrame API player, started at the track's timestamp. No end time is set, so with
   // the screen off the soundtrack simply carries on into its next track instead of stopping.
   const vid=t.videoId||pack.videoId;
-  if(!YT_ID.test(vid||'')){ spotifyShowSnack('This track has no playable video.'); return; }
+  if(!YT_ID.test(vid||'')){ setPlayerBusy(false); spotifyShowSnack('This track has no playable video.'); return; }
   try{
     const p=await ensureYtPlayer();
     if(token!==packsPlayToken) return;
     p.loadVideoById({videoId:vid, startSeconds:Math.max(0,Number(t.start)||0)});
     packsYtTrack={key:vid+'@'+t.start, vid, start:Number(t.start)||0, dur:Number(t.dur)||0};
-  }catch(e){ spotifyShowSnack('YouTube could not load. Check your connection.'); return; }
-  setPlayIcon(true);
+  }catch(e){ setPlayerBusy(false); spotifyShowSnack('YouTube could not load. Check your connection.'); return; }
+  setPlayIcon(true); setPlayerBusy(true); // spins until YouTube actually starts
   document.getElementById('playingBars').style.display='flex';
   setPacksMediaSession(t);
   startPacksTicker(t);
 }
 async function pauseTrack(){
+  setPlayerBusy(false);
   if(spotifyActive){
     await spotifyPausePlayback();
   } else if(ytPlayer?.pauseVideo){
@@ -2197,7 +2198,18 @@ function prevTrack(){
   currentTrackPlayIdx=(currentTrackPlayIdx-1+t.length)%t.length;
   renderTrackList();updateNowPlaying();if(isPlaying)playCurrentTrack(true);
 }
-function setPlayIcon(p){document.getElementById('playBtn').innerHTML=p?ic('pause'):ic('play');}
+function setPlayIcon(p){document.getElementById('playBtn').innerHTML=p?ic('pause'):ic('play'); if(p) setPlayerBusy(false);}
+// The player is working on something (starting a song or station, loading a channel or biome).
+// Cleared when playback starts, fails, pauses or stops; never left spinning longer than 20 seconds.
+let playerBusyTimer=null;
+function setPlayerBusy(on){
+  document.getElementById('geovibes-app')?.classList.toggle('player-busy',!!on);
+  document.getElementById('playBtn')?.setAttribute('aria-busy',on?'true':'false');
+  clearTimeout(playerBusyTimer);
+  if(on) playerBusyTimer=setTimeout(()=>setPlayerBusy(false),20000);
+}
+// A status line that is waiting on something: spinner + text (text is escaped)
+function busyText(el,text){ if(el) el.innerHTML='<span class="mm-busy-text"><span class="mm-spinner" aria-hidden="true"></span><span>'+esc(text)+'</span></span>'; }
 function toggleVideo(){
   videoVisible=!videoVisible;
   document.getElementById('ytContainer').style.display=videoVisible?'block':'none';
@@ -3628,7 +3640,7 @@ function renderMiVideoList(){
       info.innerHTML='<div class="pe-video-id" style="display:flex;align-items:center;gap:6px">'+SOURCE_ICONS.spotify+'<span>'+esc(v.title)+'</span></div>'
         +'<div class="pe-video-track-count">Spotify '+esc(v.kind)+' · '+v.tracks.length+' song'+(v.tracks.length!==1?'s':'')+'</div>';
     } else
-    info.innerHTML='<div class="pe-video-id">'+(v.type==='playlist'?'Playlist: ':'')+esc(v.title)+'</div>'
+    info.innerHTML='<div class="pe-video-id">'+(v.title==='Loading…'?'<span class="mm-spinner" aria-hidden="true"></span> ':'')+(v.type==='playlist'?'Playlist: ':'')+esc(v.title)+'</div>'
       +'<div class="pe-video-track-count">'+(v.type==='playlist'?'Playlist · '+(v.tracks.length||0)+' tracks imported':v.videoId+' · '+(v.tracks.length||0)+' tracks')+'</div>';
     const del=document.createElement('button');
     del.className='pill-btn'; del.style.color='var(--red)'; del.innerHTML=ic('trash','ic-sm')+' Remove';
@@ -3810,7 +3822,7 @@ async function miDoImport(){
   const raw=document.getElementById('miImportInput').value.trim();
   const flash=document.getElementById('miImportFlash');
   if(!raw){flash.textContent='Paste a code or JSON first.';return;}
-  flash.textContent='⏳ Loading…';
+  busyText(flash,'Loading…');
   let pack=null;
 
   if(raw.startsWith('{')){
@@ -4462,7 +4474,7 @@ function updateSpotifySettingsUI(){
       ? '<span style="color:var(--green)">● Connected & ready</span>'
       : spotifyInitFailed
         ? '<span style="color:var(--red)">● Signed in, but this browser can’t play Spotify</span>'
-        : '<span style="color:var(--yellow)">● Connecting…</span>';
+        : '<span class="mm-busy-text" style="color:var(--yellow)"><span class="mm-spinner" aria-hidden="true"></span>Connecting…</span>';
   } else {
     btn.textContent='Connect';
     btn.onclick=spotifyLogin;
@@ -4508,7 +4520,7 @@ async function appleConnect(){
   try{
     if(!amMusic){
       // the sign-in window must open straight from a tap: load first, then ask for one more tap
-      if(msg) msg.textContent='Loading Apple Music…';
+      busyText(msg,'Loading Apple Music…');
       await amLoad();
       if(msg) msg.textContent='Ready. Tap Connect again to sign in.';
       return;
@@ -4622,6 +4634,10 @@ function setPreferredPlatform(v){
 }
 let spDeviceList=[];
 async function loadSpotifyDevices(announce){
+  const btn=document.querySelector('#spotifyDeviceRow button'); btn?.setAttribute('aria-busy','true');
+  try{ await loadSpotifyDevicesNow(announce); } finally { btn?.setAttribute('aria-busy','false'); }
+}
+async function loadSpotifyDevicesNow(announce){
   const token=await getValidSpotifyToken(); if(!token) return;
   try{
     const r=await fetch('https://api.spotify.com/v1/me/player/devices',{headers:{'Authorization':'Bearer '+token}});
@@ -4768,9 +4784,9 @@ async function miAddSpotify(sp, raw){
   if(miVideos.find(v=>v.type==='spotify'&&v.spotifyId===sp.id)){ status.textContent='Already added'; return; }
   const token=await getValidSpotifyToken();
   if(!token){ status.textContent='Your Spotify sign-in expired. Reconnect in Settings.'; status.className='url-status err'; return; }
-  status.textContent='Reading Spotify '+sp.kind+'…'; status.className='url-status';
+  busyText(status,'Reading Spotify '+sp.kind+'…'); status.className='url-status';
   try{
-    const got=await spotifyFetchLink(sp,token,n=>{ status.textContent='Reading Spotify '+sp.kind+'… '+n+' songs'; });
+    const got=await spotifyFetchLink(sp,token,n=>{ busyText(status,'Reading Spotify '+sp.kind+'… '+n+' songs'); });
     if(!got.tracks.length){ status.textContent='No playable songs found in that link.'; status.className='url-status err'; return; }
     miVideos.push({type:'spotify', kind:sp.kind, spotifyId:sp.id, title:String(got.title).slice(0,80), owner:String(got.owner||'').slice(0,60), tracks:got.tracks});
     const nameEl=document.getElementById('miPackName');
@@ -4829,7 +4845,7 @@ async function doSpotifySearch(){
   const statusEl=document.getElementById('spSearchStatus');
   const listEl=document.getElementById('spPickerList');
   if(!isSpotifyConnected()){ statusEl.textContent='Connect Spotify in Settings first.'; return; }
-  statusEl.textContent='Searching…'; listEl.innerHTML='';
+  busyText(statusEl,'Searching…'); listEl.innerHTML='';
   const token=await getValidSpotifyToken();
   if(!token){ statusEl.textContent='Token expired — please reconnect.'; return; }
   try{
@@ -4984,6 +5000,7 @@ async function setAppMode(mode){
     stopRadio();
     stopChanPlayback();
     clearMediaSession();
+    if(!isPlaying){ setPlayIcon(false); document.getElementById('playingBars').style.display='none'; } // radio/channel icons don't carry over
     document.querySelector('.hero-progress')?.classList.remove('live');
     renderListenPin();
     updateNowPlaying(); renderLocGrid(); renderTrackList();
@@ -4994,7 +5011,7 @@ function enterLocalMode(fromSwitch){
   // live location is on: listen from where you are (from the last fix right away; the next poll refines it)
   if(trackingActive&&lastLat!==null&&(!localPoint||localPoint.source!=='gps'||dist(localPoint.lat,localPoint.lon,lastLat,lastLon)>500)){
     setListenPoint(lastLat,lastLon,'gps',{force:true});
-    setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · near you');
+    setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · near you'); setPlayerBusy(true);
     return;
   }
   renderLocalHeader(); renderListenPin(); updateSaveSpotBtn();
@@ -5010,7 +5027,7 @@ function enterLocalMode(fromSwitch){
   }
   if(localPoint){
     // never leave pack text in the player while the channel loads
-    setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+(placeLabel(localPoint.place)||'near the pin'));
+    setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+(placeLabel(localPoint.place)||'near the pin')); setPlayerBusy(true);
     loadLocalChannel();
   }
   else {
@@ -5020,7 +5037,7 @@ function enterLocalMode(fromSwitch){
       localPoint={lat:DEFAULT_SPOT.latlng[0], lon:DEFAULT_SPOT.latlng[1], source:'pin', place:{...DEFAULT_SPOT.place}};
       ss('localPoint',localPoint);
       renderLocalHeader(); renderListenPin(); updateSaveSpotBtn();
-      setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+placeLabel(localPoint.place));
+      setLocalNowPlaying(localChannel==='radio'?'Finding stations…':'Loading channel…','Local Listening · '+placeLabel(localPoint.place)); setPlayerBusy(true);
       loadLocalChannel();
     }
   }
@@ -5034,6 +5051,7 @@ function setListenPoint(lat,lon,source,opts){
   localPoint={lat:+lat.toFixed(5), lon:+lon.toFixed(5), source:source==='gps'?'gps':'pin', place:moved<1500?prev.place:null};
   ss('localPoint',localPoint);
   renderListenPin(); renderLocalHeader(); updateSaveSpotBtn();
+  if(appMode==='local'&&(moved>2000||opts?.force)) renderLocalLoading(localChannel==='radio'?'Finding stations near the new spot…':'Moving to the new spot…');
   clearTimeout(localGeoTimer);
   // wait for the pin to settle before looking anything up (Nominatim allows ~1 request/second)
   localGeoTimer=setTimeout(async()=>{
@@ -5107,7 +5125,8 @@ function renderLocalHeader(){
   const nameEl=document.getElementById('localPlaceName'), subEl=document.getElementById('localPlaceSub');
   if(!nameEl) return;
   const pl=localPoint?.place;
-  nameEl.textContent=!localPoint?'Choose a spot':(placeLabel(pl)||'Finding place…');
+  if(localPoint&&!placeLabel(pl)) busyText(nameEl,'Finding place…');
+  else nameEl.textContent=!localPoint?'Choose a spot':placeLabel(pl);
   subEl.textContent=!localPoint?'':
     [pl?.country||'', localPoint.source==='gps'?'Live tracking':'Pinned spot'].filter(Boolean).join(' · ');
   renderChannelTabs();
@@ -5142,6 +5161,14 @@ function selectLocalChannel(id){
 function renderLocalNote(html){
   const list=document.getElementById('localList'); if(!list) return;
   list.innerHTML='<div class="local-note">'+html+'</div>'; // only ever called with app-written text
+  if(!chanPlaying&&!localPlaying) setPlayerBusy(false);
+}
+// The list is loading (new spot or channel): spinner, what we're doing, and placeholder rows
+function renderLocalLoading(html){
+  const list=document.getElementById('localList'); if(!list) return;
+  list.innerHTML='<div class="local-note local-loading" role="status"><span class="mm-spinner" aria-hidden="true"></span><span>'+html+'</span></div>'
+    +'<div class="skel-row" aria-hidden="true"></div>'.repeat(4); // only ever called with app-written text
+  if(!chanPlaying&&!localPlaying) setPlayerBusy(true);
 }
 async function loadLocalChannel(opts){
   const title=document.getElementById('localListTitle');
@@ -5153,7 +5180,7 @@ async function loadLocalChannel(opts){
   title.textContent='STATIONS NEAR '+(pl?.city||'THE PIN').toUpperCase();
   if(!localPoint){ renderLocalNote('Choose a spot first: tap <b>Move pin</b>.'); return; }
   const token=++localLoadToken;
-  renderLocalNote('Finding stations near <b>'+where+'</b>…');
+  renderLocalLoading('Finding stations near <b>'+where+'</b>…');
   const stations=await fetchStationsNear(localPoint.lat,localPoint.lon);
   if(token!==localLoadToken) return; // the pin moved again meanwhile
   if(opts?.switchNow){
@@ -5183,7 +5210,7 @@ async function loadLocalChannel(opts){
   if(stations===null){ renderLocalNote('Could not reach the radio directory. Check your connection and try again.'); return; }
   if(!localStations.length){ renderLocalNote('No stations found within '+fmtDist(200)+' of <b>'+where+'</b>. Try moving the pin.'); return; }
   renderLocalList();
-  if(!localPlaying) setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station');
+  if(!localPlaying){ setLocalNowPlaying(localStations.length+' stations near '+(placeLabel(pl)||'the pin'),'Tap play or pick a station'); setPlayerBusy(false); }
   applyPendingShare();
   if(opts?.autoplay && !localPlaying) playStation(radOrder[0]??0);
 }
@@ -5261,11 +5288,11 @@ function ensureRadioAudio(){
   if(radioAudio) return radioAudio;
   radioAudio=new Audio(); radioAudio.preload='none';
   radioAudio.addEventListener('playing',()=>{ localPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; updateLocalSub(); renderLocalList(); });
-  radioAudio.addEventListener('waiting',()=>updateLocalSub('Buffering…'));
-  radioAudio.addEventListener('pause',()=>{ localPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderLocalList(); });
+  radioAudio.addEventListener('waiting',()=>{ updateLocalSub('Buffering…'); setPlayerBusy(true); });
+  radioAudio.addEventListener('pause',()=>{ localPlaying=false; setPlayIcon(false); setPlayerBusy(false); document.getElementById('playingBars').style.display='none'; renderLocalList(); });
   radioAudio.addEventListener('error',()=>{
     if(!radioAudio.getAttribute('src')) return;
-    localPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none';
+    localPlaying=false; setPlayIcon(false); setPlayerBusy(false); document.getElementById('playingBars').style.display='none';
     updateLocalSub('This station isn’t working right now. Try the next one.');
     renderLocalList();
   });
@@ -5278,8 +5305,9 @@ function playStation(i){
   const at=radOrder.indexOf(i); if(at>=0) radOrderPos=at; // keep the play order in step with taps
   const a=ensureRadioAudio();
   a.src=st.url;
-  a.play().catch(()=>{ updateLocalSub('Tap play to start'); });
+  a.play().catch(()=>{ updateLocalSub('Tap play to start'); setPlayerBusy(false); });
   setLocalNowPlaying(st.name,'Local Radio · '+(placeLabel(localPoint?.place)||'near the pin'));
+  setPlayerBusy(true); // until the stream starts
   const yb=document.getElementById('npYtBtn');
   yb.disabled=!st.homepage; yb.title='Station website'; yb.setAttribute('aria-label','Station website');
   yb.onclick=st.homepage?()=>window.open(st.homepage,'_blank','noopener'):null;
@@ -5290,6 +5318,7 @@ function playStation(i){
 }
 function stopRadio(){
   if(!radioAudio) return;
+  setPlayerBusy(false);
   radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load();
   localPlaying=false;
 }
@@ -5688,6 +5717,7 @@ function followPacksYouTube(cur){
 // (the ticker follows it), then the biome's own shuffle carries on at that boundary.
 function packsYtState(e){
   if(e.data===YT.PlayerState.PLAYING){ isPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; }
+  else if(e.data===YT.PlayerState.BUFFERING&&isPlaying) setPlayerBusy(true);
   else if(e.data===YT.PlayerState.PAUSED&&document.visibilityState==='visible'&&!isPlaying){ setPlayIcon(false); }
   else if(e.data===YT.PlayerState.ENDED&&isPlaying){ nextTrack(); } // the whole video finished
 }
@@ -5797,7 +5827,7 @@ async function loadSongChannel(opts){
   try{
     if(localChannel==='made'){
       title.textContent='MADE AROUND '+(pl?.city||'THE PIN').toUpperCase();
-      renderLocalNote('Finding artists from around <b>'+esc(placeLabel(pl)||'this spot')+'</b>…');
+      renderLocalLoading('Finding artists from around <b>'+esc(placeLabel(pl)||'this spot')+'</b>…');
       const d=await getMade(localPoint.lat,localPoint.lon);
       if(token!==localLoadToken) return;
       if(!d.artists.length) return fail('No well-known artists found within '+fmtDist(d.radius_km||80)+' of '+(placeLabel(pl)||'that spot')+'.');
@@ -5808,7 +5838,7 @@ async function loadSongChannel(opts){
       if(!cc){
         if(!pl){
           // place not looked up yet (e.g. opened from a shared link): look it up, then load
-          renderLocalNote('Finding where the pin is…');
+          renderLocalLoading('Finding where the pin is…');
           const pt=localPoint, place=await localGeocode(pt.lat,pt.lon);
           if(token!==localLoadToken||localPoint!==pt) return;
           if(place){ pt.place=place; ss('localPoint',pt); renderLocalHeader(); return loadSongChannel(opts); }
@@ -5817,7 +5847,7 @@ async function loadSongChannel(opts){
         return fail('That spot isn’t in a country with music charts.');
       }
       title.textContent=(localChannel==='popular'?'POPULAR IN ':'GENRE MIXES · ')+(pl.country||cc).toUpperCase();
-      renderLocalNote('Loading the chart for <b>'+esc(pl.country||cc.toUpperCase())+'</b>…');
+      renderLocalLoading('Loading the chart for <b>'+esc(pl.country||cc.toUpperCase())+'</b>…');
       const d=await getChart(cc);
       if(token!==localLoadToken) return;
       if(localChannel==='popular') setChanList(d.songs.map(x=>({kind:'song',...x})), d, opts);
@@ -5850,6 +5880,7 @@ function setChanList(items, data, opts, keepGenre){
   applyPendingShare();
 }
 function setLocalIdle(){
+  setPlayerBusy(false);
   const pl=localPoint?.place;
   const n=chanItems.length;
   const what=localChannel==='made'?n+' artists from around '+(placeLabel(pl)||'the pin')
@@ -5927,6 +5958,7 @@ function openMix(genre,autoplay){
 
 // ── Playback ──
 function stopChanPlayback(){
+  setPlayerBusy(false);
   clearInterval(chanProgTimer); chanProgTimer=null;
   stopPacksTicker();
   if(ytPlayer&&ytPlayer.stopVideo) try{ ytPlayer.stopVideo(); }catch(e){}
@@ -5948,7 +5980,7 @@ async function playChanItem(i,via,opts){
   stopRadio(); stopChanPlayback();
   chanIdx=i; renderChanList();
   const at=chanOrder.indexOf(i); if(at>=0) chanOrderPos=at; // keep the shuffle position in step
-  setChanNowPlaying(it,null,'Loading…',via);
+  setChanNowPlaying(it,null,'Loading…',via); setPlayerBusy(true);
   try{
     if(via==='spotify') await chanPlaySpotify(it,token);
     else if(via==='apple') await chanPlayApple(it,token);
@@ -5959,11 +5991,11 @@ async function playChanItem(i,via,opts){
     setChanMediaSession(it);
     if(via==='youtube') setTimeout(()=>{
       // browsers may block playback that starts after a network wait; one more tap fixes it
-      if(token===chanPlayToken&&chanStartedToken!==token) document.getElementById('npGame').textContent='Tap play to start';
+      if(token===chanPlayToken&&chanStartedToken!==token){ document.getElementById('npGame').textContent='Tap play to start'; setPlayerBusy(false); }
     },3000);
   }catch(e){
     if(token!==chanPlayToken) return;
-    chanPlaying=false; setPlayIcon(false);
+    chanPlaying=false; setPlayIcon(false); setPlayerBusy(false);
     const msg=e.message||'Could not play this.';
     // Spotify/Apple Music doesn't have it (or can't play here): this one plays from YouTube instead
     if(via!=='youtube'&&(e.code==='not_found'||e.code==='cant_play')){
@@ -6032,14 +6064,15 @@ async function ensureYtPlayer(){
             if(curIt._ytStart===pi) showArtistSong(cleanVideoTitle(ytPlayer.getVideoData?.()?.title,curIt.name));
           }
           if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
-          else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
+          else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); setPlayerBusy(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
+          else if(e.data===YT.PlayerState.BUFFERING&&chanStartedToken===chanPlayToken) setPlayerBusy(true);
           else if(e.data===YT.PlayerState.ENDED){
             chanPlaying=false;
             if(chanStartedToken!==chanPlayToken) return; // never actually started: don't skip ahead
             chanStep(1);
           }
         },
-        onError:()=>{ if(appMode!=='local'){ if(isPlaying) nextTrack(); return; } chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
+        onError:()=>{ setPlayerBusy(false); if(appMode!=='local'){ if(isPlaying) nextTrack(); return; } chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
       }
     });
   });
