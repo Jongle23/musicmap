@@ -1865,7 +1865,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.11.5';
+const MM_VERSION = '1.12';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6847,12 +6847,15 @@ function buildShareLink(params){
   if(params.ch!=='song'&&Number.isFinite(lat)&&Number.isFinite(lon)){ u.searchParams.set('ml_lat',lat.toFixed(4)); u.searchParams.set('ml_lon',lon.toFixed(4)); }
   u.searchParams.set('ml_ch',params.ch);
   ['st','t','a','g','v'].forEach(k=>{ if(params[k]) u.searchParams.set('ml_'+k,String(params[k]).slice(0,160)); });
+  // names for the link preview (the site writes "Listen to <n> near <p>"; the app itself ignores them)
+  ['n','p'].forEach(k=>{ if(params[k]) u.searchParams.set('ml_'+k,String(params[k]).slice(0,80)); });
   return u.toString();
 }
 async function shareListen(params,label){
   if(params.ch!=='song'&&!localPoint&&!Number.isFinite(params.lat)) return;
-  const url=buildShareLink(params);
   const where=params.where||placeLabel(params.place!==undefined?params.place:localPoint?.place)||'this spot'; // a saved station: where it was saved
+  const url=buildShareLink(params.ch==='song'?params:{...params,
+    n:params.spot?'':label, p:params.spot?label:(where!=='this spot'?where:'')});
   const text=params.ch==='song'?'Listen to '+label+' on MusicMap'
     :params.spot?'Listen around '+label+' on MusicMap'
     :'Listen to '+label+' near '+where+' on MusicMap';
@@ -6871,7 +6874,7 @@ function readShareLink(){
   const lat=Number(q.get('ml_lat')), lon=Number(q.get('ml_lon')), ch=q.get('ml_ch');
   const vals={}; ['st','t','a','g','v'].forEach(k=>vals[k]=(q.get('ml_'+k)||'').slice(0,160)); // read before tidying the address
   const clean=k=>vals[k];
-  ['ml_lat','ml_lon','ml_ch','ml_st','ml_t','ml_a','ml_g','ml_v'].forEach(k=>q.delete(k));
+  ['ml_lat','ml_lon','ml_ch','ml_st','ml_t','ml_a','ml_g','ml_v','ml_n','ml_p'].forEach(k=>q.delete(k));
   history.replaceState({},'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
   // a single shared song: no place needed, it opens as a one-song list ready to play
   if(ch==='song'){

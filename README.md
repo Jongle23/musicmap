@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.11.5
+# 🎵 MusicMap v1.12
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -78,7 +78,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.11.5"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.12"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -160,6 +160,7 @@ musicmap.html       — The full app (single file, self-contained) — the sourc
 wordpress-plugin/   — The MusicMap WordPress plugin ([musicmap] shortcode, settings, data, API)
 tools/              — build_plugin.py: builds the plugin's assets (and zip) from musicmap.html
                       bump_version.py: sets the version everywhere (`patch` for fixes, `minor` for features)
+                      make_share_card.py: redraws the link-preview image (needs Pillow)
 dist/musicmap.zip   — Ready-to-upload plugin zip (rebuilt with tools/build_plugin.py --zip)
 musicmap-api.php    — Legacy standalone share-code snippet (WPCode / PHP Snippets)
 CHANGELOG.md        — Version history

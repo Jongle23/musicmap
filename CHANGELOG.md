@@ -1,6 +1,13 @@
 # MusicMap Changelog
 
-## v1.11.5 — Current
+## v1.12 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Link previews**: links to the MusicMap page now show a proper preview card in chats and social apps (iMessage, WhatsApp, Discord, Facebook, X…), with a 1200×630 MusicMap image. Share links get their own text: "♪ Song — Artist", "Listen to 95.7 WDAE near Tampa, Florida", "Listen around Jacksonville, Florida". Share links now carry the item and place names for this (the app ignores them). Text from links is length-limited, stripped of tags, kept inside a fixed sentence and escaped. If an SEO plugin (Yoast, Rank Math…) handles the page's tags, MusicMap only steps in for share links
+- `tools/make_share_card.py` redraws the preview image
+
+## v1.11.5
 **Release date:** 2026-10-07
 
 ### Changed
