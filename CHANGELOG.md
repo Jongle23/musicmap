@@ -1,6 +1,44 @@
 # MusicMap Changelog
 
-## v1.2.1 — Current
+## v1.3 — Current
+**Release date:** 2026-10-05
+
+### Added
+- **Local Listening mode**, switched with the new **Biome Packs | Local Listening** control right above the player
+- A draggable listening pin on the Map (or tap the map to move it); **Listen to World** live tracking moves it as you go
+- Channels for the pin's location: **Local Radio** works now (stations near the pin from the free Radio Browser directory, plays with the screen off); **Popular** (labelled with the country, since charts are country-wide), **Made Here** and **Genre Mixes** are marked coming soon
+- Lock-screen / notification controls for radio via the Media Session API (also groundwork for the Android and iOS apps)
+- In Local Listening the **Packs** tab becomes **Saved**: favourite stations (heart on each station, or the heart in the player, which replaces the video button in this mode) and saved spots (**Save spot** next to Move pin; tapping one jumps the pin back there with its channel)
+
+### WordPress plugin
+- New **MusicMap plugin** (`wordpress-plugin/musicmap`): add `[musicmap]` to any page. It serves the app (styles scoped so they can't affect the theme), loads Leaflet with integrity checks, and passes only public settings to the page
+- **MusicMap → Settings**: Last.fm and YouTube keys (stored server-side, masked after saving, blank keeps the saved key), contact email, Spotify Client ID, rate limit, pack size, share-code expiry, cache length, and an opt-in "delete data on uninstall"
+- **MusicMap → Data**: browse, search, view and delete share codes (single or bulk), delete expired codes, view and clear cache and rate-limit records, and copy or delete the old snippet's files
+- Share codes move to a database table; the old snippet's files are copied in on activation (expired ones skipped), so existing codes keep working. The `?mm_action=` API is unchanged and also available at `/wp-json/musicmap/v1/`
+- Every admin change checks permissions and a security token; saves are rate-limited per hashed IP; all queries are prepared
+- `tools/build_plugin.py` builds the plugin's assets and zip from `musicmap.html`; a ready-to-upload `dist/musicmap.zip` is kept in the repo
+
+### Added
+- **Credits & Sources** in Settings (and a Credits link in the footer): every service and tool MusicMap uses, with links, logos and licences
+
+### Fixed
+- The app now starts after the whole page has loaded; dialogs placed after the script (like Make a Pack) were missing when it started
+- Removed the old offline service worker, which browsers never registered
+
+### Changed
+- Channel picker moved from the header into a sub-menu at the top of the Channels tab: **Popular · Made Here · Genre Mixes · Radio** (Popular's list title still names the country)
+- Tapping the map or dragging the pin in Local Listening switches playback to that spot immediately; if there's nothing to play there, a pop-up explains why, the pin goes back and the current station keeps playing
+- Distances use miles for visitors in the US (and the UK, Liberia, Myanmar), kilometres elsewhere, with an override under Settings → Display; saved-place radii show in feet/miles or metres
+- The map key was rebuilt to match what the map actually shows: you, the listening pin, and your saved places with their range — plus a note that biomes aren't drawn and which one is active. Saved places are hidden on the map in Local Listening
+- Local Listening opens on the Channels tab
+- Removed Tracks moved to the bottom of Settings, collapsed by default with a count (Biome Packs only)
+
+### Security
+- Radio directory data is user-submitted: only HTTPS streams, valid station ids and plain-text names are used, and websites open with `noopener`
+
+---
+
+## v1.2.1
 **Release date:** 2026-10-05
 
 ### Added

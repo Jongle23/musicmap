@@ -1,0 +1,3 @@
+dist/*
+!dist/musicmap.zip
+.claude/
