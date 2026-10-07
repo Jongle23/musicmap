@@ -1,6 +1,15 @@
 # MusicMap Changelog
 
-## v1.9 — Current
+## v1.10 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Share buttons on everything you can save**: every saved song, station and spot in the Saved tab (and songs in the Saved Songs list) has a share button
+  - a **song** link opens MusicMap with that one song ready to play ("Shared with you"), on the listener's own preferred service; songs saved from YouTube carry their video, so opening the link costs no YouTube quota
+  - a **station** link opens that station near where you saved it (if it isn't near the pin, MusicMap looks it up directly)
+  - a **spot** link opens that place on the channel you saved it with
+
+## v1.9
 **Release date:** 2026-10-07
 
 ### Added
