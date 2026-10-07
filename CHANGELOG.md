@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.11 — Current
+## v1.11.1 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- The map now opens showing the whole state of Florida (fitted to the map's width, phones included) instead of street level around the pin. With live tracking on, it still zooms in to where you are, and "Move pin" still takes you to the pin
+
+## v1.11
 **Release date:** 2026-10-07
 
 ### Changed

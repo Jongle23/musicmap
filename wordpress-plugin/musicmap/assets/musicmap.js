@@ -1628,8 +1628,8 @@ function refreshMap(){
     initLeafletMap(); if(!leafletMap) return;
     leafletMap.invalidateSize();
     renderCustomPins(); renderSavedMarkers();
-    if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
-    renderListenPin(true); renderMapLegend();
+    if(lastLat!==null) updateMapPin(lastLat,lastLon,trackingActive); // only zoom in while live tracking
+    renderListenPin(trackingActive); renderMapLegend();
   },50);
 }
 function setMapShown(on,scroll,quiet){ // quiet: only set the toggle (page start; the map loads when the tab shows)
@@ -1861,7 +1861,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.11';
+const MM_VERSION = '1.11.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3004,16 +3004,15 @@ function updateCacheStatus(){
 // ── LEAFLET MAP ──
 // Where the map starts, and the first Local Listening spot, before any location is known
 const DEFAULT_SPOT={latlng:[27.9506,-82.4572], zoom:11, place:{city:'Tampa',region:'Florida',country:'United States',cc:'us'}};
+// The map opens on the whole state of Florida (fitted to the map's width, so phones see all of it too)
+const START_BOUNDS=[[24.4,-87.7],[31.1,-79.9]];
 function initLeafletMap(){
   if(leafletMap) return; // already initialised
   const el=document.getElementById('leafletMap');
   if(!el||typeof L==='undefined') return;
 
-  leafletMap=L.map('leafletMap',{
-    center:DEFAULT_SPOT.latlng, zoom:DEFAULT_SPOT.zoom, // Tampa, FL until we know where you are
-    zoomControl:true,
-    attributionControl:true
-  });
+  leafletMap=L.map('leafletMap',{zoomControl:true, attributionControl:true, zoomSnap:0.25}); // quarter steps: the state fits snugly
+  leafletMap.fitBounds(START_BOUNDS,{padding:[8,8]}); // all of Florida; live tracking zooms in to you
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -3030,8 +3029,8 @@ function initLeafletMap(){
   // Render existing custom pins
   renderCustomPins();
 
-  // If we already have a location, go there
-  if(lastLat!==null) updateMapPin(lastLat,lastLon,true);
+  // Live tracking: go to you. Otherwise stay on the state view (pins still show where they are)
+  if(lastLat!==null) updateMapPin(lastLat,lastLon,trackingActive);
   renderListenPin();
 }
 
