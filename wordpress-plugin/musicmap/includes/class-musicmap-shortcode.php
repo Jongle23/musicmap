@@ -89,6 +89,10 @@ class MusicMap_Shortcode {
 		if ( '' !== $spotify ) {
 			$config['spotifyClientId'] = $spotify;
 		}
+		$support = (string) MusicMap_Settings::get( 'support_url' );
+		if ( '' !== $support ) {
+			$config['supportUrl'] = esc_url_raw( $support, array( 'https' ) );
+		}
 		if ( class_exists( 'MusicMap_Channels' ) && MusicMap_Channels::apple_music_ready() ) {
 			$config['appleMusic'] = true; // the key stays on the server; the app asks /musickit for a token
 		}

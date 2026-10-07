@@ -1,6 +1,22 @@
 # MusicMap Changelog
 
-## v1.6 — Current
+## v1.7 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Save songs**: the heart in the player saves the song that's playing (Made Here: once the song name shows) to a new **Saved Songs** list at the top of the Saved tab. Tapping one plays your saved songs as a list on your preferred service; songs saved from YouTube replay without using any YouTube quota
+- **Wide-screen layout**: when the app has room (about 880px or more), the player sits on the left and stays in view while the tabs scroll beside it; lists use two columns and the map gets taller. It goes by the app's own width, so a narrow site column keeps the phone layout
+- **Support link** ("☕ Enjoying MusicMap? Buy me a coffee"): set it under MusicMap → Settings → Support link and it shows in the app's footer, with a note beside Apple Music that the Apple developer account it needs costs $99 a year
+
+### Changed
+- When live location moves you somewhere new while a song keeps playing, the location pop-up stays up until the song (or station) changes; tap it to dismiss it
+- Moving the pin yourself (or opening a saved spot) shows the player's loading ring straight away, even while music plays, until the new spot is ready
+
+### Fixed
+- **Dropdowns turning white** (Play songs on, Plays on, Distances): some site themes make a focused dropdown white, which hid the app's white text. Dropdowns and their option lists now keep the app's dark colours
+- The location pop-up could fail to appear when the page was in the background (it waited for animation frames, which pause there)
+
+## v1.6
 **Release date:** 2026-10-07
 
 ### Added

@@ -22,6 +22,7 @@ class MusicMap_Settings {
 			'youtube_key'         => '',
 			'contact_email'       => '',
 			'spotify_client_id'   => '',
+			'support_url'         => '',
 			'apple_team_id'       => '',
 			'apple_key_id'        => '',
 			'apple_private_key'   => '',
@@ -104,6 +105,14 @@ class MusicMap_Settings {
 		$out['spotify_client_id'] = preg_match( '/^[0-9a-f]{32}$/i', $sp ) ? strtolower( $sp ) : '';
 		if ( '' !== $sp && '' === $out['spotify_client_id'] ) {
 			add_settings_error( self::OPTION, 'spotify_client_id', __( 'A Spotify Client ID is 32 letters and numbers; it was not saved.', 'musicmap' ) );
+		}
+
+		// "Buy me a coffee" style link shown in the app (https only)
+		$support            = isset( $in['support_url'] ) ? trim( (string) $in['support_url'] ) : '';
+		$support_clean      = esc_url_raw( $support, array( 'https' ) );
+		$out['support_url'] = ( '' !== $support_clean && strlen( $support_clean ) <= 200 ) ? $support_clean : '';
+		if ( '' !== $support && '' === $out['support_url'] ) {
+			add_settings_error( self::OPTION, 'support_url', __( 'The support link must be a full https:// address; it was not saved.', 'musicmap' ) );
 		}
 
 		// Apple Music (MusicKit): the private key signs short-lived tokens here and never leaves the server
@@ -198,6 +207,17 @@ class MusicMap_Settings {
 						<td>
 							<input type="text" class="regular-text code" id="mm_spotify" maxlength="32" name="<?php echo esc_attr( self::OPTION ); ?>[spotify_client_id]" value="<?php echo esc_attr( $s['spotify_client_id'] ); ?>" placeholder="bc016b83d9a147428d49e5e9c84a0c5d">
 							<p class="description"><?php esc_html_e( 'Optional. Public by design (it appears in every Spotify login link). Blank uses the built-in MusicMap app ID. Register this page\'s address as a Redirect URI in your Spotify dashboard.', 'musicmap' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Support link', 'musicmap' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="mm_support"><?php esc_html_e( 'Buy Me a Coffee (or similar) link', 'musicmap' ); ?></label></th>
+						<td>
+							<input type="url" class="regular-text code" id="mm_support" maxlength="200" name="<?php echo esc_attr( self::OPTION ); ?>[support_url]" value="<?php echo esc_attr( $s['support_url'] ); ?>" placeholder="https://buymeacoffee.com/yourname">
+							<p class="description"><?php esc_html_e( 'Optional. When set, the app shows "Enjoying MusicMap? Buy me a coffee" in its footer, and a note beside Apple Music that the Apple developer account it needs costs money.', 'musicmap' ); ?></p>
 						</td>
 					</tr>
 				</table>

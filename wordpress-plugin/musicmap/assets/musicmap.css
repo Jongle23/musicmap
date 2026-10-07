@@ -70,6 +70,19 @@
 
 #mainContent{width:100%;max-width:520px;padding:0 16px 80px;margin-top:0}
 
+/* Wide screens: the player on the left (stays in view while you scroll), the tabs beside it.
+   Switched by the app's own width (.mm-wide, see fitWideLayout), so a narrow site column keeps the phone layout. */
+@media (min-width:1000px){ #geovibes-app{max-width:1240px} }
+#geovibes-app.mm-wide{display:grid;grid-template-columns:minmax(380px,440px) minmax(0,1fr);grid-template-areas:"hero main" "foot foot";align-items:start;overflow:clip}
+#geovibes-app.mm-wide #heroBanner{grid-area:hero;position:sticky;top:0;align-self:start;min-height:100vh;max-height:100vh;overflow-y:auto;justify-content:flex-start;padding-top:28px;scrollbar-width:thin}
+#geovibes-app.mm-wide #mainContent{grid-area:main;max-width:none;padding:0 28px 60px}
+#geovibes-app.mm-wide .app-footer{grid-area:foot;max-width:none!important}
+#geovibes-app.mm-wide .tab-bar{position:sticky;top:0;z-index:5;background:var(--bg);margin-top:0;padding-top:12px}
+#geovibes-app.mm-wide #leafletMap{height:min(70vh,640px)}
+#geovibes-app.mm-wide .local-list,#geovibes-app.mm-wide .track-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;align-items:start}
+#geovibes-app.mm-wide .local-list>.local-note,#geovibes-app.mm-wide .local-list>.local-back,#geovibes-app.mm-wide .local-list>.skel-row{grid-column:1/-1}
+#geovibes-app.mm-wide .local-list>.skel-row{margin-top:0}
+
 /* now playing */
 /* nowPlayingCard removed — now inside heroBanner */
 #ytContainer{display:none;width:100%;border-radius:12px;overflow:hidden;background:#000;margin-bottom:14px}
@@ -124,6 +137,9 @@
 /* biome toast */
 #biomeToast{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-110%);z-index:9000;width:100%;max-width:420px;padding:0 16px;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none}
 #biomeToast.show{transform:translateX(-50%) translateY(0)}
+/* stays up until the song changes (tap to dismiss): no countdown bar */
+#biomeToast.sticky{pointer-events:auto;cursor:pointer}
+#biomeToast.sticky #toastAccentBar{animation:none!important;width:100%!important}
 #biomeToastInner{background:rgba(10,10,24,0.92);border:1px solid rgba(255,255,255,0.12);border-radius:0 0 18px 18px;padding:14px 20px 16px;display:flex;align-items:center;gap:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.5)}
 #toastEmoji{font-size:32px;flex-shrink:0;animation:toastBounce 0.5s ease 0.3s both}
 @keyframes toastBounce{0%{transform:scale(0.5)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
@@ -299,6 +315,11 @@
 .form-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 12px;color:#fff;font-size:13px;font-family:var(--sans);outline:none}
 .form-input:focus{border-color:var(--accent)}
 .form-input::placeholder{color:var(--muted)}
+/* Dropdowns keep the app's dark colours whatever the site theme does (some themes make a focused
+   select white, which hid our white text), and their option lists match */
+#geovibes-app select.form-input,#geovibes-app select.form-input:focus,#geovibes-app select.form-input:hover,#geovibes-app select.form-input:active{background-color:var(--surface2,#1f2233)!important;color:var(--text,#e8e8e8)!important;color-scheme:dark;-webkit-text-fill-color:var(--text,#e8e8e8)}
+#geovibes-app select.form-input option,#geovibes-app select.form-input optgroup{background-color:#1b1d2e;color:#e8e8e8}
+#geovibes-app select.form-input option:disabled{color:#80869a}
 .form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .emoji-picker{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .emoji-opt{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 9px;cursor:pointer;font-size:15px;transition:all .15s}
@@ -408,6 +429,10 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
   .mm-spinner,#geovibes-app.player-busy #playBtn::after,button[aria-busy="true"] svg{animation-duration:2.4s}
   #geovibes-app.player-busy .hero-progress-bg::after,.skel-row{animation:none}
 }
+.support-link{display:inline-flex;align-items:center;gap:6px;margin-bottom:4px;padding:7px 14px;border-radius:999px;background:rgba(255,221,0,.12);border:1px solid rgba(255,221,0,.35);color:#ffe27a;font-size:12px;font-weight:600;text-decoration:none}
+.support-link:hover{background:rgba(255,221,0,.2)}
+.support-link[hidden],.support-note[hidden]{display:none!important}
+.support-note a{color:#ffe27a;font-weight:600}
 .shuffle-btn{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;margin-left:auto;padding:5px 11px;min-height:32px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
 .shuffle-btn[aria-pressed="true"]{color:var(--green,#4ade80);border-color:rgba(74,222,128,.55);background:rgba(74,222,128,.12)}
 .shuffle-btn:focus-visible{outline:2px solid var(--accent,#a78bfa);outline-offset:2px}

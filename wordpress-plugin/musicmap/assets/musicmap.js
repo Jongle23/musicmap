@@ -1229,6 +1229,25 @@ function hardSwitchTo(src){
   getActiveIframe().src=src;
 }
 
+// ── SUPPORT LINK ── "Buy me a coffee", set by the site owner in MusicMap > Settings
+function applySupportLink(){ // runs from init(), once the site's settings (MM_CONFIG) exist
+  const url=/^https:\/\/[^\s"'<>]{4,200}$/.test(MM_CONFIG.supportUrl||'')?MM_CONFIG.supportUrl:'';
+  if(!url) return;
+  const a=document.getElementById('supportLink'); if(a){ a.href=url; a.hidden=false; }
+  const n=document.getElementById('amSupportNote'); if(n){ n.querySelector('a').href=url; n.hidden=false; }
+}
+
+// ── WIDE LAYOUT ── player beside the tabs when the app itself is wide enough
+function fitWideLayout(){
+  const app=document.getElementById('geovibes-app'); if(!app) return;
+  const wide=app.clientWidth>=880;
+  if(app.classList.contains('mm-wide')===wide) return;
+  app.classList.toggle('mm-wide',wide);
+  if(leafletMap) setTimeout(()=>leafletMap.invalidateSize(),60); // the map's box changed size
+}
+if(window.ResizeObserver){ const app=document.getElementById('geovibes-app'); if(app) new ResizeObserver(fitWideLayout).observe(app); }
+window.addEventListener('resize',fitWideLayout);
+
 // ── LOCATION CHIMES ──
 // A soft ping when a new place is noticed, and a gentle two-note chime when the music switches to it.
 // Made with Web Audio (no sound files). Browsers only allow sound after a tap, so the first tap unlocks it.
@@ -1262,8 +1281,11 @@ function setLocationChimes(on){ ss('locationChimes',!!on); if(on){ unlockChimes(
 // ── TOAST ──
 let toastTimeout=null;
 // plain: the third line is information, not a song (no ♪)
-function showBiomeToast(emoji, biomeName, trackName, accentCss, plain){
+// sticky: stay up until the song or station changes (or a tap), instead of a few seconds
+function showBiomeToast(emoji, biomeName, trackName, accentCss, plain, sticky){
   const toast=document.getElementById('biomeToast');
+  toast.classList.toggle('sticky',!!sticky);
+  toast.onclick=sticky?dismissStickyToast:null;
   const inner=document.getElementById('biomeToastInner');
   // Update content
   document.getElementById('toastEmoji').textContent=emoji;
@@ -1280,10 +1302,17 @@ function showBiomeToast(emoji, biomeName, trackName, accentCss, plain){
   toast.classList.remove('show');
   clearTimeout(toastTimeout);
   // Small delay so re-trigger animates properly
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  // (a short timer, not animation frames: those pause while the page is hidden, and the pop-up would never show)
+  toastTimeout=setTimeout(()=>{
     toast.classList.add('show');
-    toastTimeout=setTimeout(()=>toast.classList.remove('show'), 3800);
-  }));
+    if(!sticky) toastTimeout=setTimeout(()=>toast.classList.remove('show'), 3800);
+  },40);
+}
+// the song or station changed: a "you're somewhere new" pop-up that waited for it can go
+function dismissStickyToast(){
+  const toast=document.getElementById('biomeToast');
+  if(!toast?.classList.contains('sticky')) return;
+  toast.classList.remove('show','sticky'); toast.onclick=null;
 }
 
 function getPackId(){return getActivePackId();}
@@ -1311,7 +1340,7 @@ async function init(){
   resumePendingSpotifyLink();
   // Apple Music: check the saved sign-in is still good
   if(isAppleConnected()) amLoad().then(m=>{ if(!m.isAuthorized){ ss('appleMusicLinked',false); renderConnectionsUI(); } }).catch(()=>{});
-  applyLogo();
+  applyLogo(); applySupportLink(); fitWideLayout();
   applyModeUI();
   // the last known location, shared by both modes (a week at most)
   const lf=gs('lastFix',null);
@@ -1581,7 +1610,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.6';
+const MM_VERSION = '1.7';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -4643,7 +4672,7 @@ function amOnItem(){
   const id=String(amMusic?.nowPlayingItem?.id||''); const q=amQueue.items.find(x=>x.id===id);
   if(q&&q.idx===chanIdx) showArtistSong(amMusic.nowPlayingItem?.title||amMusic.nowPlayingItem?.attributes?.name);
   if(!q||q.idx===chanIdx) return;
-  chanIdx=q.idx; chanSkips=0;
+  chanIdx=q.idx; chanSkips=0; dismissStickyToast();
   const it=chanItems[chanIdx]; if(!it) return;
   if(it.kind==='song') it._am='https://music.apple.com/'+amStorefront()+'/song/'+id;
   const at=chanOrder.indexOf(chanIdx); if(at>=0) chanOrderPos=at;
@@ -5127,23 +5156,25 @@ function setListenPoint(lat,lon,source,opts){
       if(appMode!=='local'||!localPoint?.place) return;
       // the lists now match the new place: the same pop-up as a biome change (and a chime for live location)
       const now=placeLabel(localPoint.place);
-      if(newPlace&&now===label) announceLocalPlace(source==='gps');
+      if(newPlace&&now===label) announceLocalPlace(source==='gps', !opts?.switchNow&&(chanPlaying||localPlaying));
+      if(!opts?.switchNow) setPlayerBusy(false); // a pin you moved: done processing (a new song clears it itself)
       if(now) localAnnounced=now;
     } else if(label&&localAnnounced===null) localAnnounced=label;
   },700);
 }
 let localAnnounced=null; // the place the channel lists were last announced for (set on the first load, no pop-up)
-function announceLocalPlace(fromGps){
+function announceLocalPlace(fromGps,sticky){
   const pl=localPoint?.place; if(!pl) return;
-  const what=localChannel==='radio'?(localStations.length?localStations.length+' radio stations nearby':'Local radio')
+  const what=localChannel==='saved'?'Your saved songs keep playing':localChannel==='radio'?(localStations.length?localStations.length+' radio stations nearby':'Local radio')
     :localChannel==='made'?(chanItems.length?chanItems.length+' artists from around here':'Made Here')
     :'Popular in '+(pl.country||'this country');
-  showBiomeToast(localChannel==='radio'?'📻':localChannel==='made'?'🎤':'🔥', placeLabel(pl)||'New spot', what, '#a78bfa', true);
+  showBiomeToast(localChannel==='saved'?'📍':localChannel==='radio'?'📻':localChannel==='made'?'🎤':'🔥', placeLabel(pl)||'New spot', what, '#a78bfa', true, !!sticky);
   if(fromGps) chime('switch');
 }
 function moveListenPinTo(lat,lon){
   if(trackingActive){ stopTracking(); spotifyShowSnack('Live tracking off. Listening from the pin.'); }
   const prev=localPoint?{...localPoint}:null;
+  setPlayerBusy(true); // your input is being processed (cleared when the new spot plays or turns out empty)
   // switchNow: play the new spot straight away, or explain and put the pin back if nothing is there
   setListenPoint(lat,lon,'pin',{force:true, switchNow:true, prev});
 }
@@ -5271,7 +5302,7 @@ async function loadLocalChannel(opts){
         (stations?'No radio stations found within '+fmtDist(200)+' of '+(placeLabel(pl)||'that spot')+'.':'Check your connection and try again.')
           +(nowName?' Still playing '+nowName+'.':''),
         [{label:'OK', primary:true}]);
-      revertListenPoint(opts.prev);
+      revertListenPoint(opts.prev); setPlayerBusy(false);
       title.textContent='STATIONS NEAR '+(localPoint?.place?.city||'THE PIN').toUpperCase();
       if(localStations.length) renderLocalList(); else renderLocalNote('Choose a spot with radio nearby: tap <b>Move pin</b>.');
       return;
@@ -5380,7 +5411,7 @@ function ensureRadioAudio(){
 }
 function playStation(i){
   const st=localStations[i]; if(!st) return;
-  stopChanPlayback();
+  stopChanPlayback(); dismissStickyToast();
   localIdx=i;
   const at=radOrder.indexOf(i); if(at>=0) radOrderPos=at; // keep the play order in step with taps
   const a=ensureRadioAudio();
@@ -5442,12 +5473,51 @@ function updateLocalSub(msg){
 const SAVED_KEY='localSaved';
 function validSavedStation(st){ return st&&RADIO_UUID.test(st.uuid||'')&&/^https:\/\//i.test(st.url||'')&&typeof st.name==='string'&&st.name; }
 function validSavedSpot(sp){ return sp&&Number.isFinite(sp.lat)&&Number.isFinite(sp.lon)&&Math.abs(sp.lat)<=90&&Math.abs(sp.lon)<=180; }
+function validSavedSong(s){ return s&&typeof s.title==='string'&&s.title&&typeof s.artist==='string'&&s.artist; }
+// stored songs are re-checked on the way out: only known-good ids and art hosts are used
+function cleanSavedSong(s){
+  return {title:String(s.title).slice(0,160), artist:String(s.artist).slice(0,120),
+    art:ART_OK.test(s.art||'')?s.art:'', am:AM_ID.test(String(s.am||''))?String(s.am):'',
+    sp:/^spotify:track:[A-Za-z0-9]{22}$/.test(s.sp||'')?s.sp:'', yt:YT_ID.test(s.yt||'')?s.yt:'',
+    where:String(s.where||'').slice(0,80)};
+}
 function getSaved(){
   const d=gs(SAVED_KEY,{})||{};
   return {
+    songs:(Array.isArray(d.songs)?d.songs:[]).filter(validSavedSong).map(cleanSavedSong),
     stations:(Array.isArray(d.stations)?d.stations:[]).filter(validSavedStation),
     spots:(Array.isArray(d.spots)?d.spots:[]).filter(validSavedSpot)
   };
+}
+const songKey=s=>(s.artist+'|'+s.title).toLowerCase();
+function isSongSaved(s){ return !!s&&getSaved().songs.some(x=>songKey(x)===songKey(s)); }
+// The song playing in a song channel, in the shape Saved keeps (Made Here: once we know which song it is)
+function currentSongForSave(){
+  const it=chanItems[chanIdx]; if(!it) return null;
+  if(it.kind==='song') return cleanSavedSong({title:it.title, artist:it.artist, art:it.art, am:it.am,
+    sp:/^spotify:track:/.test(it._sp||'')?it._sp:'', yt:it._yt?.id, where:placeLabel(localPoint?.place)});
+  if(it.kind==='artist'&&it._song) return cleanSavedSong({title:it._song, artist:it.name,
+    yt:chanVia==='youtube'?ytPlayer?.getVideoData?.()?.video_id:'', where:placeLabel(localPoint?.place)});
+  return null;
+}
+function toggleSongSaved(s){
+  if(!s) return;
+  const d=getSaved(), had=d.songs.some(x=>songKey(x)===songKey(s));
+  d.songs=had?d.songs.filter(x=>songKey(x)!==songKey(s)):[s,...d.songs].slice(0,300);
+  putSaved(d);
+  spotifyShowSnack(had?'Removed from Saved':'Saved: '+s.title+' — '+s.artist);
+  updateSaveStationBtn();
+  if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
+}
+// Saved songs play as their own list in the Channels tab (not a channel tab of its own)
+function playSavedSongs(start){
+  const songs=getSaved().songs; if(!songs.length) return;
+  localChannel='saved'; chanGenre=null; chanOverview=false; chanData=null; // not persisted: a reload goes back to the channel
+  chanItems=songs.map(s=>({kind:'song',title:s.title,artist:s.artist,art:s.art,am:s.am,_sp:s.sp||undefined,_yt:s.yt?{id:s.yt}:undefined,where:s.where}));
+  chanIdx=-1; buildChanOrder(); renderChannelTabs(); renderShuffleBtn();
+  document.getElementById('localListTitle').textContent='SAVED SONGS';
+  renderChanList(); switchTab('player');
+  playChanItem(Number.isInteger(start)?start:(chanOrder[0]??0));
 }
 function putSaved(d){ ss(SAVED_KEY,d); }
 function isStationSaved(uuid){ return getSaved().stations.some(s=>s.uuid===uuid); }
@@ -5463,6 +5533,11 @@ function toggleStationSaved(st){
   if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
 }
 function toggleSaveCurrentStation(){
+  if(localChannel!=='radio'){
+    const s=currentSongForSave();
+    if(!s){ spotifyShowSnack(chanItems[chanIdx]?.kind==='artist'?'Save works once the song name shows.':'Play a song first, then save it.'); return; }
+    return toggleSongSaved(s);
+  }
   const st=localStations[localIdx];
   if(!st){ spotifyShowSnack('Pick a station first, then save it.'); return; }
   toggleStationSaved(st);
@@ -5479,7 +5554,13 @@ function heartButton(st){
 function updateSaveStationBtn(){
   const vb=document.getElementById('videoToggleBtn');
   if(!vb||!isLocalMode()) return;
-  if(localChannel!=='radio'){ vb.disabled=true; vb.classList.remove('saved'); vb.title='Saving songs is coming soon'; vb.setAttribute('aria-label',vb.title); return; }
+  if(localChannel!=='radio'){
+    const s=currentSongForSave(), on=!!s&&isSongSaved(s);
+    vb.disabled=!s; vb.classList.toggle('saved',on); vb.setAttribute('aria-pressed',on);
+    const label=!s?'Save song':(on?'Remove song from Saved':'Save song to Saved');
+    vb.setAttribute('aria-label',label); vb.title=label;
+    return;
+  }
   const st=localStations[localIdx];
   const on=!!st&&isStationSaved(st.uuid);
   vb.disabled=!st;
@@ -5511,9 +5592,30 @@ function updateSaveSpotBtn(){
 }
 function renderSavedList(){
   const d=getSaved();
-  const stEl=document.getElementById('savedStations'), spEl=document.getElementById('savedSpots');
+  const stEl=document.getElementById('savedStations'), spEl=document.getElementById('savedSpots'), soEl=document.getElementById('savedSongs');
   if(!stEl||!spEl) return;
   stEl.innerHTML=''; spEl.innerHTML='';
+  if(soEl){
+    soEl.innerHTML='';
+    if(!d.songs.length) soEl.innerHTML='<div class="local-note">No saved songs yet. While a song plays, tap the heart in the player.</div>';
+    const nowKey=localChannel!=='radio'&&chanPlaying&&chanItems[chanIdx]?songKey(currentSongForSave()||{title:'',artist:''}):'';
+    d.songs.forEach((s,i)=>{
+      const row=document.createElement('div'); row.className='local-row-wrap';
+      const b=document.createElement('button'); b.type='button'; b.className='local-item'+(nowKey===songKey(s)?' active':'');
+      if(s.art){ const img=document.createElement('img'); img.className='local-item-art'; img.alt=''; img.loading='lazy'; img.referrerPolicy='no-referrer'; img.src=s.art; b.append(img); }
+      else { const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent='♪'; b.append(icon); }
+      const main=document.createElement('span'); main.className='local-item-main';
+      const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=s.title;
+      const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+      sub.textContent=[s.artist,s.where].filter(Boolean).join(' · ');
+      main.append(name,sub); b.append(main);
+      b.onclick=()=>playSavedSongs(i);
+      const del=document.createElement('button'); del.type='button'; del.className='heart-btn on';
+      del.setAttribute('aria-pressed','true'); del.setAttribute('aria-label','Remove '+s.title+' from Saved'); del.innerHTML=SAVE_BTN_HTML;
+      del.onclick=()=>toggleSongSaved(s);
+      row.append(b,del); soEl.appendChild(row);
+    });
+  }
   if(!d.stations.length) stEl.innerHTML='<div class="local-note">No saved stations yet. Tap the heart next to a station, or the heart in the player.</div>';
   d.stations.forEach(st=>{
     const row=document.createElement('div'); row.className='local-row-wrap';
@@ -5561,6 +5663,7 @@ function playSavedStation(st){
 function goToSavedSpot(sp){
   if(trackingActive) stopTracking();
   if(['popular','made','genres','radio'].includes(sp.channel)){ localChannel=sp.channel==='genres'?'popular':sp.channel; ss('localChannel',localChannel); }
+  setPlayerBusy(true); // your input is being processed
   setListenPoint(sp.lat,sp.lon,'pin',{force:true});
   if(sp.place&&localPoint){ localPoint.place=sp.place; ss('localPoint',localPoint); }
   renderLocalHeader(); updateSaveSpotBtn();
@@ -5889,16 +5992,17 @@ function genreMixes(songs){
   songs.forEach(s=>{ if(s.genre){ (by[s.genre]=by[s.genre]||[]).push(s); } });
   return Object.entries(by).filter(([,l])=>l.length>=3).sort((a,b)=>b[1].length-a[1].length).map(([genre,list])=>({genre,list}));
 }
-function chanLabel(){ return (LOCAL_CHANNELS.find(c=>c.id===localChannel)||{}).label||''; }
+function chanLabel(){ return localChannel==='saved'?'Saved songs':(LOCAL_CHANNELS.find(c=>c.id===localChannel)||{}).label||''; }
 
 async function loadSongChannel(opts){
   const title=document.getElementById('localListTitle');
+  if(localChannel==='saved'){ title.textContent='SAVED SONGS'; renderChanList(); if(!chanPlaying) setLocalIdle(); return; }
   const pl=localPoint?.place;
   const token=++localLoadToken;
   const fail=(msg)=>{
     if(opts?.switchNow){
       showLocalAlert('Nothing to play here', msg+(chanPlaying&&chanItems[chanIdx]?' Still playing '+itemTitle(chanItems[chanIdx])+'.':''), [{label:'OK',primary:true}]);
-      revertListenPoint(opts.prev);
+      revertListenPoint(opts.prev); setPlayerBusy(false);
       renderChanList(); return;
     }
     renderLocalNote(esc(msg));
@@ -5964,7 +6068,7 @@ function setLocalIdle(){
   setPlayerBusy(false);
   const pl=localPoint?.place;
   const n=chanItems.length;
-  const what=localChannel==='made'?n+' artists from around '+(placeLabel(pl)||'the pin')
+  const what=localChannel==='saved'?n+' saved song'+(n===1?'':'s'):localChannel==='made'?n+' artists from around '+(placeLabel(pl)||'the pin')
     :n?(chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Top '+n+' in '+(pl?.country||'this country'))
     :'Top songs and genre mixes for '+(pl?.country||'this country');
   setChanNowPlaying(null,what,localChannel==='made'?'Tap play or pick an artist':n?'Tap play or pick a song':'Pick the top songs or a genre: it shuffles and plays');
@@ -6027,7 +6131,7 @@ function renderChanList(){
       x.onclick=()=>playChanItem(i,p);
       row.append(x);
     });
-    row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}:{ch:localChannel,t:it.title,a:it.artist,g:chanGenre&&chanGenre!==CHART_TOP?chanGenre:''}, itemTitle(it)));
+    if(localChannel!=='saved') row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}:{ch:localChannel,t:it.title,a:it.artist,g:chanGenre&&chanGenre!==CHART_TOP?chanGenre:''}, itemTitle(it)));
     list.appendChild(row);
   });
 }
@@ -6062,6 +6166,7 @@ async function playChanItem(i,via,opts){
   if(via!=='spotify'&&via!=='apple') via='youtube';
   if(!opts?.fallback) chanWantVia=via;
   if(via==='spotify') spotifyUnlockAudio();
+  dismissStickyToast();
   it._song=null;
   const token=++chanPlayToken;
   stopRadio(); stopChanPlayback();
@@ -6138,7 +6243,7 @@ async function ensureYtPlayer(){
           if(chanVia!=='youtube'&&chanVia!==null) return;
           if(e.data===YT.PlayerState.PLAYING&&chanYtNext&&chanYtNext.token===chanPlayToken&&ytPlayer.getPlaylistIndex?.()===1){
             // YouTube moved on to the queued next song by itself
-            const nx=chanYtNext; chanYtNext=null; chanIdx=nx.idx; chanSkips=0;
+            const nx=chanYtNext; chanYtNext=null; chanIdx=nx.idx; chanSkips=0; dismissStickyToast();
             setChanNowPlaying(chanItems[chanIdx],null,null,'youtube'); setChanMediaSession(chanItems[chanIdx]);
           }
           const curIt=chanItems[chanIdx];
@@ -6191,7 +6296,7 @@ async function chanPlayYouTube(it,token){
     check('UULF',()=>{ load('UU'); check('UU',()=>{ it._ytEmpty=true; playChanItem(chanIdx,'youtube',{fallback:true}); }); });
     return;
   }
-  const lookup=x=>mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
+  const lookup=x=>YT_ID.test(x._yt?.id||'')?Promise.resolve({ok:true,videoId:x._yt.id,title:''}):mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
   const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
   const nextIt=nextIdx>=0&&chanItems[nextIdx]?.kind==='song'?chanItems[nextIdx]:null;
   // look up this song and the next together, so YouTube can move on by itself (e.g. screen off)
@@ -6250,7 +6355,7 @@ function followChanSpotify(uris){
   if(at<0) return false;
   const step=chanSpList.items[at];
   if(step.idx===chanIdx) return false; // same song: let the end-of-list check below see it
-  chanIdx=step.idx; chanSkips=0;
+  chanIdx=step.idx; chanSkips=0; dismissStickyToast();
   const pos=chanOrder.indexOf(chanIdx); if(pos>=0) chanOrderPos=pos;
   const it=chanItems[chanIdx];
   renderChanList(); setChanNowPlaying(it,null,null,'spotify'); setChanMediaSession(it);
@@ -6285,7 +6390,7 @@ function startChanProgress(){
 }
 function setChanNowPlaying(it,title,sub,via){
   const pl=localPoint?.place;
-  const where=localChannel==='made'?'Made around '+(pl?.city||'the pin'):chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Popular in '+(pl?.country||'this country');
+  const where=localChannel==='saved'?'Saved songs':localChannel==='made'?'Made around '+(pl?.city||'the pin'):chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Popular in '+(pl?.country||'this country');
   document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:(it._song||it.name)):'');
   document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'||it._song?(it.artist||it.name)+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
   const src=document.getElementById('npSource');
