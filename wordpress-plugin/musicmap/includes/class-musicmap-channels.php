@@ -119,16 +119,20 @@ class MusicMap_Channels {
 		return 'MusicMap/' . MUSICMAP_VERSION . ' (' . home_url( '/' ) . ( $email ? '; ' . $email : '' ) . ')';
 	}
 
-	private static function get_json( $url, $timeout = 15 ) {
-		$res = wp_safe_remote_get(
-			$url,
-			array(
-				'timeout'     => $timeout,
-				'redirection' => 2,
-				'user-agent'  => self::user_agent(),
-				'headers'     => array( 'Accept' => 'application/json' ),
-			)
+	/**
+	 * @param bool $describe Send MusicMap's descriptive User-Agent (Wikimedia requires one). Apple's
+	 *                       chart feeds reject such agents with 403, so they get WordPress's default.
+	 */
+	private static function get_json( $url, $timeout = 15, $describe = true ) {
+		$args = array(
+			'timeout'     => $timeout,
+			'redirection' => 2,
+			'headers'     => array( 'Accept' => 'application/json' ),
 		);
+		if ( $describe ) {
+			$args['user-agent'] = self::user_agent();
+		}
+		$res = wp_safe_remote_get( $url, $args );
 		if ( is_wp_error( $res ) ) {
 			return array( 0, null );
 		}
@@ -143,27 +147,59 @@ class MusicMap_Channels {
 
 	public static function chart( WP_REST_Request $req ) {
 		$cc  = strtolower( $req['cc'] );
-		$key = 'chart:' . $cc;
+		$key = 'chart2:' . $cc; // v2 key: bypasses "no chart" answers cached by v1.4.0 after Apple refused its User-Agent
 		$hit = MusicMap_Store::cache_get( $key );
 		if ( is_array( $hit ) ) {
-			return self::reply( $hit, 200, 1800 );
+			return $hit['ok'] ? self::reply( $hit, 200, 1800 ) : self::reply( $hit, 404 );
 		}
 		if ( ! self::allowed( 'chart', 120 ) ) {
 			return self::fail( 'rate_limited', 'Too many requests — try again later', 429 );
 		}
-		list( $code, $data ) = self::get_json( 'https://rss.marketingtools.apple.com/api/v2/' . $cc . '/music/most-played/100/songs.json' );
+
+		// Main feed, then the older iTunes feed as a backup
+		list( $songs, $status ) = self::chart_marketingtools( $cc );
+		if ( null === $songs ) {
+			list( $songs, $status2 ) = self::chart_itunes( $cc );
+			$status = array( $status, $status2 );
+		}
+		if ( null === $songs ) {
+			// Only a definite "not found" from both feeds means the country has no chart
+			if ( array( 404, 404 ) === $status || array( 404, 400 ) === $status ) {
+				$out = array(
+					'ok'      => false,
+					'code'    => 'no_chart',
+					'error'   => 'No chart is available for this country.',
+					'country' => $cc,
+				);
+				MusicMap_Store::cache_set( $key, 'chart', $out, 6 * HOUR_IN_SECONDS );
+				return self::reply( $out, 404 );
+			}
+			return self::fail( 'upstream', 'Couldn\'t reach the Apple Music charts right now (HTTP ' . implode( '/', (array) $status ) . '). Please try again in a minute.', 502 );
+		}
+		$out = array(
+			'ok'      => true,
+			'country' => $cc,
+			'source'  => 'Apple Music',
+			'updated' => gmdate( 'c' ),
+			'songs'   => $songs,
+		);
+		MusicMap_Store::cache_set( $key, 'chart', $out, 6 * HOUR_IN_SECONDS );
+		return self::reply( $out, 200, 1800 );
+	}
+
+	private static function art( $url ) {
+		$url = (string) $url;
+		return preg_match( '#^https://is\d+-ssl\.mzstatic\.com/image/thumb/[^\s"\'<>]+$#', $url ) ? $url : '';
+	}
+
+	/** @return array{0:?array,1:int} songs (null on failure) and the HTTP status */
+	private static function chart_marketingtools( $cc ) {
+		list( $code, $data ) = self::get_json( 'https://rss.marketingtools.apple.com/api/v2/' . $cc . '/music/most-played/100/songs.json', 15, false );
 		if ( 200 !== $code || ! isset( $data['feed']['results'] ) || ! is_array( $data['feed']['results'] ) ) {
-			$out = array(
-				'ok'      => false,
-				'code'    => 'no_chart',
-				'error'   => 'No chart is available for this country.',
-				'country' => $cc,
-			);
-			MusicMap_Store::cache_set( $key, 'chart', $out, 6 * HOUR_IN_SECONDS ); // don't keep asking
-			return self::reply( $out, 404 );
+			return array( null, $code );
 		}
 		$songs = array();
-		foreach ( $data['feed']['results'] as $i => $r ) {
+		foreach ( $data['feed']['results'] as $r ) {
 			$title  = self::str( $r['name'] ?? '', 160 );
 			$artist = self::str( $r['artistName'] ?? '', 120 );
 			if ( '' === $title || '' === $artist ) {
@@ -176,24 +212,45 @@ class MusicMap_Channels {
 					break;
 				}
 			}
-			$art = (string) ( $r['artworkUrl100'] ?? '' );
 			$songs[] = array(
-				'rank'   => $i + 1,
+				'rank'   => count( $songs ) + 1,
 				'title'  => $title,
 				'artist' => $artist,
 				'genre'  => $genre,
-				'art'    => preg_match( '#^https://is\d+-ssl\.mzstatic\.com/image/thumb/[^\s"\'<>]+$#', $art ) ? $art : '',
+				'art'    => self::art( $r['artworkUrl100'] ?? '' ),
 			);
 		}
-		$out = array(
-			'ok'      => true,
-			'country' => $cc,
-			'source'  => 'Apple Music',
-			'updated' => gmdate( 'c' ),
-			'songs'   => $songs,
-		);
-		MusicMap_Store::cache_set( $key, 'chart', $out, 6 * HOUR_IN_SECONDS );
-		return self::reply( $out, 200, 1800 );
+		return array( $songs ? $songs : null, $code );
+	}
+
+	/** Older iTunes "top songs" feed, used when the main feed fails. */
+	private static function chart_itunes( $cc ) {
+		list( $code, $data ) = self::get_json( 'https://itunes.apple.com/' . $cc . '/rss/topsongs/limit=100/json', 15, false );
+		$entries = $data['feed']['entry'] ?? null;
+		if ( 200 !== $code || ! is_array( $entries ) ) {
+			return array( null, $code );
+		}
+		if ( isset( $entries['im:name'] ) ) {
+			$entries = array( $entries ); // a single entry isn't wrapped in a list
+		}
+		$songs = array();
+		foreach ( $entries as $e ) {
+			$title  = self::str( $e['im:name']['label'] ?? '', 160 );
+			$artist = self::str( $e['im:artist']['label'] ?? '', 120 );
+			if ( '' === $title || '' === $artist ) {
+				continue;
+			}
+			$imgs    = (array) ( $e['im:image'] ?? array() );
+			$last    = end( $imgs );
+			$songs[] = array(
+				'rank'   => count( $songs ) + 1,
+				'title'  => $title,
+				'artist' => $artist,
+				'genre'  => self::str( $e['category']['attributes']['label'] ?? '', 40 ),
+				'art'    => self::art( is_array( $last ) ? ( $last['label'] ?? '' ) : '' ),
+			);
+		}
+		return array( $songs ? $songs : null, $code );
 	}
 
 	// ── Made Here: notable artists born or formed near a point (Wikidata) ─

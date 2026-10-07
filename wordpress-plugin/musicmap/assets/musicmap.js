@@ -1496,7 +1496,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.4';
+const MM_VERSION = '1.4.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -4757,7 +4757,7 @@ function selectLocalChannel(id){
   if(!LOCAL_CHANNELS.some(c=>c.id===id)) return;
   localChannel=id; ss('localChannel',id);
   chanGenre=null;
-  renderLocalHeader(); loadLocalChannel(); updateSaveStationBtn();
+  renderLocalHeader(); loadLocalChannel(id==='made'?{autoplay:true}:undefined); updateSaveStationBtn();
 }
 
 // ── Channel content ──
@@ -5339,7 +5339,8 @@ function mmLogoArtwork(){
 // ═══════════════════════════════════════════
 let chanItems=[], chanIdx=-1, chanPlaying=false, chanVia=null, chanGenre=null, chanData=null;
 let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
-let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null; // newest play wins; 'ended' only counts for a song that really started
+let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null;
+let chanOrder=[], chanOrderPos=0; // Made Here plays in a shuffled order // newest play wins; 'ended' only counts for a song that really started
 const chanCache={};
 const YT_ID=/^[A-Za-z0-9_-]{11}$/;
 const ART_OK=/^https:\/\/is\d+-ssl\.mzstatic\.com\/image\/thumb\/[^\s"'<>]+$/;
@@ -5427,8 +5428,12 @@ function setChanList(items, data, opts, keepGenre){
   const playing=chanPlaying?chanItems[chanIdx]:null;
   chanItems=items;
   chanIdx=playing?items.findIndex(x=>itemKey(x)===itemKey(playing)):-1;
+  // Made Here shuffles: a fresh random order every time the list loads
+  chanOrder=items.map((_,i)=>i);
+  if(localChannel==='made') for(let i=chanOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [chanOrder[i],chanOrder[j]]=[chanOrder[j],chanOrder[i]]; }
+  chanOrderPos=0;
   renderChanList();
-  if(opts?.switchNow||opts?.autoplay) playChanItem(0);
+  if(opts?.switchNow||opts?.autoplay) playChanItem(chanOrder[0]??0);
   else if(!chanPlaying&&!localPlaying) setLocalIdle();
   applyPendingShare();
 }
@@ -5523,6 +5528,7 @@ async function playChanItem(i,via){
   const token=++chanPlayToken;
   stopRadio(); stopChanPlayback();
   chanIdx=i; renderChanList();
+  const at=chanOrder.indexOf(i); if(at>=0) chanOrderPos=at; // keep the shuffle position in step
   setChanNowPlaying(it,null,'Loading…',via);
   try{
     if(via==='spotify') await chanPlaySpotify(it,token);
@@ -5545,13 +5551,17 @@ async function playChanItem(i,via){
   }
 }
 function chanToggle(){
-  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
+  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(localChannel==='made'?(chanOrder[chanOrderPos]??0):0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
   if(chanVia==='spotify'){ if(chanPlaying){ spotifyPausePlayback(); chanPlaying=false; } else { spotifyResumePlayback(); chanPlaying=true; } setPlayIcon(chanPlaying); renderChanList(); return; }
   if(ytPlayer&&chanVia==='youtube'){ chanPlaying?ytPlayer.pauseVideo():ytPlayer.playVideo(); return; }
   playChanItem(chanIdx);
 }
 function chanStep(dir){
   if(!chanItems.length) return;
+  if(localChannel==='made'&&chanOrder.length===chanItems.length){
+    chanOrderPos=((chanOrderPos+dir)%chanOrder.length+chanOrder.length)%chanOrder.length;
+    return playChanItem(chanOrder[chanOrderPos], chanVia==='spotify'?'spotify':'youtube');
+  }
   playChanItem(((chanIdx<0?0:chanIdx+dir)%chanItems.length+chanItems.length)%chanItems.length, chanVia==='spotify'?'spotify':'youtube');
 }
 
@@ -5585,12 +5595,19 @@ async function ensureYtPlayer(){
             const nx=chanYtNext; chanYtNext=null; chanIdx=nx.idx; chanSkips=0;
             setChanNowPlaying(chanItems[chanIdx],null,null,'youtube'); setChanMediaSession(chanItems[chanIdx]);
           }
+          const curIt=chanItems[chanIdx];
+          if(e.data===YT.PlayerState.PLAYING&&curIt?.kind==='artist'&&curIt._yt?.list&&chanStartedToken===chanPlayToken){
+            const pi=ytPlayer.getPlaylistIndex?.();
+            if(curIt._ytStart==null) curIt._ytStart=pi;
+            else if(pi!==curIt._ytStart){ chanStep(1); return; } // one song per artist, then shuffle on
+          }
+          if(e.data===YT.PlayerState.PLAYING&&curIt?.kind==='artist'&&curIt._yt?.list&&curIt._ytStart==null) curIt._ytStart=ytPlayer.getPlaylistIndex?.();
           if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
           else if(e.data===YT.PlayerState.PAUSED){ chanPlaying=false; setPlayIcon(false); document.getElementById('playingBars').style.display='none'; renderChanList(); }
           else if(e.data===YT.PlayerState.ENDED){
             chanPlaying=false;
             if(chanStartedToken!==chanPlayToken) return; // never actually started: don't skip ahead
-            if(chanItems[chanIdx]?.kind!=='artist'||!ytPlayer.getPlaylist?.()) chanStep(1);
+            chanStep(1);
           }
         },
         onError:()=>{ if(appMode!=='local'){ if(isPlaying) nextTrack(); return; } chanPlaying=false; const t=chanPlayToken; if(chanSkips<3&&chanItems.length>1&&chanVia!=='spotify'){ if(t!==chanPlayToken) return; chanSkips++; spotifyShowSnack('That video can’t play here. Skipping.'); chanStep(1); } }
@@ -5604,8 +5621,8 @@ async function chanPlayYouTube(it,token){
   document.getElementById('ytContainer').classList.add('local-video');
   if(it.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(it.youtube||'')){
     // the artist's own uploads playlist: no lookup (and no quota) needed
-    p.loadPlaylist({list:'UU'+it.youtube.slice(2),listType:'playlist',index:0});
-    it._yt={list:'UU'+it.youtube.slice(2)};
+    p.loadPlaylist({list:'UU'+it.youtube.slice(2),listType:'playlist',index:Math.floor(Math.random()*5)});
+    it._yt={list:'UU'+it.youtube.slice(2)}; it._ytStart=null; // set when it starts; moving off it = next artist
     return;
   }
   const lookup=x=>mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));

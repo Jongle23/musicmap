@@ -1,6 +1,15 @@
 # MusicMap Changelog
 
-## v1.4 — Current
+## v1.4.1 — Current
+**Release date:** 2026-10-07
+
+### Fixed
+- **"There's no chart for United States"** on Popular and Genre Mixes: Apple's chart feed refused the plugin's custom User-Agent, and that refusal was cached for 6 hours as "no chart". Apple is now asked with WordPress's standard User-Agent, the older iTunes chart feed is used as a backup, and only a real "this country has no chart" answer is cached; a temporary outage shows a "try again in a minute" message instead (old cached answers are skipped automatically)
+
+### Changed
+- Tapping **Made Here** now shuffle-plays: it starts a random local artist right away, and next/previous follow the shuffled order. Artists with a YouTube channel play one song each before moving on
+
+## v1.4
 **Release date:** 2026-10-07
 
 ### Added
