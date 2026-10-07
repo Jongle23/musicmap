@@ -475,6 +475,7 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
 .cast-menu button span:last-child{overflow-wrap:anywhere;min-width:0}
 .cast-menu .cast-note{font-size:11px;color:var(--muted);padding:6px 10px 4px;line-height:1.5}
 #miTabs[hidden],#miSortChoices[hidden],#miSortAi[hidden]{display:none!important}
+.local-item-art.artist-photo{border-radius:50%;object-fit:cover;background:rgba(255,255,255,.08)}
 .mi-source-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
 .mi-source-note b{color:var(--text)}
 .mi-sort-done{font-size:14px;font-weight:700;color:var(--green,#4ade80);margin:16px 0 4px}

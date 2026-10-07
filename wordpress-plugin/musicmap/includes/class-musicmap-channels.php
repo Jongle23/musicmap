@@ -385,7 +385,7 @@ class MusicMap_Channels {
 	public static function made( WP_REST_Request $req ) {
 		$lat = round( (float) $req['lat'], 1 ); // ~10 km cells: nearby pins share one cached answer
 		$lon = round( (float) $req['lon'], 1 );
-		$key = sprintf( 'made:%.1f,%.1f', $lat, $lon );
+		$key = sprintf( 'made3:%.1f,%.1f', $lat, $lon ); // v3: artist photos and real place names (older answers had neither)
 		$hit = MusicMap_Store::cache_get( $key );
 		if ( is_array( $hit ) ) {
 			return self::reply( $hit, 200, 3600 );
@@ -418,7 +418,7 @@ class MusicMap_Channels {
 	private static function wikidata_artists( $lat, $lon, $radius_km ) {
 		// Only numbers go into the query (formatted here), so nothing user-supplied reaches SPARQL as text
 		$point = sprintf( 'Point(%.4F %.4F)', $lon, $lat );
-		$sparql = 'SELECT ?artist ?artistLabel ?placeLabel ?links (SAMPLE(?genreLabel) AS ?genre) (SAMPLE(?yt) AS ?ytc) (SAMPLE(?sp) AS ?spotify) WHERE {
+		$sparql = 'SELECT ?artist ?artistLabel ?links (SAMPLE(?placeName) AS ?placeEn) (SAMPLE(?genreLabel) AS ?genre) (SAMPLE(?yt) AS ?ytc) (SAMPLE(?sp) AS ?spotify) (SAMPLE(?img) AS ?image) WHERE {
   SERVICE wikibase:around { ?place wdt:P625 ?loc . bd:serviceParam wikibase:center "' . $point . '"^^geo:wktLiteral . bd:serviceParam wikibase:radius "' . (int) $radius_km . '" . }
   { ?artist wdt:P740 ?place . ?artist wdt:P31/wdt:P279* wd:Q215380 . }
   UNION
@@ -427,11 +427,13 @@ class MusicMap_Channels {
   OPTIONAL { ?artist wdt:P136 ?g . ?g rdfs:label ?genreLabel . FILTER(LANG(?genreLabel) = "en") }
   OPTIONAL { ?artist wdt:P2397 ?yt . }
   OPTIONAL { ?artist wdt:P1902 ?sp . }
+  OPTIONAL { ?artist wdt:P18 ?img . }
+  OPTIONAL { ?place rdfs:label ?placeName . FILTER(LANG(?placeName) = "en") }
   # must have a real music presence (Spotify artist, YouTube channel or record label), so famous
   # people who are only incidentally "musicians" do not crowd out actual artists
   FILTER(BOUND(?sp) || BOUND(?yt) || EXISTS { ?artist wdt:P264 ?label . })
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-} GROUP BY ?artist ?artistLabel ?placeLabel ?links ORDER BY DESC(?links) LIMIT 40';
+} GROUP BY ?artist ?artistLabel ?links ORDER BY DESC(?links) LIMIT 40';
 
 		list( $code, $data ) = self::get_json( 'https://query.wikidata.org/sparql?format=json&query=' . rawurlencode( $sparql ), 30 );
 		if ( 200 !== $code || ! isset( $data['results']['bindings'] ) ) {
@@ -450,15 +452,28 @@ class MusicMap_Channels {
 			$sp           = (string) ( $b['spotify']['value'] ?? '' );
 			$out[]        = array(
 				'name'       => $name,
-				'place'      => self::str( $b['placeLabel']['value'] ?? '', 80 ),
+				'place'      => preg_match( '/^Q\d+$/', (string) ( $b['placeEn']['value'] ?? '' ) ) ? '' : self::str( $b['placeEn']['value'] ?? '', 80 ), // never show a bare Wikidata id
 				'genre'      => self::str( $b['genre']['value'] ?? '', 40 ),
 				'fame'       => (int) ( $b['links']['value'] ?? 0 ),
 				'youtube'    => preg_match( '/^UC[A-Za-z0-9_-]{22}$/', $yt ) ? $yt : '',
 				'spotify'    => preg_match( '/^[A-Za-z0-9]{22}$/', $sp ) ? $sp : '',
 				'wikidata'   => preg_match( '/^Q\d+$/', $qid ) ? $qid : '',
+				'image'      => self::commons_thumb( (string) ( $b['image']['value'] ?? '' ) ),
 			);
 		}
 		return $out;
+	}
+
+	/**
+	 * An artist photo from Wikidata (a Wikimedia Commons file) as a small thumbnail address, or ''.
+	 * Only Commons' own file links are accepted, rebuilt here rather than passed through.
+	 */
+	private static function commons_thumb( $url ) {
+		if ( ! preg_match( '#^https?://commons\.wikimedia\.org/wiki/Special:FilePath/([^\s"\'<>?\#/]{1,240})$#', $url, $m ) ) {
+			return '';
+		}
+		$file = rawurlencode( rawurldecode( $m[1] ) );
+		return 'https://commons.wikimedia.org/wiki/Special:FilePath/' . $file . '?width=160';
 	}
 
 	// ── YouTube lookup, cached for everyone, with a daily quota guard ────

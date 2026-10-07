@@ -1,6 +1,15 @@
 # MusicMap Changelog
 
-## v1.13 — Current
+## v1.14 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Artist photos in Homegrown**: artists show a small round photo from Wikimedia Commons (via Wikidata) instead of a letter, also on the lock screen while they play. Most well-known artists have one (38 of 39 around Seattle, 18 of 19 around Tampa in testing); otherwise, or if a photo can't load, the letter stays. Wikimedia Commons is listed in Credits (each photo has its own free licence and author)
+
+### Fixed
+- Homegrown rows could show a Wikidata id such as "Q49255" where the place name should be; an id is never shown now
+
+## v1.13
 **Release date:** 2026-10-07
 
 ### Changed

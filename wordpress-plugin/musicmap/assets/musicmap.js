@@ -1896,7 +1896,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.13';
+const MM_VERSION = '1.14';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6196,6 +6196,7 @@ const CREDITS=[
   {name:'YouTube', role:'Plays game soundtracks and channel songs (IFrame Player API, oEmbed, Data API search)', url:'https://www.youtube.com', icon:'https://www.youtube.com/favicon.ico'},
   {name:'Apple Music charts', role:'Most-played songs per country for Popular (top songs and genre mixes)', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
   {name:'Wikidata', role:'Artists born or formed near the pin, for Homegrown', lic:'CC0', url:'https://www.wikidata.org', icon:'https://www.wikidata.org/static/favicon/wikidata.ico'},
+  {name:'Wikimedia Commons', role:'Artist photos in Homegrown (each photo has its own free licence and author on Commons)', lic:'CC BY-SA & more', url:'https://commons.wikimedia.org', icon:'https://commons.wikimedia.org/static/favicon/commons.ico'},
   {name:'Spotify', role:'Spotify playback, search and playlist import (Web Playback SDK, Web API)', url:'https://developer.spotify.com', icon:'https://open.spotify.com/favicon.ico'},
   {name:'SoundCloud', role:'SoundCloud tracks in custom packs (embedded player / Widget API)', url:'https://developers.soundcloud.com/docs/api/html5-widget', icon:'https://soundcloud.com/favicon.ico'},
   {name:'Radio Browser', role:'Community directory of radio stations near the pin', lic:'Public domain', url:'https://www.radio-browser.info', icon:'https://www.radio-browser.info/favicon.ico'},
@@ -6491,6 +6492,8 @@ let chanWantVia=null; // the service the visitor chose for this channel (one mis
 const chanCache={};
 const YT_ID=/^[A-Za-z0-9_-]{11}$/;
 const ART_OK=/^https:\/\/is\d+-ssl\.mzstatic\.com\/image\/thumb\/[^\s"'<>]+$/;
+// artist photos (Homegrown): Wikimedia Commons thumbnails as the plugin builds them
+const COMMONS_OK=/^https:\/\/commons\.wikimedia\.org\/wiki\/Special:FilePath\/[^\s"'<>?#\/]+\?width=160$/;
 
 async function mmApi(path){
   const base=typeof MM_CONFIG.restBase==='string'&&/^https?:\/\//.test(MM_CONFIG.restBase)?MM_CONFIG.restBase:'';
@@ -6637,7 +6640,13 @@ function renderChanList(){
       b.append(rank);
       if(ART_OK.test(it.art||'')){ const img=document.createElement('img'); img.className='local-item-art'; img.alt=''; img.loading='lazy'; img.referrerPolicy='no-referrer'; img.src=it.art; b.append(img); }
     } else {
-      const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent=(it.name||'?')[0]; b.append(icon);
+      const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent=(it.name||'?')[0];
+      if(COMMONS_OK.test(it.image||'')){
+        // their photo from Wikimedia Commons; the letter again if it can't load
+        const img=document.createElement('img'); img.className='local-item-art artist-photo'; img.alt=''; img.loading='lazy'; img.decoding='async';
+        img.referrerPolicy='no-referrer'; img.title='Photo: Wikimedia Commons'; img.src=it.image; img.onerror=()=>img.replaceWith(icon);
+        b.append(img);
+      } else b.append(icon);
     }
     const main=document.createElement('span'); main.className='local-item-main';
     const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block';
@@ -6960,7 +6969,8 @@ function setChanMediaSession(it){
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
       title:it.kind==='song'?it.title:(it._song||it.name), artist:it.kind==='song'?it.artist:(it._song?it.name:(it.genre||'Homegrown')),
-      album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:mmLogoArtwork()
+      album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]
+        :COMMONS_OK.test(it.image||'')?[{src:it.image.replace('?width=160','?width=512'),sizes:'512x512'}]:mmLogoArtwork()
     });
     navigator.mediaSession.setActionHandler('play',()=>chanToggle());
     navigator.mediaSession.setActionHandler('pause',()=>chanToggle());
