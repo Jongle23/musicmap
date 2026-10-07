@@ -1861,7 +1861,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.11.3';
+const MM_VERSION = '1.11.4';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -4951,7 +4951,7 @@ async function chanPlayApple(it,playTok){
   let queue=[];
   try{
     if(it.kind==='artist'){
-      // Made Here: the artist's best-known songs, shuffled
+      // Homegrown: the artist's best-known songs, shuffled
       const d=await amApi('/v1/catalog/{{storefrontId}}/search',{term:it.name.slice(0,200),types:'artists',limit:1});
       const aid=d?.results?.artists?.data?.[0]?.id;
       if(AM_ID.test(aid||'')){
@@ -5386,7 +5386,7 @@ const localPlaceCache={};
 
 const LOCAL_CHANNELS=[
   {id:'popular', label:'Popular'}, // top songs and genre mixes for the country (Genre Mixes was its own tab before v1.5)
-  {id:'made',    label:'Made Here'},
+  {id:'made',    label:'Homegrown'},
   {id:'radio',   label:'Radio'},
 ];
 let chanOverview=false; // Popular's front page is showing (the list that's playing stays loaded behind it)
@@ -5467,7 +5467,7 @@ function enterLocalMode(fromSwitch){
     localGeocode(pt.lat,pt.lon).then(place=>{
       if(!place||localPoint!==pt||pt.place) return;
       pt.place=place; ss('localPoint',pt); renderLocalHeader(); renderMapLegend();
-      if(localChannel==='made') document.getElementById('localListTitle').textContent='MADE AROUND '+(place.city||'THE PIN').toUpperCase();
+      if(localChannel==='made') document.getElementById('localListTitle').textContent='HOMEGROWN AROUND '+(place.city||'THE PIN').toUpperCase();
       if(localChannel==='radio') document.getElementById('localListTitle').textContent='STATIONS NEAR '+(place.city||'THE PIN').toUpperCase();
     });
   }
@@ -5527,7 +5527,7 @@ let localAnnounced=null; // the place the channel lists were last announced for 
 function announceLocalPlace(fromGps,sticky){
   const pl=localPoint?.place; if(!pl) return;
   const what=isSongList(localChannel)?'Your songs keep playing':localChannel==='radio'?(localStations.length?localStations.length+' radio stations nearby':'Local radio')
-    :localChannel==='made'?(chanItems.length?chanItems.length+' artists from around here':'Made Here')
+    :localChannel==='made'?(chanItems.length?chanItems.length+' artists from around here':'Homegrown')
     :'Popular in '+(pl.country||'this country');
   showBiomeToast(isSongList(localChannel)?'📍':localChannel==='radio'?'📻':localChannel==='made'?'🎤':'🔥', placeLabel(pl)||'New spot', what, '#a78bfa', true, !!sticky);
   if(fromGps) chime('switch');
@@ -5855,7 +5855,7 @@ function getSaved(){
 }
 const songKey=s=>(s.artist+'|'+s.title).toLowerCase();
 function isSongSaved(s){ return !!s&&getSaved().songs.some(x=>songKey(x)===songKey(s)); }
-// The song playing in a song channel, in the shape Saved keeps (Made Here: once we know which song it is)
+// The song playing in a song channel, in the shape Saved keeps (Homegrown: once we know which song it is)
 function currentSongForSave(){
   const it=chanItems[chanIdx]; if(!it) return null;
   const here={where:placeLabel(localPoint?.place), lat:localPoint?.lat, lon:localPoint?.lon};
@@ -6049,7 +6049,7 @@ const CREDITS=[
   {name:'Leaflet', role:'The interactive map', lic:'BSD-2', url:'https://leafletjs.com', icon:'https://leafletjs.com/docs/images/favicon.ico'},
   {name:'YouTube', role:'Plays game soundtracks and channel songs (IFrame Player API, oEmbed, Data API search)', url:'https://www.youtube.com', icon:'https://www.youtube.com/favicon.ico'},
   {name:'Apple Music charts', role:'Most-played songs per country for Popular and Genre Mixes', url:'https://rss.marketingtools.apple.com', icon:'https://www.apple.com/favicon.ico'},
-  {name:'Wikidata', role:'Artists born or formed near the pin, for Made Here', lic:'CC0', url:'https://www.wikidata.org', icon:'https://www.wikidata.org/static/favicon/wikidata.ico'},
+  {name:'Wikidata', role:'Artists born or formed near the pin, for Homegrown', lic:'CC0', url:'https://www.wikidata.org', icon:'https://www.wikidata.org/static/favicon/wikidata.ico'},
   {name:'Spotify', role:'Spotify playback, search and playlist import (Web Playback SDK, Web API)', url:'https://developer.spotify.com', icon:'https://open.spotify.com/favicon.ico'},
   {name:'SoundCloud', role:'SoundCloud tracks in custom packs (embedded player / Widget API)', url:'https://developers.soundcloud.com/docs/api/html5-widget', icon:'https://soundcloud.com/favicon.ico'},
   {name:'Radio Browser', role:'Community directory of radio stations near the pin', lic:'Public domain', url:'https://www.radio-browser.info', icon:'https://www.radio-browser.info/favicon.ico'},
@@ -6296,7 +6296,7 @@ function mmLogoArtwork(){
 }
 
 // ═══════════════════════════════════════════
-// SONG CHANNELS: Popular · Made Here · Genre Mixes
+// SONG CHANNELS: Popular · Homegrown · Genre Mixes
 // Data comes from the MusicMap plugin (MM_CONFIG.restBase): country charts (Apple Music),
 // local artists (Wikidata) and cached YouTube lookups. Plays on YouTube by default;
 // visitors who connected Spotify also get a Spotify button on each row.
@@ -6306,7 +6306,7 @@ let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
 let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpList=null;
 let chanOrder=[], chanOrderPos=0; // play order of chanItems (list order, or shuffled)
 let radOrder=[], radOrderPos=0;   // the same for radio stations
-// Shuffle is remembered per channel; Made Here starts shuffled
+// Shuffle is remembered per channel; Homegrown starts shuffled
 function shuffleOn(ch){ const s=gs('chanShuffle',{}); return s[ch||localChannel]!==undefined?s[ch||localChannel]===true:(ch||localChannel)==='made'; }
 function shuffledIdx(n){ const a=[...Array(n).keys()]; for(let i=n-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function buildChanOrder(){ chanOrder=shuffleOn()?shuffledIdx(chanItems.length):[...Array(chanItems.length).keys()]; chanOrderPos=0; }
@@ -6387,7 +6387,7 @@ async function loadSongChannel(opts){
   if(!localPoint){ renderLocalNote('Choose a spot first: tap <b>Move pin</b>.'); return; }
   try{
     if(localChannel==='made'){
-      title.textContent='MADE AROUND '+(pl?.city||'THE PIN').toUpperCase();
+      title.textContent='HOMEGROWN AROUND '+(pl?.city||'THE PIN').toUpperCase();
       renderLocalLoading('Finding artists from around <b>'+esc(placeLabel(pl)||'this spot')+'</b>…');
       const d=await getMade(localPoint.lat,localPoint.lon);
       if(token!==localLoadToken) return;
@@ -6776,7 +6776,7 @@ function startChanProgress(){
 }
 function setChanNowPlaying(it,title,sub,via){
   const pl=localPoint?.place;
-  const where=isSongList(localChannel)?SONG_LIST_LABEL[localChannel]:localChannel==='made'?'Made around '+(pl?.city||'the pin'):chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Popular in '+(pl?.country||'this country');
+  const where=isSongList(localChannel)?SONG_LIST_LABEL[localChannel]:localChannel==='made'?'Homegrown around '+(pl?.city||'the pin'):chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Popular in '+(pl?.country||'this country');
   document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:(it._song||it.name)):'');
   document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'||it._song?(it.artist||it.name)+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
   const src=document.getElementById('npSource');
@@ -6794,7 +6794,7 @@ function setChanNowPlaying(it,title,sub,via){
   yb.onclick=link?()=>window.open(link,'_blank','noopener'):null;
   updateSaveStationBtn();
 }
-// Made Here plays an artist: once we know which song is on, show it (player and lock screen)
+// Homegrown plays an artist: once we know which song is on, show it (player and lock screen)
 function showArtistSong(title){
   const it=chanItems[chanIdx]; title=String(title||'').trim().slice(0,160);
   if(!it||it.kind!=='artist'||!title||it._song===title) return;
@@ -6812,7 +6812,7 @@ function setChanMediaSession(it){
   if(!('mediaSession' in navigator)) return;
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
-      title:it.kind==='song'?it.title:(it._song||it.name), artist:it.kind==='song'?it.artist:(it._song?it.name:(it.genre||'Made Here')),
+      title:it.kind==='song'?it.title:(it._song||it.name), artist:it.kind==='song'?it.artist:(it._song?it.name:(it.genre||'Homegrown')),
       album:'MusicMap · '+chanLabel(), artwork:ART_OK.test(it.art||'')?[{src:it.art.replace('100x100bb','512x512bb'),sizes:'512x512'}]:mmLogoArtwork()
     });
     navigator.mediaSession.setActionHandler('play',()=>chanToggle());

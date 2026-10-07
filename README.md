@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.11.3
+# 🎵 MusicMap v1.11.4
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -78,7 +78,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.11.3"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.11.4"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).
@@ -144,12 +144,12 @@ Switch between **Biome Beats** (the game-pack mode — a nod to MusicMap's origi
 Pick a channel from the sub-menu at the top of the **Channels** tab:
 
 - **Popular** — the country's top songs (Apple Music charts) plus the same chart split into genre mixes (Pop, Country, Hip-Hop/Rap…). Tap the top songs or a genre to open it: it shuffles and starts playing
-- **Made Here** — well-known artists born or formed near the pin, most famous first
+- **Homegrown** — well-known artists born or formed near the pin, most famous first
 - **Radio** — live stations broadcasting near the pin; keeps playing with the screen off
 
-Songs and artists play through YouTube by default (the video shows while it plays, as YouTube requires), or on Spotify or Apple Music for visitors who connected one: **Settings → Connections → Play songs on** picks which, and the small buttons on each row play it on the others. Each channel has a **Shuffle** button (Made Here starts shuffled), and while a Made Here artist plays, the player shows the song. Every row has a **share** button: the link opens MusicMap at the same spot, on the same channel, with that item ready to play. Favourite stations and spots go in the **Saved** tab.
+Songs and artists play through YouTube by default (the video shows while it plays, as YouTube requires), or on Spotify or Apple Music for visitors who connected one: **Settings → Connections → Play songs on** picks which, and the small buttons on each row play it on the others. Each channel has a **Shuffle** button (Homegrown starts shuffled), and while a Homegrown artist plays, the player shows the song. Every row has a **share** button: the link opens MusicMap at the same spot, on the same channel, with that item ready to play. Favourite stations and spots go in the **Saved** tab.
 
-Data comes from free sources only — Apple Music charts, Wikidata, Radio Browser and your free YouTube Data API key — fetched by the WordPress plugin and cached in its database for every visitor. Each new song costs 101 of YouTube's 10,000 free daily units (about 99 new songs a day; the extra unit checks video lengths so Shorts are skipped); songs played before are free. Set the daily budget and see today's usage under **MusicMap → Settings**. Charts are country-level (no free source has city charts); Made Here and Radio are local. An early prototype of this mode lives in `alpha/`.
+Data comes from free sources only — Apple Music charts, Wikidata, Radio Browser and your free YouTube Data API key — fetched by the WordPress plugin and cached in its database for every visitor. Each new song costs 101 of YouTube's 10,000 free daily units (about 99 new songs a day; the extra unit checks video lengths so Shorts are skipped); songs played before are free. Set the daily budget and see today's usage under **MusicMap → Settings**. Charts are country-level (no free source has city charts); Homegrown and Radio are local. An early prototype of this mode lives in `alpha/`.
 
 ---
 

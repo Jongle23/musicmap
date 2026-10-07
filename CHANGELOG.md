@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.11.3 — Current
+## v1.11.4 — Current
+**Release date:** 2026-10-07
+
+### Changed
+- **"Made Here" is now "Homegrown"**: the channel of well-known artists born or formed near the pin. Its list reads "Homegrown around (city)". Old share links and saved spots for it still work
+
+## v1.11.3
 **Release date:** 2026-10-07
 
 ### Fixed

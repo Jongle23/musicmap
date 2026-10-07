@@ -380,7 +380,7 @@ class MusicMap_Channels {
 		return array( $songs ? $songs : null, $code );
 	}
 
-	// ── Made Here: notable artists born or formed near a point (Wikidata) ─
+	// ── Homegrown: notable artists born or formed near a point (Wikidata) ─
 
 	public static function made( WP_REST_Request $req ) {
 		$lat = round( (float) $req['lat'], 1 ); // ~10 km cells: nearby pins share one cached answer
