@@ -5254,7 +5254,7 @@ function onSpotifyState(s){
   if(s.paused && s.position===0 && !s.loading){
     // end of what we handed Spotify: move on ourselves (unless Spotify already has the next song lined up)
     if(appMode!=='local' && packsSpQueue && packsSpQueue.length>1) return;
-    if(appMode==='local' && (chanVia!=='spotify' || !chanPlaying || (chanSpNext&&chanSpNext.token===chanPlayToken))) return;
+    if(appMode==='local' && (chanVia!=='spotify' || !chanPlaying || chanSpHasMore())) return;
     if(appMode!=='local' && !isPlaying) return;
     nextTrack();
   }
@@ -6569,7 +6569,7 @@ function mmLogoArtwork(){
 // ═══════════════════════════════════════════
 let chanItems=[], chanIdx=-1, chanPlaying=false, chanVia=null, chanGenre=null, chanData=null;
 let ytPlayer=null, ytReadyPromise=null, chanProgTimer=null, chanSkips=0;
-let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpNext=null;
+let chanPlayToken=0, chanStartedToken=-1, chanYtNext=null, chanSpList=null;
 let chanOrder=[], chanOrderPos=0; // play order of chanItems (list order, or shuffled)
 let radOrder=[], radOrderPos=0;   // the same for radio stations
 // Shuffle is remembered per channel; Made Here starts shuffled
@@ -6948,40 +6948,52 @@ async function chanPlaySpotify(it,playTok){
     if(/^[A-Za-z0-9]{22}$/.test(it.spotify||'')) ctx='spotify:artist:'+it.spotify;
     else { const r=await spotifyApiGet('/search?type=artist&limit=1&q='+encodeURIComponent(it.name),token); ctx=r?.artists?.items?.[0]?.uri||''; }
   } else {
-    const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
-    uri=r?.tracks?.items?.[0]?.uri||'';
+    // this song and the next ones in play order, handed to Spotify as one list: Spotify moves through
+    // them by itself (screen off too). Its "add to queue" can't be relied on, so it isn't used.
+    const order=[chanIdx]; for(let j=chanIdx,k=0;k<CHAN_SP_AHEAD&&order.length<chanItems.length;k++){ j=chanNextIdx(j); if(order.includes(j)) break; order.push(j); }
+    const found=await Promise.all(order.map(j=>chanItems[j]?.kind==='song'?spotifyFindTrack(chanItems[j],token).catch(()=>''):Promise.resolve('')));
+    uri=found[0];
+    if(uri){
+      chanSpList={token:playTok, items:order.map((j,k)=>({idx:j,uri:found[k]})).filter(x=>x.uri)};
+      chanSpList.items.forEach(x=>{ if(chanItems[x.idx]) chanItems[x.idx]._sp=x.uri; });
+    }
   }
   if(playTok!==chanPlayToken) return;
   if(!/^spotify:(track|artist):[A-Za-z0-9]{22}$/.test(uri||ctx)) throw Object.assign(new Error('Not found on Spotify.'),{code:'not_found'});
-  const resp=await spotifyPlayBody(uri?{uris:[uri]}:{context_uri:ctx});
+  if(!uri) chanSpList=null;
+  const resp=await spotifyPlayBody(uri?{uris:chanSpList.items.map(x=>x.uri)}:{context_uri:ctx});
   if(!resp.ok) throw Object.assign(new Error('Spotify couldn’t start playback.'),{code:'cant_play'});
   it._sp=uri||ctx;
   spotifyActive=true; chanPlaying=true;
-  if(uri) queueNextChanSpotify(playTok,token);
   setPlayIcon(true); document.getElementById('playingBars').style.display='flex';
   startChanProgress();
 }
 
-// Spotify song channels: put the next song in Spotify's own queue so it plays on by itself
-async function queueNextChanSpotify(playTok,token){
-  chanSpNext=null;
-  const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
-  const it=chanItems[nextIdx]; if(!it||it.kind!=='song') return;
-  try{
-    const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
-    const uri=r?.tracks?.items?.[0]?.uri||'';
-    if(playTok!==chanPlayToken||!/^spotify:track:[A-Za-z0-9]{22}$/.test(uri)) return;
-    const q=await fetch('https://api.spotify.com/v1/me/player/queue?uri='+encodeURIComponent(uri)+'&device_id='+encodeURIComponent(spTargetId()),{method:'POST',headers:{'Authorization':'Bearer '+token}});
-    if(q.ok||q.status===204){ it._sp=uri; chanSpNext={idx:nextIdx,uri,token:playTok}; }
-  }catch(e){}
+const CHAN_SP_AHEAD=15; // songs handed to Spotify after the current one (about an hour)
+async function spotifyFindTrack(it,token){
+  if(/^spotify:track:[A-Za-z0-9]{22}$/.test(it._sp||'')) return it._sp;
+  const r=await spotifyApiGet('/search?type=track&limit=1&q='+encodeURIComponent('track:'+it.title+' artist:'+it.artist),token);
+  const uri=r?.tracks?.items?.[0]?.uri||'';
+  return /^spotify:track:[A-Za-z0-9]{22}$/.test(uri)?uri:'';
 }
+// Spotify moved to another song in the list we gave it: catch the labels up (no playback calls)
 function followChanSpotify(uris){
-  if(!chanSpNext||chanSpNext.token!==chanPlayToken||!uris.includes(chanSpNext.uri)) return false;
-  chanIdx=chanSpNext.idx; chanSpNext=null; chanSkips=0;
+  if(!chanSpList||chanSpList.token!==chanPlayToken) return false;
+  const at=chanSpList.items.findIndex(x=>uris.includes(x.uri));
+  if(at<0) return false;
+  const step=chanSpList.items[at];
+  if(step.idx===chanIdx) return false; // same song: let the end-of-list check below see it
+  chanIdx=step.idx; chanSkips=0;
+  const pos=chanOrder.indexOf(chanIdx); if(pos>=0) chanOrderPos=pos;
   const it=chanItems[chanIdx];
   renderChanList(); setChanNowPlaying(it,null,null,'spotify'); setChanMediaSession(it);
-  getValidSpotifyToken().then(tok=>{ if(tok) queueNextChanSpotify(chanPlayToken,tok); });
   return true;
+}
+// is Spotify still working through our list (so the end of one song isn't the end of playback)?
+function chanSpHasMore(){
+  if(!chanSpList||chanSpList.token!==chanPlayToken) return false;
+  const at=chanSpList.items.findIndex(x=>x.idx===chanIdx);
+  return at>=0&&at<chanSpList.items.length-1;
 }
 
 let chanLocKey=null;
