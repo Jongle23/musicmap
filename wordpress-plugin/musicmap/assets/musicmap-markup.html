@@ -224,6 +224,10 @@
           <option value="km">Kilometres</option>
         </select>
       </label>
+      <label class="settings-inline" for="chimesToggle" style="margin-top:10px">Location chimes
+        <input type="checkbox" id="chimesToggle" onchange="setLocationChimes(this.checked)" style="width:20px;height:20px;accent-color:var(--accent)">
+      </label>
+      <div class="conn-hint">A soft ping when live location notices you've moved somewhere new, and a chime when the music switches to it.</div>
     </div>
     <!-- Credits: every service and tool MusicMap uses (rendered on first open; logos load from each site) -->
     <div class="section" id="creditsSection" style="margin-top:20px">

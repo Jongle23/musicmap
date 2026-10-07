@@ -293,7 +293,9 @@ body{background:var(--bg)}
 .modal-search input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 12px;color:#fff;font-size:13px;font-family:var(--sans);outline:none}
 .modal-search input:focus{border-color:var(--accent)}
 .modal-search input::placeholder{color:var(--muted)}
-.modal-list{overflow-y:auto;padding:0 13px 14px;flex:1}
+.modal-list{overflow-y:auto;padding:0 13px 14px;flex:1;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+/* the Add tracks sheet: each tab pane fills the sheet so its list scrolls instead of being cut off */
+#pickerTabYtPane,#pickerTabSpPane{display:flex;flex-direction:column;flex:1;min-height:0}
 .modal-group-label{font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1.5px;padding:9px 2px 5px;position:sticky;top:0;background:var(--surface);z-index:1}
 .modal-track-item{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;transition:all .15s;border:1px solid transparent}
 .modal-track-item:hover{background:rgba(255,255,255,.05);border-color:var(--border)}
@@ -789,6 +791,10 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
           <option value="km">Kilometres</option>
         </select>
       </label>
+      <label class="settings-inline" for="chimesToggle" style="margin-top:10px">Location chimes
+        <input type="checkbox" id="chimesToggle" onchange="setLocationChimes(this.checked)" style="width:20px;height:20px;accent-color:var(--accent)">
+      </label>
+      <div class="conn-hint">A soft ping when live location notices you've moved somewhere new, and a chime when the music switches to it.</div>
     </div>
     <!-- Credits: every service and tool MusicMap uses (rendered on first open; logos load from each site) -->
     <div class="section" id="creditsSection" style="margin-top:20px">
@@ -2061,6 +2067,20 @@ let editingLocId=null, editingLocIsCustom=false, editingPins=[];
 // Shuffle queue — ensures every track plays before any repeats
 let shuffleQueue=[];
 let pendingBiomeId=null; // biome queued to switch at next track end
+let noticedBiomeId=null; // last pending biome we pinged about (so each new place chimes once)
+function biomeDisplayName(id){
+  const b=getActivePack()?.biomes?.find(x=>x.id===id);
+  const ov=b?getBiomeOverride(getPackId(),id):null;
+  return ov?.name||b?.name||getAllCustomLocs().find(l=>l.id===id)?.name||'';
+}
+// Live location found a different biome: ping, and say it switches after this track
+function noticeBiome(id){
+  if(!id||id===currentLocId){ noticedBiomeId=null; return; }
+  if(noticedBiomeId===id) return;
+  noticedBiomeId=id; chime('notice');
+  const n=biomeDisplayName(id);
+  if(trackingActive&&n) setTrackingUI(true,'Near '+n+' · switching after this track','pending');
+}
 function buildShuffleQueue(len, currentIdx){
   // Fisher-Yates shuffle of all indices except current
   const pool=[];
@@ -2086,15 +2106,46 @@ function hardSwitchTo(src){
   getActiveIframe().src=src;
 }
 
+// ── LOCATION CHIMES ──
+// A soft ping when a new place is noticed, and a gentle two-note chime when the music switches to it.
+// Made with Web Audio (no sound files). Browsers only allow sound after a tap, so the first tap unlocks it.
+let chimeCtx=null;
+function chimesOn(){ return gs('locationChimes',true)!==false; }
+function unlockChimes(){
+  try{ chimeCtx=chimeCtx||new (window.AudioContext||window.webkitAudioContext)(); if(chimeCtx.state==='suspended') chimeCtx.resume(); }catch(e){}
+}
+document.addEventListener('pointerdown',unlockChimes,{once:true,capture:true});
+function chime(kind){ // 'notice' | 'switch'
+  if(!chimesOn()||!chimeCtx) return;
+  try{
+    if(chimeCtx.state==='suspended') chimeCtx.resume();
+    const t0=chimeCtx.currentTime+0.03;
+    const notes=kind==='switch'?[[659.25,0],[987.77,0.16]]:[[880,0]]; // E5 then B5 · a single A5
+    notes.forEach(([f,dt])=>{
+      [[f,0.07],[f*2,0.018]].forEach(([freq,vol])=>{ // the note plus a faint overtone: bell-like, not beepy
+        const o=chimeCtx.createOscillator(), g=chimeCtx.createGain();
+        o.type='sine'; o.frequency.value=freq;
+        g.gain.setValueAtTime(0.0001,t0+dt);
+        g.gain.exponentialRampToValueAtTime(vol,t0+dt+0.025);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+dt+1.3);
+        o.connect(g); g.connect(chimeCtx.destination);
+        o.start(t0+dt); o.stop(t0+dt+1.4);
+      });
+    });
+  }catch(e){}
+}
+function setLocationChimes(on){ ss('locationChimes',!!on); if(on){ unlockChimes(); chime('switch'); } }
+
 // ── TOAST ──
 let toastTimeout=null;
-function showBiomeToast(emoji, biomeName, trackName, accentCss){
+// plain: the third line is information, not a song (no ♪)
+function showBiomeToast(emoji, biomeName, trackName, accentCss, plain){
   const toast=document.getElementById('biomeToast');
   const inner=document.getElementById('biomeToastInner');
   // Update content
   document.getElementById('toastEmoji').textContent=emoji;
   document.getElementById('toastBiomeName').textContent=biomeName;
-  document.getElementById('toastTrackName').textContent=trackName?'♪ '+trackName:'';
+  document.getElementById('toastTrackName').textContent=trackName?(plain?'':'♪ ')+trackName:'';
   // Update accent colour by re-applying CSS var inline
   const bar=document.getElementById('toastAccentBar');
   bar.style.background=accentCss||'var(--accent)';
@@ -2229,6 +2280,7 @@ function switchTab(id){
   document.getElementById('tab-'+id).classList.add('active');
   if(id==='settings'){
     syncDistUnitsSelect();
+    const ct=document.getElementById('chimesToggle'); if(ct) ct.checked=chimesOn();
     renderCredits();
     renderHiddenTracks();
     renderConnectionsUI();
@@ -3050,8 +3102,10 @@ function nextTrack(){
     const bid=pendingBiomeId;
     pendingBiomeId=null;
     loadLocation(bid, false, true); // true = show toast
+    chime('switch'); noticedBiomeId=null;
     // Arrived at a saved place — the "switching after this track" notice is now done
     if(trackingActive && getAllCustomLocs().some(l=>l.id===bid)) setTrackingUI(true,'You\'re here','here');
+    else if(trackingActive&&biomeDisplayName(bid)) setTrackingUI(true,'Now in '+biomeDisplayName(bid),'world');
     return; // loadLocation will call playCurrentTrack
   }
   pendingBiomeId=null;
@@ -3757,7 +3811,8 @@ async function pollLocation(isFirstPoll,opts){
           const id=await classifyBiome(lat,lon,locName2);
           if(id!==currentLocId){
             // already playing (mode switch): change biome at the end of this track, like any other move
-            if(isPlaying&&!autoplay) pendingBiomeId=id; else loadLocation(id,false,false);
+            if(isPlaying&&!autoplay){ pendingBiomeId=id; noticeBiome(id); }
+            else { loadLocation(id,false,true); chime('switch'); }
           }
           if(autoplay&&!isPlaying){ playCurrentTrack(false); isPlaying=true; }
         }catch(e){}
@@ -3771,7 +3826,7 @@ async function pollLocation(isFirstPoll,opts){
           if(autoplay&&!isPlaying){ playCurrentTrack(false); isPlaying=true; }
         } else {
           // Hero still shows the old place until the track ends — name the new one here
-          pendingBiomeId=nearby.id;
+          pendingBiomeId=nearby.id; noticeBiome(nearby.id);
           setTrackingUI(true, `Near ${nearby.name} · switching after this track`, 'pending');
         }
         renderLocGrid();
@@ -4338,12 +4393,14 @@ async function checkBiomeInBackground(){
   });
   if(nearby){
     pendingBiomeId = nearby.id !== currentLocId ? nearby.id : null;
+    noticeBiome(pendingBiomeId);
     return;
   }
   try{
     const locName=await revGeo(lastLat,lastLon);
     const id=await classifyBiome(lastLat,lastLon,locName);
     pendingBiomeId = id !== currentLocId ? id : null;
+    noticeBiome(pendingBiomeId);
   }catch(e){ pendingBiomeId=null; }
 }
 
@@ -5811,15 +5868,19 @@ const localPlaceCache={};
   const p=gs('localPoint',null);
   if(p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&Math.abs(p.lat)<=90&&Math.abs(p.lon)<=180) localPoint=p;
   const c=gs('localChannel','radio');
-  localChannel=['popular','made','genres','radio'].includes(c)?c:'radio';
+  localChannel=c==='genres'?'popular':['popular','made','radio'].includes(c)?c:'radio';
 })();
 
 const LOCAL_CHANNELS=[
-  {id:'popular', label:'Popular'},
+  {id:'popular', label:'Popular'}, // top songs and genre mixes for the country (Genre Mixes was its own tab before v1.5)
   {id:'made',    label:'Made Here'},
-  {id:'genres',  label:'Genre Mixes'},
   {id:'radio',   label:'Radio'},
 ];
+let chanOverview=false; // Popular's front page is showing (the list that's playing stays loaded behind it)
+const CHART_TOP='__top'; // the "Top N" list inside Popular (the others are genre names)
+const chartCountry=()=>localPoint?.place?.country||'this country';
+function mixLabel(m){ return m.genre===CHART_TOP?'Top '+m.list.length+' in '+chartCountry():m.genre+' mix'; }
+function mixTitle(m){ return (m.genre===CHART_TOP?'Top '+m.list.length:m.genre+' mix')+' · '+chartCountry(); }
 
 function placeLabel(pl){ return pl?[pl.city,pl.region].filter(Boolean).join(', ')||pl.country||'':''; }
 
@@ -5879,6 +5940,7 @@ async function setAppMode(mode){
   relocateForMode(); // live location carries over: find your biome / move the listening pin to you
 }
 function enterLocalMode(fromSwitch){
+  if(localAnnounced===null&&placeLabel(localPoint?.place)) localAnnounced=placeLabel(localPoint.place); // moves from here on get the pop-up
   // live location is on: listen from where you are (from the last fix right away; the next poll refines it)
   if(trackingActive&&lastLat!==null&&(!localPoint||localPoint.source!=='gps'||dist(localPoint.lat,localPoint.lon,lastLat,lastLon)>500)){
     setListenPoint(lastLat,lastLon,'gps',{force:true});
@@ -5922,7 +5984,7 @@ function setListenPoint(lat,lon,source,opts){
   localPoint={lat:+lat.toFixed(5), lon:+lon.toFixed(5), source:source==='gps'?'gps':'pin', place:moved<1500?prev.place:null};
   ss('localPoint',localPoint);
   renderListenPin(); renderLocalHeader(); updateSaveSpotBtn();
-  if(appMode==='local'&&(moved>2000||opts?.force)) renderLocalLoading(localChannel==='radio'?'Finding stations near the new spot…':'Moving to the new spot…');
+  if(appMode==='local'&&(opts?.force||!localListAt||dist(localListAt.lat,localListAt.lon,localPoint.lat,localPoint.lon)>2000)) renderLocalLoading(localChannel==='radio'?'Finding stations near the new spot…':'Moving to the new spot…');
   clearTimeout(localGeoTimer);
   // wait for the pin to settle before looking anything up (Nominatim allows ~1 request/second)
   localGeoTimer=setTimeout(async()=>{
@@ -5930,9 +5992,31 @@ function setListenPoint(lat,lon,source,opts){
     if(!pt.place) pt.place=await localGeocode(pt.lat,pt.lon);
     if(localPoint!==pt) return;
     ss('localPoint',pt); renderLocalHeader();
-    // channels only need refreshing when the pin really moved
-    if(appMode==='local' && (moved>2000 || !localStations.length || opts?.force)) loadLocalChannel(opts);
+    // a new town or city (not just a few streets on): live location pings as soon as it notices
+    const label=placeLabel(pt.place);
+    const newPlace=appMode==='local'&&!!label&&localAnnounced!==null&&label!==localAnnounced;
+    if(newPlace&&source==='gps') chime('notice');
+    // channels only need refreshing when the pin is really somewhere else than the lists are for
+    // (measured from where they were loaded, so a quick second reading can't cancel a real move)
+    const far=!localListAt||dist(localListAt.lat,localListAt.lon,pt.lat,pt.lon)>2000;
+    if(appMode==='local' && (far || !localStations.length || opts?.force)){
+      await loadLocalChannel(opts);
+      if(appMode!=='local'||!localPoint?.place) return;
+      // the lists now match the new place: the same pop-up as a biome change (and a chime for live location)
+      const now=placeLabel(localPoint.place);
+      if(newPlace&&now===label) announceLocalPlace(source==='gps');
+      if(now) localAnnounced=now;
+    } else if(label&&localAnnounced===null) localAnnounced=label;
   },700);
+}
+let localAnnounced=null; // the place the channel lists were last announced for (set on the first load, no pop-up)
+function announceLocalPlace(fromGps){
+  const pl=localPoint?.place; if(!pl) return;
+  const what=localChannel==='radio'?(localStations.length?localStations.length+' radio stations nearby':'Local radio')
+    :localChannel==='made'?(chanItems.length?chanItems.length+' artists from around here':'Made Here')
+    :'Popular in '+(pl.country||'this country');
+  showBiomeToast(localChannel==='radio'?'📻':localChannel==='made'?'🎤':'🔥', placeLabel(pl)||'New spot', what, '#a78bfa', true);
+  if(fromGps) chime('switch');
 }
 function moveListenPinTo(lat,lon){
   if(trackingActive){ stopTracking(); spotifyShowSnack('Live tracking off. Listening from the pin.'); }
@@ -6041,7 +6125,9 @@ function renderLocalLoading(html){
     +'<div class="skel-row" aria-hidden="true"></div>'.repeat(4); // only ever called with app-written text
   if(!chanPlaying&&!localPlaying) setPlayerBusy(true);
 }
+let localListAt=null; // where the channel lists were last loaded for
 async function loadLocalChannel(opts){
+  if(localPoint) localListAt={lat:localPoint.lat,lon:localPoint.lon};
   const title=document.getElementById('localListTitle');
   const pl=localPoint?.place;
   const where=esc(placeLabel(pl)||'this spot');
@@ -6351,7 +6437,7 @@ function playSavedStation(st){
 }
 function goToSavedSpot(sp){
   if(trackingActive) stopTracking();
-  if(['popular','made','genres','radio'].includes(sp.channel)){ localChannel=sp.channel; ss('localChannel',sp.channel); }
+  if(['popular','made','genres','radio'].includes(sp.channel)){ localChannel=sp.channel==='genres'?'popular':sp.channel; ss('localChannel',localChannel); }
   setListenPoint(sp.lat,sp.lon,'pin',{force:true});
   if(sp.place&&localPoint){ localPoint.place=sp.place; ss('localPoint',localPoint); }
   renderLocalHeader(); updateSaveSpotBtn();
@@ -6645,7 +6731,7 @@ function toggleChanShuffle(){
     else if(on&&localPoint) loadLocalChannel({autoplay:true});
     return;
   }
-  if(localChannel==='genres'&&chanGenre===null&&chanData?.mixes?.length){
+  if(localChannel==='popular'&&(chanGenre===null||chanOverview)&&chanData?.mixes?.length){
     if(on) openMix(chanData.mixes[Math.floor(Math.random()*chanData.mixes.length)].genre,true);
     return;
   }
@@ -6717,18 +6803,19 @@ async function loadSongChannel(opts){
         }
         return fail('That spot isn’t in a country with music charts.');
       }
-      title.textContent=(localChannel==='popular'?'POPULAR IN ':'GENRE MIXES · ')+(pl.country||cc).toUpperCase();
+      title.textContent='POPULAR IN '+(pl.country||cc).toUpperCase();
       renderLocalLoading('Loading the chart for <b>'+esc(pl.country||cc.toUpperCase())+'</b>…');
       const d=await getChart(cc);
       if(token!==localLoadToken) return;
-      if(localChannel==='popular') setChanList(d.songs.map(x=>({kind:'song',...x})), d, opts);
+      // one tab: the country's top songs first, then the same chart split into genre mixes
+      const mixes=[{genre:CHART_TOP, list:d.songs}, ...genreMixes(d.songs)];
+      chanData={...d, mixes};
+      const open=mixes.find(m=>m.genre===chanGenre);
+      if(open){ chanOverview=false; title.textContent=mixTitle(open).toUpperCase(); setChanList(open.list.map(x=>({kind:'song',...x})), chanData, opts, true); }
       else {
-        const mixes=genreMixes(d.songs);
-        if(!mixes.length) return fail('Not enough chart data for '+(pl.country||cc)+' to build genre mixes.');
-        chanData={...d, mixes};
-        const open=mixes.find(m=>m.genre===chanGenre);
-        if(open){ title.textContent=(open.genre+' mix · '+(pl.country||cc)).toUpperCase(); setChanList(open.list.map(x=>({kind:'song',...x})), chanData, opts, true); }
-        else { chanItems=[]; renderChanList(); if(opts?.switchNow||opts?.autoplay) openMix(mixes[0].genre,true); }
+        chanGenre=null; chanOverview=true; chanItems=[]; renderChanList(); renderShuffleBtn();
+        if(opts?.switchNow||opts?.autoplay) openMix(CHART_TOP,true,true);
+        else if(!chanPlaying&&!localPlaying) setLocalIdle();
       }
     }
   }catch(e){
@@ -6755,9 +6842,9 @@ function setLocalIdle(){
   const pl=localPoint?.place;
   const n=chanItems.length;
   const what=localChannel==='made'?n+' artists from around '+(placeLabel(pl)||'the pin')
-    :localChannel==='popular'?'Top '+n+' in '+(pl?.country||'this country')
-    :n?chanGenre+' mix':'Genre mixes for '+(pl?.country||'this country');
-  setChanNowPlaying(null,what,'Tap play or pick '+(localChannel==='made'?'an artist':'a song'));
+    :n?(chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Top '+n+' in '+(pl?.country||'this country'))
+    :'Top songs and genre mixes for '+(pl?.country||'this country');
+  setChanNowPlaying(null,what,localChannel==='made'?'Tap play or pick an artist':n?'Tap play or pick a song':'Pick the top songs or a genre: it shuffles and plays');
 }
 const itemKey=x=>x.kind==='artist'?'a:'+x.name:'s:'+x.artist+'|'+x.title;
 const itemTitle=x=>x.kind==='artist'?x.name:x.title+' — '+x.artist;
@@ -6765,26 +6852,30 @@ const itemTitle=x=>x.kind==='artist'?x.name:x.title+' — '+x.artist;
 function renderChanList(){
   const list=document.getElementById('localList'); if(!list) return;
   list.innerHTML='';
-  if(localChannel==='genres'&&!chanItems.length&&chanData?.mixes){
+  // Popular's front page: the top songs, then genre mixes. Tapping one shuffles it and starts playing.
+  if(localChannel==='popular'&&chanData?.mixes&&(chanOverview||!chanItems.length)){
     chanData.mixes.forEach(m=>{
+      const top=m.genre===CHART_TOP;
       const row=document.createElement('div'); row.className='local-row-wrap';
-      const b=document.createElement('button'); b.type='button'; b.className='local-item';
-      const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent='♫';
+      const b=document.createElement('button'); b.type='button'; b.className='local-item'+(top?' local-item-top':'');
+      if(top&&ART_OK.test(m.list[0]?.art||'')){ const img=document.createElement('img'); img.className='local-item-art'; img.alt=''; img.loading='lazy'; img.referrerPolicy='no-referrer'; img.src=m.list[0].art; b.append(img); }
+      else { const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent=top?'★':'♫'; b.append(icon); }
       const main=document.createElement('span'); main.className='local-item-main';
-      const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=m.genre+' mix';
+      const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=mixLabel(m);
       const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
-      sub.textContent=m.list.length+' songs · '+[...new Set(m.list.map(x=>x.artist))].slice(0,3).join(', ');
-      main.append(name,sub); b.append(icon,main);
-      b.onclick=()=>openMix(m.genre,false);
-      row.append(b, shareButton({ch:'genres', g:m.genre}, m.genre+' mix'));
+      sub.textContent=(top?'Most played right now · ':m.list.length+' songs · ')+[...new Set(m.list.map(x=>x.artist))].slice(0,3).join(', ');
+      main.append(name,sub); b.append(main);
+      b.onclick=()=>openMix(m.genre,true,true);
+      b.setAttribute('aria-label','Shuffle play '+mixLabel(m));
+      row.append(b, shareButton({ch:'popular', g:top?'':m.genre}, mixLabel(m)));
       list.appendChild(row);
     });
     return;
   }
-  if(localChannel==='genres'&&chanGenre){
+  if(localChannel==='popular'&&chanGenre){
     const back=document.createElement('button'); back.type='button'; back.className='local-back';
-    back.textContent='← All genre mixes';
-    back.onclick=()=>{ chanGenre=null; chanItems=[]; document.getElementById('localListTitle').textContent='GENRE MIXES · '+(localPoint?.place?.country||'').toUpperCase(); renderChanList(); };
+    back.textContent='← Top songs & genres';
+    back.onclick=()=>{ chanOverview=true; document.getElementById('localListTitle').textContent='POPULAR IN '+chartCountry().toUpperCase(); renderChanList(); if(!chanPlaying) setLocalIdle(); };
     list.appendChild(back);
   }
   chanItems.forEach((it,i)=>{
@@ -6813,14 +6904,16 @@ function renderChanList(){
       x.onclick=()=>playChanItem(i,p);
       row.append(x);
     });
-    row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}:{ch:localChannel,t:it.title,a:it.artist,g:localChannel==='genres'?chanGenre:''}, itemTitle(it)));
+    row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}:{ch:localChannel,t:it.title,a:it.artist,g:chanGenre&&chanGenre!==CHART_TOP?chanGenre:''}, itemTitle(it)));
     list.appendChild(row);
   });
 }
-function openMix(genre,autoplay){
+// shuffle: opened by tapping it on Popular's front page, which turns shuffle on and starts a random song
+function openMix(genre,autoplay,shuffle){
   const m=chanData?.mixes?.find(x=>x.genre===genre); if(!m) return;
-  chanGenre=genre;
-  document.getElementById('localListTitle').textContent=(genre+' mix · '+(localPoint?.place?.country||'')).toUpperCase();
+  chanGenre=genre; chanOverview=false;
+  if(shuffle){ const s=gs('chanShuffle',{}); s.popular=true; ss('chanShuffle',s); renderShuffleBtn(); }
+  document.getElementById('localListTitle').textContent=mixTitle(m).toUpperCase();
   chanItems=m.list.map(x=>({kind:'song',...x})); chanIdx=-1;
   buildChanOrder(); renderChanList();
   if(autoplay) playChanItem(chanOrder[0]??0);
@@ -6880,7 +6973,7 @@ async function playChanItem(i,via,opts){
   }
 }
 function chanToggle(){
-  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(chanOrder[chanOrderPos]??0); else if(localChannel==='genres'&&chanData?.mixes?.length) openMix(chanData.mixes[0].genre,true); return; }
+  if(chanIdx<0||!chanItems[chanIdx]){ if(chanItems.length) playChanItem(chanOrder[chanOrderPos]??0); else if(localChannel==='popular'&&chanData?.mixes?.length) openMix(CHART_TOP,true); return; }
   if(chanVia==='spotify'){ if(chanPlaying){ spotifyPausePlayback(); chanPlaying=false; } else { spotifyResumePlayback(); chanPlaying=true; } setPlayIcon(chanPlaying); renderChanList(); return; }
   if(chanVia==='apple'&&amMusic&&amActive){ try{ chanPlaying?amMusic.pause():amMusic.play(); }catch(e){} return; }
   if(ytPlayer&&chanVia==='youtube'){ chanPlaying?ytPlayer.pauseVideo():ytPlayer.playVideo(); return; }
@@ -7069,7 +7162,7 @@ function startChanProgress(){
 }
 function setChanNowPlaying(it,title,sub,via){
   const pl=localPoint?.place;
-  const where=localChannel==='made'?'Made around '+(pl?.city||'the pin'):localChannel==='popular'?'Popular in '+(pl?.country||'this country'):(chanGenre||'Genre')+' mix · '+(pl?.country||'');
+  const where=localChannel==='made'?'Made around '+(pl?.city||'the pin'):chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Popular in '+(pl?.country||'this country');
   document.getElementById('npTrack').textContent=title||(it?(it.kind==='song'?it.title:(it._song||it.name)):'');
   document.getElementById('npGame').textContent=sub||(it?(it.kind==='song'||it._song?(it.artist||it.name)+' · '+where:(it.genre?it.genre+' · ':'')+where):'');
   const src=document.getElementById('npSource');
@@ -7158,9 +7251,10 @@ function readShareLink(){
   ['ml_lat','ml_lon','ml_ch','ml_st','ml_t','ml_a','ml_g'].forEach(k=>q.delete(k));
   history.replaceState({},'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
   if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180||!['popular','made','genres','radio'].includes(ch)) return false;
-  pendingShare={ch, st:RADIO_UUID.test(clean('st'))?clean('st'):'', t:clean('t'), a:clean('a'), g:clean('g')};
-  localChannel=ch; ss('localChannel',ch);
-  chanGenre=ch==='genres'&&pendingShare.g?pendingShare.g:null;
+  const chan=ch==='genres'?'popular':ch; // Genre Mixes now lives inside Popular
+  pendingShare={ch:chan, st:RADIO_UUID.test(clean('st'))?clean('st'):'', t:clean('t'), a:clean('a'), g:clean('g')};
+  localChannel=chan; ss('localChannel',chan);
+  chanGenre=chan==='popular'?(pendingShare.g||(pendingShare.t?CHART_TOP:null)):null;
   localPoint={lat:+lat.toFixed(5),lon:+lon.toFixed(5),source:'pin',place:null}; ss('localPoint',localPoint);
   if(trackingActive) stopTracking();
   return true;

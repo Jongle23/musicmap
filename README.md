@@ -133,9 +133,8 @@ Switch between **Biome Beats** (the game-pack mode — a nod to MusicMap's origi
 
 Pick a channel from the sub-menu at the top of the **Channels** tab:
 
-- **Popular** — the country's 100 most-played songs right now (always labelled with the country)
+- **Popular** — the country's top songs (Apple Music charts) plus the same chart split into genre mixes (Pop, Country, Hip-Hop/Rap…). Tap the top songs or a genre to open it: it shuffles and starts playing
 - **Made Here** — well-known artists born or formed near the pin, most famous first
-- **Genre Mixes** — the country's top songs grouped into genre playlists (Hip-Hop/Rap, Country, Pop…)
 - **Radio** — live stations broadcasting near the pin; keeps playing with the screen off
 
 Songs and artists play through YouTube by default (the video shows while it plays, as YouTube requires), or on Spotify or Apple Music for visitors who connected one: **Settings → Connections → Play songs on** picks which, and the small buttons on each row play it on the others. Each channel has a **Shuffle** button (Made Here starts shuffled), and while a Made Here artist plays, the player shows the song. Every row has a **share** button: the link opens MusicMap at the same spot, on the same channel, with that item ready to play. Favourite stations and spots go in the **Saved** tab.
