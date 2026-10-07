@@ -1,6 +1,17 @@
 # MusicMap Changelog
 
-## v1.8.1 — Current
+## v1.9 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Cast button for Spotify** in the player (when Spotify is connected): pick "This browser" or any of your Spotify apps and speakers. If something is playing it moves over straight away (same song, same spot), like Spotify's own device picker; the button turns green and shows the device's name while it plays elsewhere
+- **Play button on the track list** (Biome Beats): shuffle-plays the biome's tracks, or the whole pack when the biome has none ("Play all")
+
+### Changed
+- **Empty biomes**: a pack biome with no tracks now shuffle-plays the pack's whole track list instead of staying silent; a saved place (Home, Work…) with no tracks is ignored by live location, so you hear the biome around you
+- Spotify's device list no longer shows other MusicMap tabs (they all share one name)
+
+## v1.8.1
 **Release date:** 2026-10-07
 
 ### Fixed

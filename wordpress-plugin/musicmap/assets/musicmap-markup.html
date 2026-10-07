@@ -66,6 +66,11 @@
   </div>
   <!-- NOW PLAYING (integrated) -->
   <div class="hero-player">
+    <!-- Spotify: choose where it plays (this browser or one of your Spotify apps), like Spotify's own device picker -->
+    <div class="cast-wrap" id="castWrap" hidden>
+      <button class="cast-btn" id="castBtn" type="button" aria-haspopup="menu" aria-expanded="false" onclick="toggleCastMenu()" title="Play Spotify on…"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg><span class="cast-name" id="castName"></span></button>
+      <div class="cast-menu" id="castMenu" role="menu" hidden></div>
+    </div>
     <div id="ytContainer"><div id="localYtWrap"><div id="localYtPlayer"></div></div><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe><div id="scWrap" hidden><iframe id="scFrame" title="SoundCloud player" allow="autoplay; encrypted-media"></iframe></div><div class="sp-art" id="spArt" hidden><img class="sp-art-bg" id="spArtBg" alt="" aria-hidden="true"><img class="sp-art-img" id="spArtImg" alt=""></div></div>
     <div class="hero-np-head">
       <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -115,6 +120,7 @@
     <div class="section packs-only">
       <div class="section-header">
         <div class="section-title" id="trackListLabel">TRACKS</div>
+        <button class="shuffle-btn" id="trackListPlayBtn" type="button" onclick="playTrackList()" title="Shuffle-play this list"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><polygon points="7 4 20 12 7 20 7 4"/></svg><span>Play</span></button>
         <div class="pin-status" id="pinStatus"></div>
       </div>
       <div class="track-list" id="trackList"></div>
@@ -607,7 +613,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <a class="support-link" id="supportLink" href="#" target="_blank" rel="noopener" hidden>☕ Enjoying MusicMap? Buy me a coffee</a>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.8.1</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.9</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a></div>
 </div>
 </div><!-- #geovibes-app -->

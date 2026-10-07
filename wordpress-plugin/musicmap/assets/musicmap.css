@@ -436,6 +436,22 @@ button[aria-busy="true"] svg{animation:mmSpin .9s linear infinite}
 .support-link:hover{background:rgba(255,221,0,.2)}
 .support-link[hidden],.support-note[hidden]{display:none!important}
 .support-note a{color:#ffe27a;font-weight:600}
+.hero-player{position:relative}
+.cast-wrap{position:absolute;top:10px;right:10px;z-index:4}
+.cast-wrap[hidden]{display:none!important}
+.hero-player:has(.cast-wrap:not([hidden])) .hero-np-head,.hero-player:has(.cast-wrap:not([hidden])) .hero-np-game{padding-left:44px;padding-right:44px}
+.cast-btn{display:inline-flex;align-items:center;gap:5px;height:32px;min-width:32px;padding:0 9px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.25);color:#fff;cursor:pointer;font-size:11px;font-weight:600}
+.cast-btn.remote{color:#1DB954;border-color:rgba(29,185,84,.6);background:rgba(29,185,84,.15)}
+.cast-name{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cast-name:empty{display:none}
+.cast-menu{position:absolute;top:38px;right:0;min-width:220px;max-width:280px;background:var(--surface,#16213e);border:1px solid var(--border2,rgba(255,255,255,.15));border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.cast-menu[hidden]{display:none!important}
+.cast-menu .cast-title{font-size:10px;letter-spacing:1px;color:var(--muted);padding:6px 8px 4px;text-transform:uppercase}
+.cast-menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:none;color:var(--text,#e8e8e8);font-size:13px;cursor:pointer}
+.cast-menu button:hover,.cast-menu button:focus-visible{background:rgba(255,255,255,.07)}
+.cast-menu button[aria-checked="true"]{color:#1DB954;font-weight:600}
+.cast-menu button span:last-child{overflow-wrap:anywhere;min-width:0}
+.cast-menu .cast-note{font-size:11px;color:var(--muted);padding:6px 10px 4px;line-height:1.5}
 .shuffle-btn{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;margin-left:auto;padding:5px 11px;min-height:32px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
 .shuffle-btn[aria-pressed="true"]{color:var(--green,#4ade80);border-color:rgba(74,222,128,.55);background:rgba(74,222,128,.12)}
 .shuffle-btn:focus-visible{outline:2px solid var(--accent,#a78bfa);outline-offset:2px}

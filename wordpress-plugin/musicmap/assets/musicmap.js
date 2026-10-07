@@ -1465,7 +1465,28 @@ function dismissStickyToast(){
 }
 
 function getPackId(){return getActivePackId();}
-function currentTracks(){return getLocTracks(getPackId(),currentLocId);}
+// What plays in the current place: its own tracks, or (a pack biome with none) the whole pack, shuffled
+function biomeUsesWholePack(id){
+  id=id||currentLocId;
+  return !getLocTracks(getPackId(),id).length && !!getActivePack()?.biomes?.some(b=>b.id===id);
+}
+function playIdxs(id){
+  id=id||currentLocId;
+  const own=getLocTracks(getPackId(),id);
+  return own.length||!biomeUsesWholePack(id)?own:getAllPackTracks(getActivePack()).map((_,i)=>i);
+}
+// Saved places with no tracks don't count for live location (you hear the biome around you instead)
+function customLocsWithTracks(){ return getAllCustomLocs().filter(l=>getLocTracks(getPackId(),l.id).length>0); }
+// The Play button on the track list: shuffle-play this place's list (or the whole pack)
+function playTrackList(){
+  const n=playIdxs().length;
+  if(!n){ spotifyShowSnack('Add some tracks first.'); return; }
+  spotifyUnlockAudio();
+  currentTrackPlayIdx=Math.floor(Math.random()*n);
+  shuffleQueue=buildShuffleQueue(n,currentTrackPlayIdx);
+  isPlaying=true; renderTrackList(); updateNowPlaying(); playCurrentTrack(false);
+}
+function currentTracks(){return playIdxs();}
 
 // ═══════════════════════════════════════════
 // INIT + IMPORT FROM URL
@@ -1759,7 +1780,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.8.1';
+const MM_VERSION = '1.9';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2163,7 +2184,7 @@ function loadLocation(id,manual,showToast){
   const _sub=document.getElementById('biomeNameSub');
   if(_sub){const _can=_canonMap[id];_sub.textContent=(_can&&loc.name!==_can)?_can:'';}
 
-  const tracks=getLocTracks(packId,id);
+  const tracks=playIdxs(id);
   const pinned=getPinnedIdx(packId,id);
   shuffleQueue=[]; // reset queue on biome change
   if(tracks.length===0){currentTrackPlayIdx=0;}
@@ -2214,8 +2235,12 @@ function renderTrackList(){
   list.innerHTML='';
   const trackIdxs=getLocTracks(packId,currentLocId);
   const packTracks=getAllPackTracks(pack);
+  const playBtn=document.getElementById('trackListPlayBtn');
+  if(playBtn){ const whole=biomeUsesWholePack(); playBtn.title=whole?'Shuffle-play the whole pack':'Shuffle-play this list'; playBtn.querySelector('span').textContent=whole?'Play all':'Play'; playBtn.disabled=!playIdxs().length; }
   if(trackIdxs.length===0){
-    list.innerHTML='<div class="empty-state">No tracks yet.<br>Tap Add below to add some.</div>';
+    list.innerHTML=biomeUsesWholePack()
+      ? '<div class="empty-state">No tracks in this biome yet, so the whole pack plays here, shuffled.<br>Tap Add below to give it its own.</div>'
+      : '<div class="empty-state">No tracks yet. Until it has some, live location skips this place and plays the biome around you.<br>Tap Add below to add some.</div>';
     return;
   }
   trackIdxs.forEach((tIdx,i)=>{
@@ -2286,7 +2311,7 @@ function updatePinStatus(){
 function updateNowPlaying(){
   const packId=getPackId();
   const pack=getActivePack();
-  const trackIdxs=getLocTracks(packId,currentLocId);
+  const trackIdxs=playIdxs();
   if(trackIdxs.length===0){
     document.getElementById('npTrack').textContent='No tracks';
     document.getElementById('npGame').textContent='Add tracks below ↓';
@@ -2312,7 +2337,7 @@ function getTrackSrc(pack, t, autoplay){
 async function playCurrentTrack(useFade){
   const packId=getPackId();
   const pack=getActivePack();
-  const trackIdxs=getLocTracks(packId,currentLocId);
+  const trackIdxs=playIdxs();
   if(trackIdxs.length===0||!pack)return;
   const tIdx=trackIdxs[currentTrackPlayIdx]??trackIdxs[0];
   const allTracks=getAllPackTracks(pack);
@@ -2357,7 +2382,7 @@ async function playCurrentTrack(useFade){
   spotifyActive=false; packsSpQueue=null;
   updateSpotifyNowPlaying(false, t);
   // Spotify-only track and Spotify can't play it: there is no YouTube to fall back to
-  if(t.spotifyUri && !t.videoId && spotifyCanPlay() && getLocTracks(getPackId(),currentLocId).length>1){
+  if(t.spotifyUri && !t.videoId && spotifyCanPlay() && playIdxs().length>1){
     skipUnplayable('spotify'); // Spotify refused this one (e.g. region-locked): move on
     return;
   }
@@ -3117,7 +3142,7 @@ async function pollLocation(isFirstPoll,opts){
     }
 
     // Custom locations ALWAYS override default biomes — checked first
-    const nearby=getAllCustomLocs().find(l=>{
+    const nearby=customLocsWithTracks().find(l=>{
       if(l.pins&&l.pins.length>0) return l.pins.some(p=>dist(lat,lon,p.lat,p.lon)<=(p.radius||200));
       return l.lat&&l.lon&&dist(lat,lon,l.lat,l.lon)<=(l.radius||200);
     });
@@ -3714,7 +3739,7 @@ async function checkBiomeInBackground(){
   if(trackingActive) await freshFix(); // where are you now, not at the last scheduled poll
   if(lastLat===null||lastLon===null) return;
   // Check custom location proximity first
-  const nearby=getAllCustomLocs().find(l=>{
+  const nearby=customLocsWithTracks().find(l=>{
     if(l.pins&&l.pins.length>0) return l.pins.some(p=>dist(lastLat,lastLon,p.lat,p.lon)<=(p.radius||200));
     return l.lat&&l.lon&&dist(lastLat,lastLon,l.lat,l.lon)<=(l.radius||200);
   });
@@ -4921,28 +4946,72 @@ async function loadSpotifyDevicesNow(announce){
     const r=await fetch('https://api.spotify.com/v1/me/player/devices',{headers:{'Authorization':'Bearer '+token}});
     if(!r.ok) throw new Error();
     const d=await r.json();
-    spDeviceList=(d.devices||[]).filter(x=>x&&typeof x.id==='string'&&/^[A-Za-z0-9_-]{1,64}$/.test(x.id)&&!x.is_restricted&&x.id!==spotifyDeviceId)
+    spDeviceList=(d.devices||[]).filter(x=>x&&typeof x.id==='string'&&/^[A-Za-z0-9_-]{1,64}$/.test(x.id)&&!x.is_restricted&&x.id!==spotifyDeviceId&&x.name!=='MusicMap') // other MusicMap tabs' players: same name, confusing
       .map(x=>({id:x.id, name:String(x.name||'Spotify').slice(0,60), type:String(x.type||'').slice(0,20)}));
     if(announce) spotifyShowSnack(spDeviceList.length?'Found '+spDeviceList.length+' Spotify app'+(spDeviceList.length>1?'s':''):'No Spotify apps found. Open Spotify on your phone, then try again.');
   }catch(e){ if(announce) spotifyShowSnack('Couldn’t list your Spotify apps right now.'); }
   renderConnectionsUI();
 }
-function setSpotifyDevice(id){
-  if(!id){ ss('spotifyDevice',null); }
-  else {
-    const d=spDeviceList.find(x=>x.id===id)||(spRemoteDevice()?.id===id?spRemoteDevice():null);
+async function setSpotifyDevice(id){
+  let d=null;
+  if(id){
+    d=spDeviceList.find(x=>x.id===id)||(spRemoteDevice()?.id===id?spRemoteDevice():null);
     if(!d) return;
-    ss('spotifyDevice',{id:d.id,name:d.name});
-    spotifyShowSnack('Spotify will play on '+d.name+'. Keep the Spotify app open there.');
-  }
+  } else if(!spotifyReady){ spotifyShowSnack(spotifyWhyNot()); renderConnectionsUI(); return; }
+  ss('spotifyDevice',d?{id:d.id,name:d.name}:null);
   spRemoteLast=null;
-  if(spotifyActive){ // move what's playing over on the next song
-    if(appMode==='local') stopChanPlayback(); else { spotifyActive=false; packsSpQueue=null; }
-  }
   renderConnectionsUI();
+  if(!spotifyActive){ spotifyShowSnack(d?'Spotify will play on '+d.name+'. Keep the Spotify app open there.':'Spotify will play in this browser.'); return; }
+  // something is playing: hand it over (same song, same spot), like Spotify's own device picker
+  const token=await getValidSpotifyToken(); const target=d?d.id:spotifyDeviceId;
+  try{
+    const r=await fetch('https://api.spotify.com/v1/me/player',{method:'PUT',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({device_ids:[target],play:true})});
+    if(r.ok||r.status===204){ spotifyShowSnack('Now playing on '+(d?d.name:'this browser')); if(d) pollSpotifyRemote(); return; }
+  }catch(e){}
+  spotifyShowSnack('Couldn’t move playback to '+(d?d.name:'this browser')+'. '+(d?'Open Spotify there and try again.':''));
 }
+// ── Cast button in the player (Spotify connected only) ──
+function renderCastBtn(){
+  const wrap=document.getElementById('castWrap'); if(!wrap) return;
+  wrap.hidden=!isSpotifyConnected();
+  const rd=spRemoteDevice(), btn=document.getElementById('castBtn');
+  btn.classList.toggle('remote',!!rd);
+  document.getElementById('castName').textContent=rd?rd.name:'';
+  btn.title=rd?'Spotify plays on '+rd.name+' (tap to change)':'Play Spotify on another device';
+  btn.setAttribute('aria-label',btn.title);
+}
+async function toggleCastMenu(force){
+  const menu=document.getElementById('castMenu'), btn=document.getElementById('castBtn');
+  const open=force!==undefined?force:menu.hidden;
+  menu.hidden=!open; btn.setAttribute('aria-expanded',open);
+  if(!open) return;
+  renderCastMenu(true);
+  await loadSpotifyDevices(false);
+  if(!menu.hidden) renderCastMenu(false);
+}
+function renderCastMenu(loading){
+  const menu=document.getElementById('castMenu'); if(!menu) return;
+  const cur=spRemoteDevice()?.id||'';
+  menu.innerHTML='';
+  const t=document.createElement('div'); t.className='cast-title'; t.textContent='Play Spotify on'; menu.append(t);
+  const opts=[{id:'',name:'This browser'}].concat(spDeviceList.map(d=>({id:d.id,name:d.name+(d.type?' · '+d.type:'')})));
+  if(cur&&!opts.some(o=>o.id===cur)) opts.push({id:cur,name:spRemoteDevice().name});
+  opts.forEach(o=>{
+    const b=document.createElement('button'); b.type='button'; b.setAttribute('role','menuitemradio'); b.setAttribute('aria-checked',o.id===cur);
+    b.innerHTML=o.id===cur?'<span aria-hidden="true">✓</span>':'<span aria-hidden="true" style="width:.8em"></span>';
+    const name=document.createElement('span'); name.textContent=o.name; b.append(name);
+    b.onclick=()=>{ toggleCastMenu(false); if(o.id!==cur) setSpotifyDevice(o.id); };
+    menu.append(b);
+  });
+  const note=document.createElement('div'); note.className='cast-note';
+  if(loading) busyText(note,'Finding your Spotify apps…');
+  else note.textContent=spDeviceList.length?'On a phone, pick its Spotify app to keep playing with the screen off.':'No other Spotify apps found. Open Spotify on another device, then tap the cast button again.';
+  menu.append(note);
+}
+document.addEventListener('click',e=>{ const w=document.getElementById('castWrap'); if(w&&!w.contains(e.target)&&!document.getElementById('castMenu')?.hidden) toggleCastMenu(false); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!document.getElementById('castMenu')?.hidden){ toggleCastMenu(false); document.getElementById('castBtn')?.focus(); } });
 function renderConnectionsUI(){
-  updateSpotifySettingsUI();
+  updateSpotifySettingsUI(); renderCastBtn();
   const logoSp=document.getElementById('connLogoSpotify'); if(logoSp&&!logoSp.innerHTML) logoSp.innerHTML=SOURCE_ICONS.spotify;
   const logoAm=document.getElementById('connLogoApple'); if(logoAm&&!logoAm.innerHTML) logoAm.innerHTML=SOURCE_ICONS.apple;
   // where Spotify plays
@@ -6020,14 +6089,14 @@ function renderMapLegend(){
 // ═══════════════════════════════════════════
 let packsPlayToken=0, packsTicker=null, packsYtTrack=null, packsSpQueue=null, packsBiomeChecked=false;
 function currentPacksTrack(){
-  const pack=getActivePack(); const idxs=getLocTracks(getPackId(),currentLocId);
+  const pack=getActivePack(); const idxs=playIdxs();
   const t=getAllPackTracks(pack)[idxs[currentTrackPlayIdx]??idxs[0]];
   return t?{pack,t}:null;
 }
 function currentPacksTrackKey(){ const c=currentPacksTrack(); return c?(c.t.videoId||c.pack.videoId)+'@'+c.t.start:''; }
 // Upcoming Spotify tracks in play order (current first), stopping at the first non-Spotify track
 function packsSpotifyQueue(){
-  const pack=getActivePack(); const idxs=getLocTracks(getPackId(),currentLocId); const all=getAllPackTracks(pack);
+  const pack=getActivePack(); const idxs=playIdxs(); const all=getAllPackTracks(pack);
   const order=[currentTrackPlayIdx,...shuffleQueue];
   const out=[];
   for(const k of order){
