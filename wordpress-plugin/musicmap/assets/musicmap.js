@@ -1,4 +1,25 @@
 /* Generated from musicmap.html by tools/build_plugin.py. Edit musicmap.html, not this file. */
+// ── Recent problems, kept in memory for "Report a problem" (never sent unless the visitor ticks it) ──
+// Tokens, keys and sign-in codes are scrubbed before anything is kept.
+window.mmLog=[];
+(function(){
+  const t0=Date.now();
+  const scrub=s=>String(s==null?'':s)
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+=*/gi,'$1…')
+    .replace(/(\b(?:access_token|refresh_token|id_token|token|code|key|api_key|apikey|secret|password|state|code_verifier)["']?\s*[=:]\s*["']?)[^&#\s"',}]+/gi,'$1…')
+    .replace(/[A-Za-z0-9_\-]{40,}/g,'…')
+    .slice(0,300);
+  const push=(level,args)=>{ try{
+    const msg=Array.from(args).map(a=>a instanceof Error?(a.name+': '+a.message):typeof a==='object'?(()=>{ try{return JSON.stringify(a);}catch(e){return String(a);} })():String(a)).join(' ');
+    window.mmLog.push({t:Math.round((Date.now()-t0)/1000), level, msg:scrub(msg)});
+    if(window.mmLog.length>60) window.mmLog.shift();
+  }catch(e){} };
+  window.mmLogNote=(msg)=>push('note',[msg]);
+  ['error','warn'].forEach(l=>{ const orig=console[l]; console[l]=function(){ push(l,arguments); return orig.apply(console,arguments); }; });
+  window.addEventListener('error',e=>push('error',[(e.message||'Error')+(e.filename?' @'+String(e.filename).split('/').pop()+':'+e.lineno:'')]));
+  window.addEventListener('unhandledrejection',e=>push('error',['Unhandled: '+(e.reason?.message||e.reason||'promise rejected')]));
+})();
+
 // ═══════════════════════════════════════════
 // ICONS — inline SVG set for UI chrome (tabs/buttons).
 // Emoji are reserved for pack + biome identity, not used here.
@@ -1379,6 +1400,93 @@ function stopSoundCloud(){
   const wrap=document.getElementById('scWrap'); if(wrap) wrap.hidden=true;
 }
 
+// ── REPORT A PROBLEM ── sent to the site's MusicMap plugin (MusicMap > Reports); needs the plugin
+const H2C_SRC='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+const H2C_SRI='sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H';
+let reportShotData='', reportShotSeq=0;
+function reportsAvailable(){ return /^https?:\/\//.test(MM_CONFIG.restBase||''); }
+function applyReportButtons(){
+  const on=reportsAvailable();
+  ['reportRow','footerReport'].forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=!on; });
+}
+function openReport(e){
+  if(e) e.preventDefault();
+  if(!reportsAvailable()) return;
+  document.getElementById('reportStatus').textContent='';
+  document.getElementById('reportSend').disabled=false;
+  document.getElementById('reportOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('reportMessage').focus(),50);
+  reportShotToggled(); // takes the screenshot now, so it shows the app as it was
+}
+function closeReport(){ document.getElementById('reportOverlay').classList.remove('open'); }
+function loadHtml2canvas(){
+  if(window.html2canvas) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src=H2C_SRC; s.integrity=H2C_SRI; s.crossOrigin='anonymous'; s.referrerPolicy='no-referrer';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('Screenshot tool could not load'));
+    document.head.appendChild(s);
+  });
+}
+async function reportShotToggled(){
+  const box=document.getElementById('reportShotBox'), want=document.getElementById('reportShot').checked;
+  const seq=++reportShotSeq; reportShotData=''; box.innerHTML='';
+  if(!want) return;
+  const note=document.createElement('div'); note.className='note'; busyText(note,'Taking a screenshot of MusicMap…'); box.append(note);
+  try{
+    await loadHtml2canvas();
+    const app=document.getElementById('geovibes-app');
+    const scale=Math.min(1,1100/Math.max(app.scrollWidth,1));
+    const canvas=await window.html2canvas(app,{useCORS:true,logging:false,backgroundColor:'#1a1a2e',scale,
+      windowWidth:document.documentElement.clientWidth, ignoreElements:el=>el.id==='reportOverlay'||el.tagName==='IFRAME'});
+    if(seq!==reportShotSeq) return;
+    let data=canvas.toDataURL('image/jpeg',0.72);
+    if(data.length>1900000) data=canvas.toDataURL('image/jpeg',0.5);
+    if(data.length>1900000) throw new Error('Screenshot too large');
+    reportShotData=data;
+    box.innerHTML='';
+    const img=document.createElement('img'); img.alt='Screenshot that will be sent'; img.src=data;
+    const n2=document.createElement('div'); n2.className='note'; n2.textContent='This screenshot will be sent with your report. Untick above to leave it out.';
+    box.append(img,n2);
+  }catch(e){
+    if(seq!==reportShotSeq) return;
+    box.innerHTML=''; const n3=document.createElement('div'); n3.className='note'; n3.textContent='Couldn’t take a screenshot ('+(e.message||'error')+'). You can still send the report.'; box.append(n3);
+  }
+}
+function reportDetails(){
+  const pl=localPoint?.place;
+  return {
+    version:MM_VERSION, mode:appMode, tab:document.querySelector('.tab-pane.active')?.id||'',
+    channel:appMode==='local'?localChannel:'', pack:appMode!=='local'?(getActivePack()?.name||''):'', biome:appMode!=='local'?(currentLocId||''):'',
+    nowPlaying:(document.getElementById('npTrack')?.textContent||'').slice(0,120), source:document.getElementById('npSource')?.title||'',
+    playing:appMode==='local'?(chanPlaying||localPlaying):isPlaying,
+    place:[pl?.city,pl?.region,pl?.country].filter(Boolean).join(', '), liveLocation:trackingActive,
+    services:{spotify:isSpotifyConnected()?(spotifyCanPlay()?(spRemoteDevice()?'connected, plays on another device':'connected, this browser'):'connected, not ready'):'not connected',
+      apple:APPLE_MUSIC_ON?(isAppleConnected()?'connected':'not connected'):'not set up', preferred:preferredPlatform()},
+    layout:{wide:document.getElementById('geovibes-app')?.classList.contains('mm-wide')||false, mapShown:mapShown()},
+    screen:innerWidth+'x'+innerHeight+' @'+(window.devicePixelRatio||1)+'x', language:navigator.language||'', online:navigator.onLine,
+    browser:String(navigator.userAgent||'').slice(0,300), page:location.origin+location.pathname,
+    log:(window.mmLog||[]).slice(-50)
+  };
+}
+async function sendReport(){
+  const msg=document.getElementById('reportMessage').value.trim(), email=document.getElementById('reportEmail').value.trim();
+  const st=document.getElementById('reportStatus'), btn=document.getElementById('reportSend');
+  if(msg.length<3){ st.textContent='Please describe what went wrong.'; st.className='url-status err'; return; }
+  const body={message:msg.slice(0,2000)};
+  if(email) body.email=email.slice(0,190);
+  if(document.getElementById('reportDetails').checked) body.details=reportDetails();
+  if(document.getElementById('reportShot').checked&&reportShotData) body.screenshot=reportShotData;
+  btn.disabled=true; busyText(st,'Sending…'); st.className='url-status';
+  try{
+    const r=await fetch(MM_CONFIG.restBase+'report',{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok||!j?.ok) throw new Error(j?.error||'The report couldn’t be sent. Please try again later.');
+    closeReport();
+    document.getElementById('reportMessage').value=''; document.getElementById('reportEmail').value='';
+    spotifyShowSnack('Thanks! Your report was sent.');
+  }catch(e){ st.textContent=e.message; st.className='url-status err'; btn.disabled=false; }
+}
+
 // ── SUPPORT LINK ── "Buy me a coffee", set by the site owner in MusicMap > Settings
 function applySupportLink(){ // runs from init(), once the site's settings (MM_CONFIG) exist
   const url=/^https:\/\/[^\s"'<>]{4,200}$/.test(MM_CONFIG.supportUrl||'')?MM_CONFIG.supportUrl:'';
@@ -1538,7 +1646,7 @@ async function init(){
   resumePendingSpotifyLink();
   // Apple Music: check the saved sign-in is still good
   if(isAppleConnected()) amLoad().then(m=>{ if(!m.isAuthorized){ ss('appleMusicLinked',false); renderConnectionsUI(); } }).catch(()=>{});
-  applyLogo(); applySupportLink(); fitWideLayout(); setMapShown(mapShown(),false,true);
+  applyLogo(); applySupportLink(); applyReportButtons(); fitWideLayout(); setMapShown(mapShown(),false,true);
   applyModeUI();
   // the last known location, shared by both modes (a week at most)
   const lf=gs('lastFix',null);
@@ -1949,7 +2057,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.15';
+const MM_VERSION = '1.16';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -5551,6 +5659,7 @@ async function addSpotifyTrackToPack(item,rowEl){
 }
 
 function spotifyShowSnack(msg){
+  window.mmLogNote?.('Shown: '+msg);
   let snack=document.getElementById('spSnack');
   if(!snack){
     snack=document.createElement('div');
@@ -6253,6 +6362,7 @@ const CREDITS=[
   {name:'Spotify', role:'Spotify playback, search and playlist import (Web Playback SDK, Web API)', url:'https://developer.spotify.com', icon:'https://open.spotify.com/favicon.ico'},
   {name:'SoundCloud', role:'SoundCloud tracks in custom packs (embedded player / Widget API)', url:'https://developers.soundcloud.com/docs/api/html5-widget', icon:'https://soundcloud.com/favicon.ico'},
   {name:'Radio Browser', role:'Community directory of radio stations near the pin', lic:'Public domain', url:'https://www.radio-browser.info', icon:'https://www.radio-browser.info/favicon.ico'},
+  {name:'html2canvas', role:'Takes the optional screenshot in Report a problem', lic:'MIT', url:'https://html2canvas.hertzen.com'},
   {name:'Google Fonts', role:'Press Start 2P and DM Sans typefaces', lic:'OFL', url:'https://fonts.google.com', icon:'https://www.gstatic.com/images/icons/material/apps/fonts/1x/catalog/v5/favicon.svg'},
   {name:'Lucide', role:'Icon designs', lic:'ISC', url:'https://lucide.dev', icon:'https://lucide.dev/favicon.ico'},
   {name:'unpkg', role:'Delivers the Leaflet library', url:'https://unpkg.com', icon:'https://unpkg.com/favicon.ico'},

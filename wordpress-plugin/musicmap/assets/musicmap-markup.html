@@ -244,6 +244,10 @@
       </div>
     </div>
     <div class="section" style="margin-top:20px">
+      <div class="section-header"><div class="section-title">HELP</div></div>
+      <div class="settings-row" id="reportRow" onclick="openReport()" hidden><div><div class="settings-row-label"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Report a problem</div><div class="settings-row-sub">Tell Jongle what went wrong. You can include technical details and a screenshot</div></div></div>
+    </div>
+    <div class="section" style="margin-top:20px">
       <div class="section-header"><div class="section-title">DATA</div></div>
       <div class="settings-row" onclick="exportData()"><div><div class="settings-row-label"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export preferences</div><div class="settings-row-sub">Download JSON</div></div></div>
       <div class="settings-row" onclick="clearAllData()"><div><div class="settings-row-label" style="color:var(--red)"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Clear all data</div><div class="settings-row-sub">Resets everything</div></div></div>
@@ -527,6 +531,27 @@ Rules:
   </div>
 </div>
 
+<!-- REPORT A PROBLEM -->
+<div id="reportOverlay" class="modal-overlay center" onclick="if(event.target===this)closeReport()">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="reportTitle" style="max-width:480px">
+    <div class="modal-title" id="reportTitle" style="margin-bottom:12px">REPORT A PROBLEM</div>
+    <form id="reportForm" onsubmit="event.preventDefault();sendReport()">
+      <label class="form-label" for="reportMessage">What went wrong?</label>
+      <textarea class="ts-import-area" id="reportMessage" maxlength="2000" required style="min-height:110px" placeholder="What were you doing, and what happened? e.g. &quot;Popular in Japan shows no songs&quot;"></textarea>
+      <label class="form-label" for="reportEmail" style="margin-top:10px">Your email (optional, if you'd like a reply)</label>
+      <input class="form-input" id="reportEmail" type="email" maxlength="190" autocomplete="email" placeholder="you@example.com">
+      <label class="report-tick"><input type="checkbox" id="reportDetails" checked> <span><b>Include technical details</b><small>App version, mode and channel, your browser and screen size, the town you're listening in (not exact coordinates) and the app's recent errors. Sign-ins and keys are never included.</small></span></label>
+      <label class="report-tick"><input type="checkbox" id="reportShot" checked onchange="reportShotToggled()"> <span><b>Include a screenshot of MusicMap</b><small>Only the app, not your screen. Video players can't be captured and show as blank boxes.</small></span></label>
+      <div class="report-shot" id="reportShotBox"></div>
+      <div class="url-status" id="reportStatus" role="status" aria-live="polite"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="pill-btn" type="button" style="flex:1" onclick="closeReport()">Cancel</button>
+        <button class="btn-primary" type="submit" id="reportSend" style="flex:2">Send report</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- SPOTIFY NEEDED MODAL — shown for Spotify-only packs when Spotify isn't connected -->
 <div id="spotifyNeededOverlay" class="modal-overlay center" onclick="closeSpotifyNeeded(event)">
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="spotifyNeededTitle">
@@ -664,8 +689,8 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.15</div>
-  <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a></div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.16</div>
+  <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.5)">Report a problem</a></span></div>
 </div>
 </div><!-- #geovibes-app -->
 </div>

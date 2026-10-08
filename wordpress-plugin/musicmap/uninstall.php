@@ -12,7 +12,7 @@ if ( empty( $musicmap_settings['delete_on_uninstall'] ) ) {
 }
 
 global $wpdb;
-foreach ( array( 'packs', 'cache', 'rate' ) as $musicmap_table ) {
+foreach ( array( 'packs', 'cache', 'rate', 'reports' ) as $musicmap_table ) {
 	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'musicmap_' . $musicmap_table ); // phpcs:ignore WordPress.DB.PreparedSQL,WordPress.DB.DirectDatabaseQuery
 }
 delete_option( 'musicmap_settings' );

@@ -1,6 +1,16 @@
 # MusicMap Changelog
 
-## v1.15 — Current
+## v1.16 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **Report a problem**: in Settings > Help and in the footer. Visitors describe what went wrong, can leave an email for a reply, and choose to include:
+  - **technical details**: app version, mode, channel or pack, what's playing, connected services, browser and screen size, the town they're listening in (never exact coordinates) and the app's recent errors and messages. Sign-in tokens, keys and codes are scrubbed out of the log;
+  - **a screenshot of MusicMap only** (html2canvas, loaded only when the form opens, pinned with an SRI hash). It's previewed before sending. Video players show as blank boxes.
+- **MusicMap > Reports** in WordPress admin: a list with a count of new reports, each report with its screenshot and details, and buttons to mark it fixed or delete it. You can choose to get an email for each new report (Settings > Problem reports; on by default; the email has the message and a link only).
+- Reports are rate-limited (5 an hour per visitor) and checked on the server. Screenshots must be real JPEG/PNG images up to 1.5 MB and are re-encoded before saving. Reports are kept for 90 days, at most 500. Visitor IPs are stored only as a hash, and the reports table is removed on uninstall.
+
+## v1.15
 **Release date:** 2026-10-07
 
 ### Added

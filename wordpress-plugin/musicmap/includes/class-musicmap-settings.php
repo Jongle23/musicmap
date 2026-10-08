@@ -33,6 +33,7 @@ class MusicMap_Settings {
 			'cache_days'          => 7,
 			'youtube_daily_units' => 9000,
 			'delete_on_uninstall' => 0,
+			'report_email'        => 1,
 		);
 	}
 
@@ -147,6 +148,7 @@ class MusicMap_Settings {
 		$out['cache_days']          = self::int_between( $in, 'cache_days', 1, 90 );
 		$out['youtube_daily_units'] = self::int_between( $in, 'youtube_daily_units', 100, 1000000 );
 		$out['delete_on_uninstall'] = empty( $in['delete_on_uninstall'] ) ? 0 : 1;
+		$out['report_email']        = empty( $in['report_email'] ) ? 0 : 1;
 
 		return $out;
 	}
@@ -286,6 +288,22 @@ class MusicMap_Settings {
 								<option value="HTTP_X_REAL_IP" <?php selected( $s['trusted_ip_header'], 'HTTP_X_REAL_IP' ); ?>><?php esc_html_e( 'Reverse proxy (X-Real-IP)', 'musicmap' ); ?></option>
 							</select>
 							<p class="description"><?php esc_html_e( 'Only change this if your site really sits behind that proxy; otherwise visitors could fake their IP and dodge the rate limit.', 'musicmap' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Problem reports', 'musicmap' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'New reports', 'musicmap' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[report_email]" value="1" <?php checked( $s['report_email'], 1 ); ?>>
+							<?php
+							/* translators: %s: the site's admin email address */
+							echo esc_html( sprintf( __( 'Email me (%s) when someone sends a problem report', 'musicmap' ), get_option( 'admin_email' ) ) );
+							?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Reports are listed under MusicMap → Reports either way. The email only has the message and a link, never the screenshot or details.', 'musicmap' ); ?></p>
 						</td>
 					</tr>
 				</table>

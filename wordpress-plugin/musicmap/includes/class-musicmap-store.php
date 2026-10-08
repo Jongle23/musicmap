@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 
 class MusicMap_Store {
 
-	const DB_VERSION = '1';
+	const DB_VERSION = '2'; // 2: problem reports
 	const CODE_RE    = '/^[A-Z0-9]{4,12}$/';
 	const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -76,6 +76,21 @@ class MusicMap_Store {
   window_start int(10) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY  (rate_key),
   KEY window_start (window_start)
+) $c;"
+		);
+		// Problem reports from the app (Settings > Report a problem). Screenshots live here, not in public files.
+		dbDelta(
+			'CREATE TABLE ' . self::table( 'reports' ) . " (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  created_gmt datetime NOT NULL,
+  status varchar(10) NOT NULL DEFAULT 'new',
+  message text NOT NULL,
+  email varchar(190) NOT NULL DEFAULT '',
+  details longtext NOT NULL,
+  screenshot longtext NOT NULL,
+  ip_hash char(64) NOT NULL DEFAULT '',
+  PRIMARY KEY  (id),
+  KEY created_gmt (created_gmt)
 ) $c;"
 		);
 		update_option( 'musicmap_db_version', self::DB_VERSION, false );
