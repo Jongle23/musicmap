@@ -1,4 +1,4 @@
-# 🎵 MusicMap v1.17
+# 🎵 MusicMap v1.18
 
 **Wander your world in Music. Vibe, Customize and Share.**
 
@@ -66,6 +66,7 @@ Each pack card shows where it plays from (YouTube, Spotify or both). Game packs 
 - **Share codes** — share custom packs with a 6-character code
 - **Shuffle queue** — Fisher-Yates shuffle ensures every track plays before repeating
 - **Track picker** — see which biomes already use each track while building playlists
+- **Favourite tracks (♡)** — heart a Biome Beats track; favourites are listed in the Packs tab and can be shuffle-played per pack
 - **Don't play this again (👎)** — remove a track from a biome or a whole pack, or hide a song, artist or station in Local Listening; restore anything from Settings > Removed & disliked
 - **Report a problem** — visitors can send a report with optional technical details and a screenshot; read them in WordPress under MusicMap > Reports (needs the plugin)
 
@@ -80,7 +81,7 @@ To enable 6-character share codes with the snippet:
 1. Copy the contents of `musicmap-api.php` (requires PHP 7.4+)
 2. In WordPress, install the **WPCode** or **PHP Snippets** plugin
 3. Create a new snippet, paste the PHP, set it to run everywhere
-4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.17"}`
+4. Test it: visit `https://yoursite.com/?mm_action=ping` — you should see `{"ok":true,"status":"ok","version":"1.18"}`
 5. Standalone only: pass the endpoint to the app with `<script>window.MUSICMAP_CONFIG={shareApi:'https://yoursite.com/?mm_action='}</script>` before the app script
 
 Without the API, MusicMap falls back to local `MM-` encoded share codes (longer but functional).

@@ -108,6 +108,13 @@
 .hero-player{width:100%;max-width:520px;padding:16px 16px 14px;position:relative;z-index:1;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:20px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .hero-np-head{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
 .hero-np-head .playing-bars{flex-shrink:0}
+.np-fav-btn{flex-shrink:0;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:none;color:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .15s,transform .1s}
+.np-fav-btn .ic{width:18px;height:18px}
+.np-fav-btn:hover{color:#fff}
+.np-fav-btn:active{transform:scale(.9)}
+.np-fav-btn.on{color:#f472b6}
+.np-fav-btn.on svg path{fill:currentColor}
+.np-fav-btn:disabled{opacity:.35;cursor:default}
 .hero-np-head .playing-bars span{background:#fff}
 .hero-np-track{font-size:16px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;min-width:0}
 .hero-np-game{font-size:12px;color:rgba(255,255,255,.6);text-align:center;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

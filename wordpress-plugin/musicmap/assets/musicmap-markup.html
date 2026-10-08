@@ -75,6 +75,7 @@
     <div class="hero-np-head">
       <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-np-track mq" id="npTrack">Route 104</div>
+      <button class="np-fav-btn packs-only" id="npFavBtn" type="button" onclick="toggleFavCurrent()" aria-pressed="false" aria-label="Add to favourites" title="Add to favourites"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></button>
     </div>
     <div class="hero-np-game"><span class="np-source" id="npSource"></span><span class="mq" id="npGame">Pokémon Ruby &amp; Sapphire</span></div>
     <div class="hero-progress">
@@ -175,6 +176,10 @@
         <span>Make or Import Pack</span>
       </button>
       <div id="packsList" style="margin-top:4px"></div>
+    </div>
+    <div class="section" style="margin-top:20px">
+      <div class="section-header"><div class="section-title">FAVOURITE TRACKS</div></div>
+      <div class="local-list" id="favTracks"></div>
     </div>
   </div><!-- /tab-packs -->
 
@@ -692,7 +697,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.17</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.18</div>
   <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.5)">Report a problem</a></span></div>
 </div>
 </div><!-- #geovibes-app -->

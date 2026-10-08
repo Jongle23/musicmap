@@ -1,6 +1,26 @@
 # MusicMap Changelog
 
-## v1.17 — Current
+## v1.18 — Current
+**Release date:** 2026-10-08
+
+### Added
+- **♡ Favourite tracks in Biome Beats**: a heart next to the track name saves the playing track. Favourites are listed in the Packs tab, grouped by pack:
+  - tap one to play it, or the pack's row to shuffle-play all its favourites; then the biome carries on;
+  - the heart there removes one;
+  - "♥ Favourites" shows under the title while they play;
+  - favourites play through Spotify too (the whole list is handed over, so they keep going with the screen off).
+
+### Fixed
+- **Spotify in Biome Beats only played one song.**
+  - Spotify was given just the current song instead of the biome's shuffled list.
+  - When a song ended, the app thought nothing had changed. About 6 seconds later it wrongly said the song "can't play here" and skipped. After five of those false skips in a row it stopped playback.
+  - Now Spotify gets the whole list, and the end of a song moves straight on with no false message.
+- **Picking up after the phone sleeps (Spotify).**
+  - Coming back to the page now waits for the browser's Spotify player to reconnect, then carries on with the same song from about the same second, with the rest of the list queued. Before, it often restarted the song or said "still connecting".
+  - If the browser player stalls at the end of a song while the page is hidden, MusicMap notices and moves on.
+- "🎵 Spotify ready!" no longer pops up every time the browser player reconnects.
+
+## v1.17
 **Release date:** 2026-10-07
 
 ### Added
