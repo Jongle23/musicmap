@@ -1,6 +1,17 @@
 # MusicMap Changelog
 
-## v1.19.1 — Current
+## v1.19.2 — Current
+**Release date:** 2026-10-08
+
+### Fixed
+- **Local Listening stopped playing once the day's YouTube lookups ran out** (or with no YouTube API key). It showed "Can't play right now" even for songs whose video had been found before. Songs now keep playing in the YouTube player:
+  - **Videos found before are sent with the lists.** The Popular chart and Homegrown lists arrive with every video found before (from the server's cache). Those play straight away, with no lookup and no quota used.
+  - **Found videos are kept.** A found video is now kept for 3 years (was 180 days). A lookup that can't run returns the video found before, even an expired one.
+  - **This browser remembers videos it has played** (the latest 400).
+  - **Songs with no known video:** they play on your connected Spotify or Apple Music if there is one. Otherwise MusicMap moves on to the next song with a known video, and stops asking for 30 minutes.
+  - **Biome Beats was never affected.** Packs keep each track's video, so they play in the YouTube player without any lookup.
+
+## v1.19.1
 **Release date:** 2026-10-08
 
 ### Fixed

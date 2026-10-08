@@ -274,7 +274,11 @@ class MusicMap_Channels {
 		$key = 'chart3:' . $cc; // v3: adds Apple Music ids (v2 already skipped the "no chart" answers v1.4.0 cached when Apple refused its User-Agent)
 		$hit = MusicMap_Store::cache_get( $key );
 		if ( is_array( $hit ) ) {
-			return $hit['ok'] ? self::reply( $hit, 200, 1800 ) : self::reply( $hit, 404 );
+			if ( ! $hit['ok'] ) {
+				return self::reply( $hit, 404 );
+			}
+			$hit['songs'] = self::with_known_videos( $hit['songs'] ?? array() );
+			return self::reply( $hit, 200, 1800 );
 		}
 		if ( ! self::allowed( 'chart', 120 ) ) {
 			return self::fail( 'rate_limited', 'Too many requests — try again later', 429 );
@@ -308,6 +312,7 @@ class MusicMap_Channels {
 			'songs'   => $songs,
 		);
 		MusicMap_Store::cache_set( $key, 'chart', $out, 6 * HOUR_IN_SECONDS );
+		$out['songs'] = self::with_known_videos( $out['songs'] ); // added per reply (not cached): the known list keeps growing
 		return self::reply( $out, 200, 1800 );
 	}
 
@@ -388,6 +393,7 @@ class MusicMap_Channels {
 		$key = sprintf( 'made3:%.1f,%.1f', $lat, $lon ); // v3: artist photos and real place names (older answers had neither)
 		$hit = MusicMap_Store::cache_get( $key );
 		if ( is_array( $hit ) ) {
+			$hit['artists'] = self::with_known_videos( $hit['artists'] ?? array(), true );
 			return self::reply( $hit, 200, 3600 );
 		}
 		if ( ! self::allowed( 'made', 60 ) ) {
@@ -411,6 +417,7 @@ class MusicMap_Channels {
 			'artists'   => $artists,
 		);
 		MusicMap_Store::cache_set( $key, 'made', $out, 30 * DAY_IN_SECONDS );
+		$out['artists'] = self::with_known_videos( $out['artists'], true );
 		return self::reply( $out, 200, 3600 );
 	}
 
@@ -478,26 +485,58 @@ class MusicMap_Channels {
 
 	// ── YouTube lookup, cached for everyone, with a daily quota guard ────
 
+	/** The cache key for a song's (or, with no title, an artist's) YouTube video. */
+	private static function yt_key( $artist, $title ) {
+		$q = trim( $artist . ' ' . $title ) . ( '' === $title ? ' music' : '' );
+		// v2 key: earlier picks (YouTube's single top result) could be Shorts or non-music videos
+		return 'yt2:' . md5( mb_strtolower( $q ) );
+	}
+
+	/**
+	 * Add the videos already found for these songs or artists (ytv: video id, ytt: its title), straight from
+	 * the cache, so they play in the YouTube player without a lookup: no quota, and still working once
+	 * the day's quota is used up.
+	 *
+	 * @param array $list songs (artist + title) or artists (name)
+	 */
+	private static function with_known_videos( $list, $artists = false ) {
+		$keys = array();
+		foreach ( (array) $list as $i => $x ) {
+			$keys[ $i ] = $artists ? self::yt_key( (string) ( $x['name'] ?? '' ), '' ) : self::yt_key( (string) ( $x['artist'] ?? '' ), (string) ( $x['title'] ?? '' ) );
+		}
+		$known = MusicMap_Store::cache_get_many( $keys );
+		foreach ( $keys as $i => $k ) {
+			$v = $known[ $k ] ?? null;
+			if ( is_array( $v ) && ! empty( $v['ok'] ) && preg_match( '/^[A-Za-z0-9_-]{11}$/', (string) ( $v['videoId'] ?? '' ) ) ) {
+				$list[ $i ]['ytv'] = $v['videoId'];
+				$list[ $i ]['ytt'] = self::str( (string) ( $v['title'] ?? '' ), 160 );
+			}
+		}
+		return $list;
+	}
+
 	public static function resolve( WP_REST_Request $req ) {
 		$artist = self::str( $req['artist'], 120 );
 		$title  = self::str( (string) $req['title'], 160 );
 		$q      = trim( $artist . ' ' . $title ) . ( '' === $title ? ' music' : '' );
-		// v2 key: earlier picks (YouTube's single top result) could be Shorts or non-music videos
-		$key    = 'yt2:' . md5( mb_strtolower( $q ) );
+		$key    = self::yt_key( $artist, $title );
 
 		$hit = MusicMap_Store::cache_get( $key );
 		if ( is_array( $hit ) ) {
 			return self::reply( $hit, $hit['ok'] ? 200 : 404, 86400 );
 		}
+		// when a new lookup can't happen, a video found before (even long ago) still plays
+		$stale = MusicMap_Store::cache_get( $key, true );
+		$known = is_array( $stale ) && ! empty( $stale['ok'] ) ? $stale : null;
 		$api_key = (string) MusicMap_Settings::get( 'youtube_key' );
 		if ( '' === $api_key ) {
-			return self::fail( 'no_youtube_key', 'YouTube lookups need a YouTube API key in MusicMap > Settings.', 503 );
+			return $known ? self::reply( $known, 200, 3600 ) : self::fail( 'no_youtube_key', 'YouTube lookups need a YouTube API key in MusicMap > Settings.', 503 );
 		}
 		if ( ! self::allowed( 'resolve', 80 ) ) {
-			return self::fail( 'rate_limited', 'Too many lookups — try again later', 429 );
+			return $known ? self::reply( $known, 200, 3600 ) : self::fail( 'rate_limited', 'Too many lookups — try again later', 429 );
 		}
 		if ( ! self::quota_take( self::YT_SEARCH_COST + self::YT_VIDEOS_COST ) ) {
-			return self::fail( 'quota', 'Today\'s YouTube lookups are used up. Songs played before still work; new ones will be back tomorrow.', 503 );
+			return $known ? self::reply( $known, 200, 3600 ) : self::fail( 'quota', 'Today\'s YouTube lookups are used up. Songs played before still work; new ones will be back tomorrow.', 503 );
 		}
 
 		$url = add_query_arg(
@@ -515,6 +554,9 @@ class MusicMap_Channels {
 		list( $code, $data ) = self::get_json( $url );
 		if ( 403 === $code && false !== strpos( wp_json_encode( $data ), 'quota' ) ) {
 			self::quota_exhaust();
+			if ( $known ) {
+				return self::reply( $known, 200, 3600 );
+			}
 			return self::fail( 'quota', 'Today\'s YouTube lookups are used up. Songs played before still work; new ones will be back tomorrow.', 503 );
 		}
 		if ( 200 !== $code ) {
@@ -537,7 +579,8 @@ class MusicMap_Channels {
 			'title'   => self::str( html_entity_decode( (string) ( $item['snippet']['title'] ?? '' ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), 160 ),
 			'channel' => self::str( (string) ( $item['snippet']['channelTitle'] ?? '' ), 80 ),
 		);
-		MusicMap_Store::cache_set( $key, 'yt', $out, 180 * DAY_IN_SECONDS );
+		// a found video is kept for years: it's what keeps the song playable once the day's lookups run out
+		MusicMap_Store::cache_set( $key, 'yt', $out, 3 * YEAR_IN_SECONDS );
 		return self::reply( $out, 200, 86400 );
 	}
 

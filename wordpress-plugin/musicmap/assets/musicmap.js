@@ -2110,7 +2110,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.19.1';
+const MM_VERSION = '1.19.2';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -7201,6 +7201,15 @@ async function playChanItem(i,via,opts){
       return playChanItem(i,'youtube',{fallback:true});
     }
     if(e.code==='not_found'&&chanSkips<3&&chanItems.length>1){ chanSkips++; spotifyShowSnack('Couldn’t find '+itemTitle(it)+'. Skipping.'); return chanStep(1); }
+    // YouTube lookups used up (or not set up): another service you connected, else the songs whose video is already known
+    if(via==='youtube'&&['quota','no_youtube_key','rate_limited'].includes(e.code)){
+      ytLookupsDownUntil=Date.now()+(e.code==='rate_limited'?10:30)*60000;
+      const other=!opts?.fallback?(spotifyCanPlay()?'spotify':isAppleConnected()?'apple':''):'';
+      if(other){ spotifyShowSnack('YouTube lookups are used up for now. Playing on '+SOURCE_LABELS[other]+'.'); return playChanItem(i,other,{fallback:true}); }
+      it._noYt=true;
+      const next=chanNextYtReady(i);
+      if(next>=0){ spotifyShowSnack('YouTube lookups are used up for today, so songs played before come first.'); return playChanItem(next,'youtube',{fallback:true}); }
+    }
     setChanNowPlaying(it,null,msg,via);
     const other=isSpotifyConnected()?'Spotify':isAppleConnected()?'Apple Music':'';
     if(e.code==='quota'||e.code==='no_youtube_key'||e.code==='no_server') showLocalAlert('Can’t play right now', msg+(other?' You can still play it on '+other+'.':''), [{label:'OK',primary:true}]);
@@ -7284,6 +7293,34 @@ async function ensureYtPlayer(){
 }
 // Same idea as the plugin's song lookup: Shorts, interviews and the like aren't songs
 const YT_NOT_MUSIC=/#shorts?\b|\b(interview|vlog|podcast|trailer|teaser|behind the scenes|reaction|reacts?|unboxing|q\s*&\s*a|livestream|live stream|announcement|documentary|episode|tutorial|lesson|press conference|making of|snippet|preview|tiktok|compilation|full album)\b/i;
+// ── Known YouTube videos ── Finding a song's video uses the site's daily YouTube quota. Videos found before
+// still play once it's used up: the server sends them with the chart / Homegrown list (ytv, ytt), and this
+// browser remembers the ones it played.
+const YT_KNOWN_KEY='ytKnown';
+let ytLookupsDownUntil=0; // the server said lookups are used up (or unavailable): don't ask again until then
+const ytKnownKey=x=>(x.kind==='artist'?'a:'+(x.name||''):'s:'+(x.artist||'')+'|'+(x.title||'')).toLowerCase().slice(0,300);
+function ytKnownGet(x){ const v=(gs(YT_KNOWN_KEY,{})||{})[ytKnownKey(x)]; return v&&YT_ID.test(v.id||'')?{id:v.id,t:String(v.t||'')}:null; }
+function ytKnownPut(x,id,title){
+  if(!YT_ID.test(id||'')) return;
+  const m=gs(YT_KNOWN_KEY,{})||{}, k=ytKnownKey(x);
+  delete m[k]; m[k]={id, t:String(title||'').slice(0,160)};
+  const keys=Object.keys(m); if(keys.length>400) keys.slice(0,keys.length-400).forEach(old=>delete m[old]); // newest 400
+  ss(YT_KNOWN_KEY,m);
+}
+function knownVideo(x){
+  if(YT_ID.test(x._yt?.id||'')) return {id:x._yt.id,t:''};
+  if(YT_ID.test(x.ytv||'')) return {id:x.ytv,t:String(x.ytt||'').slice(0,160)};
+  return ytKnownGet(x);
+}
+// can it play from YouTube right now without a lookup?
+const ytPlayableNow=x=>!x._noYt&&(!!knownVideo(x)||(x.kind==='artist'&&/^UC[A-Za-z0-9_-]{22}$/.test(x.youtube||'')&&!x._ytEmpty));
+// the next item in play order that can, or -1
+function chanNextYtReady(from){
+  const n=chanItems.length, order=chanOrder.length===n?chanOrder:[...Array(n).keys()];
+  const at=Math.max(0,order.indexOf(from));
+  for(let s=1;s<n;s++){ const i=order[(at+s)%n]; if(i!==from&&chanItems[i]&&ytPlayableNow(chanItems[i])) return i; }
+  return -1;
+}
 function ytLooksLikeSong(){
   const title=ytPlayer?.getVideoData?.()?.title||'', dur=ytPlayer?.getDuration?.()||0;
   return !YT_NOT_MUSIC.test(title) && (!dur || (dur>=70 && dur<=900));
@@ -7309,7 +7346,14 @@ async function chanPlayYouTube(it,token){
     check('UULF',()=>{ load('UU'); check('UU',()=>{ it._ytEmpty=true; playChanItem(chanIdx,'youtube',{fallback:true}); }); });
     return;
   }
-  const lookup=x=>YT_ID.test(x._yt?.id||'')?Promise.resolve({ok:true,videoId:x._yt.id,title:''}):mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''));
+  // a video already known (this list, the server's cache, or this browser) plays without a lookup
+  const lookup=x=>{
+    const k=knownVideo(x);
+    if(k) return Promise.resolve({ok:true,videoId:k.id,title:k.t||''});
+    if(Date.now()<ytLookupsDownUntil) return Promise.reject(Object.assign(new Error('Today’s YouTube lookups are used up. Songs played before still work; new ones will be back tomorrow.'),{code:'quota'}));
+    return mmApi('resolve?artist='+encodeURIComponent(x.kind==='artist'?x.name:x.artist)+(x.kind==='song'?'&title='+encodeURIComponent(x.title):''))
+      .then(r=>{ ytKnownPut(x,r.videoId,r.title); return r; });
+  };
   const nextIdx=chanItems.length>1?chanNextIdx(chanIdx):-1;
   const nextIt=nextIdx>=0&&chanItems[nextIdx]?.kind==='song'?chanItems[nextIdx]:null;
   // look up this song and the next together, so YouTube can move on by itself (e.g. screen off)

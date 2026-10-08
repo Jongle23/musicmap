@@ -311,14 +311,36 @@ class MusicMap_Store {
 
 	// ── Cache ───────────────────────────────────────────────────────────
 
-	public static function cache_get( $key ) {
+	/** @param bool $allow_expired also return an entry past its expiry (e.g. a known video while YouTube lookups are down) */
+	public static function cache_get( $key, $allow_expired = false ) {
 		global $wpdb;
 		$t   = self::table( 'cache' );
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT value, expires_gmt FROM $t WHERE cache_key = %s", $key ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		if ( ! $row || strtotime( $row['expires_gmt'] . ' UTC' ) < time() ) {
+		if ( ! $row || ( ! $allow_expired && strtotime( $row['expires_gmt'] . ' UTC' ) < time() ) ) {
 			return null;
 		}
 		return json_decode( $row['value'], true );
+	}
+
+	/**
+	 * Several entries in one query (expired ones included): key => value.
+	 *
+	 * @param string[] $keys at most 200
+	 */
+	public static function cache_get_many( $keys ) {
+		global $wpdb;
+		$keys = array_slice( array_values( array_unique( array_map( 'strval', (array) $keys ) ) ), 0, 200 );
+		if ( ! $keys ) {
+			return array();
+		}
+		$t     = self::table( 'cache' );
+		$marks = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT cache_key, value FROM $t WHERE cache_key IN ($marks)", $keys ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		$out   = array();
+		foreach ( (array) $rows as $r ) {
+			$out[ $r['cache_key'] ] = json_decode( $r['value'], true );
+		}
+		return $out;
 	}
 
 	public static function cache_set( $key, $type, $value, $ttl ) {
