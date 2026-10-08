@@ -165,7 +165,7 @@
 .musicmap-root:not(#mm-scope) .tab-btn{font-family:var(--pixel);font-size:7px;padding:9px 11px;border:none;background:none;color:var(--muted);cursor:pointer;letter-spacing:1px;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .musicmap-root:not(#mm-scope) .tab-btn .tab-icon{width:18px;height:18px}
 .musicmap-root:not(#mm-scope) .tab-btn:hover{color:#fff}
-.musicmap-root:not(#mm-scope) .tab-btn.active{color:#a78bfa;color:color-mix(in srgb,var(--accent,#7c3aed) 55%,#fff);border-bottom-color:var(--accent,#7c3aed)}
+.musicmap-root:not(#mm-scope) .tab-btn.active{color:#b794f6;border-bottom-color:var(--accent,#7c3aed)}
 .musicmap-root:not(#mm-scope) .tab-pane{display:none;padding-top:14px}
 .musicmap-root:not(#mm-scope) .tab-pane.active{display:block}
 .musicmap-root:not(#mm-scope) .section{margin-top:18px}

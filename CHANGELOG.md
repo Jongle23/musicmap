@@ -1,6 +1,14 @@
 # MusicMap Changelog
 
-## v1.19 — Current
+## v1.19.1 — Current
+**Release date:** 2026-10-08
+
+### Fixed
+- **Report a problem: "Couldn't take a screenshot (unsupported color function "color")"**. v1.19's brighter active-tab label used `color-mix()`, which the screenshot tool (html2canvas 1.4) can't read, so every screenshot failed.
+  - The label now uses a plain colour (the same lavender).
+  - The screenshot also swaps any newer colour format it finds for a plain one in its own copy of the page, so a future style can't break screenshots again.
+
+## v1.19
 **Release date:** 2026-10-08
 
 ### Changed

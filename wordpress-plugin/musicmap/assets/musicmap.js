@@ -1451,7 +1451,8 @@ async function reportShotToggled(){
     const app=document.getElementById('geovibes-app');
     const scale=Math.min(1,1100/Math.max(app.scrollWidth,1));
     const canvas=await window.html2canvas(app,{useCORS:true,logging:false,backgroundColor:'#1a1a2e',scale,
-      windowWidth:document.documentElement.clientWidth, ignoreElements:el=>el.id==='reportOverlay'||el.tagName==='IFRAME'});
+      windowWidth:document.documentElement.clientWidth, ignoreElements:el=>el.id==='reportOverlay'||el.tagName==='IFRAME',
+      onclone:safeColorsForScreenshot});
     if(seq!==reportShotSeq) return;
     let data=canvas.toDataURL('image/jpeg',0.72);
     if(data.length>1900000) data=canvas.toDataURL('image/jpeg',0.5);
@@ -1465,6 +1466,21 @@ async function reportShotToggled(){
     if(seq!==reportShotSeq) return;
     box.innerHTML=''; const n3=document.createElement('div'); n3.className='note'; n3.textContent='Couldn’t take a screenshot ('+(e.message||'error')+'). You can still send the report.'; box.append(n3);
   }
+}
+// html2canvas 1.4 can't read newer colour formats (color(), oklch(), lab()…) and gives up on the whole
+// screenshot. In its copy of the page, swap any such colour for a plain one it can draw.
+function safeColorsForScreenshot(doc){
+  const bad=/\b(color|oklch|oklab|lab|lch|hwb|color-mix|light-dark)\(/;
+  const win=doc.defaultView;
+  doc.querySelectorAll('#geovibes-app, #geovibes-app *').forEach(el=>{
+    let cs; try{ cs=win.getComputedStyle(el); }catch(e){ return; }
+    [['color','#e8e8e8'],['backgroundColor','transparent'],['borderTopColor','transparent'],['borderRightColor','transparent'],
+     ['borderBottomColor','transparent'],['borderLeftColor','transparent'],['outlineColor','transparent'],['fill',''],['stroke','']].forEach(([prop,fallback])=>{
+      const v=cs[prop]; if(v&&bad.test(v)) el.style[prop]=fallback||'currentColor';
+    });
+    if(bad.test(cs.backgroundImage||'')) el.style.backgroundImage='none';
+    if(bad.test(cs.boxShadow||'')) el.style.boxShadow='none';
+  });
 }
 function reportDetails(){
   const pl=localPoint?.place;
@@ -2094,7 +2110,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.19';
+const MM_VERSION = '1.19.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
