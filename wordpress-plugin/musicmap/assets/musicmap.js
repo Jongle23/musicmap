@@ -2184,7 +2184,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.20.1';
+const MM_VERSION = '1.20.2';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2813,6 +2813,7 @@ async function playCurrentTrack(useFade){
     const p=await ensureYtPlayer();
     if(token!==packsPlayToken) return;
     p.loadVideoById({videoId:vid, startSeconds:Math.max(0,Number(t.start)||0)});
+    watchYtStart(()=>appMode!=='local'&&isPlaying&&token===packsPlayToken&&!spotifyActive&&!scActive);
     packsYtTrack={key:vid+'@'+t.start, vid, start:Number(t.start)||0, dur:Number(t.dur)||0};
   }catch(e){ setPlayerBusy(false); spotifyShowSnack('YouTube could not load. Check your connection.'); return; }
   setPlayIcon(true); setPlayerBusy(true); // spins until YouTube actually starts
@@ -7396,6 +7397,26 @@ function chanNextYtReady(from){
   for(let s=1;s<n;s++){ const i=order[(at+s)%n]; if(i!==from&&chanItems[i]&&ytPlayableNow(chanItems[i])) return i; }
   return -1;
 }
+// YouTube sometimes puts "Sign in to confirm you're not a bot" inside its player (VPNs, shared or data-centre
+// connections, private windows, strict tracking protection). Nothing plays, and the page can't read why. If a song
+// hasn't started ~10 s after it was asked for (page open), show the video so YouTube's message is visible, and say
+// what helps. Once per visit.
+let ytBlockedHinted=false;
+function watchYtStart(stillWaiting){
+  setTimeout(()=>{
+    if(ytBlockedHinted||document.visibilityState!=='visible'||!stillWaiting()) return;
+    const st=ytPlayer?.getPlayerState?.();
+    if(st===1||st===3) return; // playing or buffering after all
+    ytBlockedHinted=true; setPlayerBusy(false);
+    document.getElementById('geovibes-app')?.classList.remove('mm-novideo');
+    const yc=document.getElementById('ytContainer'); if(yc&&appMode!=='local') yc.style.display='block';
+    window.mmLogNote?.('YouTube did not start within 10 s');
+    showLocalAlert('YouTube isn’t starting',
+      'If the video asks you to sign in to confirm you’re not a bot, that’s YouTube checking your connection. A VPN, a private window or strict tracking protection can set it off. Try pausing those for this site'
+      +(isSpotifyConnected()?', or play on Spotify instead.':', or connect Spotify in Settings to play from there.')+' Otherwise, try again in a little while.',
+      [{label:'OK',primary:true}]);
+  },10000);
+}
 function ytLooksLikeSong(){
   const title=ytPlayer?.getVideoData?.()?.title||'', dur=ytPlayer?.getDuration?.()||0;
   return !YT_NOT_MUSIC.test(title) && (!dur || (dur>=70 && dur<=900));
@@ -7412,6 +7433,7 @@ async function chanPlayYouTube(it,token){
       it._yt={list}; it._ytStart=null; it._ytSkips=0; // _ytStart is set when a song starts; moving off it = next artist
     };
     load('UULF');
+    watchYtStart(()=>appMode==='local'&&token===chanPlayToken&&chanStartedToken!==token);
     // some channels have no long-form list: use all their uploads instead (the song check still skips Shorts)
     // and if the channel has nothing playable at all, look the artist up like any other song
     const check=(prefix,next)=>setTimeout(()=>{
@@ -7442,6 +7464,7 @@ async function chanPlayYouTube(it,token){
     chanYtNext={idx:nextIdx,id:rn.videoId,token};
     p.loadPlaylist({playlist:[r.videoId,rn.videoId],index:0});
   } else { chanYtNext=null; p.loadVideoById(r.videoId); }
+  watchYtStart(()=>appMode==='local'&&token===chanPlayToken&&chanStartedToken!==token);
 }
 // Spotify: search with the visitor's own Spotify sign-in (no server key involved)
 async function chanPlaySpotify(it,playTok){

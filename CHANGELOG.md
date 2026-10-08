@@ -1,6 +1,15 @@
 # MusicMap Changelog
 
-## v1.20.1 — Current
+## v1.20.2 — Current
+**Release date:** 2026-10-08
+
+### Fixed
+- **YouTube's "Sign in to confirm you're not a bot" wall left the player silent with no explanation.** YouTube shows it inside its own player for some connections (VPNs, shared or data-centre networks, private windows, strict tracking protection), and the page can't read it.
+  - If a YouTube song hasn't started about 10 seconds after it was asked for (page open), MusicMap shows the video so YouTube's message is visible, even with Video & album art turned off.
+  - It explains what helps (pausing the VPN or strict tracking protection for this site, or playing on Spotify) and records it in the report log.
+  - It shows once per visit, in both modes.
+
+## v1.20.1
 **Release date:** 2026-10-08
 
 ### Fixed
