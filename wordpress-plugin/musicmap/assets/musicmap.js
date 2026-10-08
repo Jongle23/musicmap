@@ -1214,7 +1214,7 @@ let editingLocId=null, editingLocIsCustom=false, editingPins=[];
 // Shuffle queue — ensures every track plays before any repeats
 let shuffleQueue=[];
 // Biome Beats favourites playing right now (track numbers in the active pack); empty = the biome's own list
-let favPlaying=null, favQueue=[];
+let favPlaying=null, favQueue=[], favTag='♥ Favourites · ';
 function currentPackTIdx(){ if(favPlaying!=null) return favPlaying; const idxs=playIdxs(); return idxs[currentTrackPlayIdx]??idxs[0]; }
 let pendingBiomeId=null; // biome queued to switch at next track end
 let noticedBiomeId=null; // last pending biome we pinged about (so each new place chimes once)
@@ -1414,6 +1414,67 @@ function stopSoundCloud(){
   const wrap=document.getElementById('scWrap'); if(wrap) wrap.hidden=true;
 }
 
+// ── TOUR ── a short, skippable first-visit guide (Settings > Help or the ? at the top reopen it)
+const TOUR=[
+  {title:'Welcome to MusicMap', text:'Music that fits where you are. Here’s a quick look around. Skip any time.'},
+  {title:'Biome Beats', target:'.hero-player', text:'Game soundtracks that change with your surroundings: beach, city, forest and more. Here’s one of our favourites:',
+    action:{label:'▶ Play “The Hall of Fame” · Hoenn Pack', run:()=>tourPlayHallOfFame()}},
+  {title:'Listen to World', target:'#heroDetectBtn', text:'Tap it and MusicMap follows you, changing the music as you move. It only asks for your location when you tap it.'},
+  {title:'Keep or skip', target:'.hero-controls', text:'♡ saves a track you love. 👎 stops one from playing again (undo it in Settings).'},
+  {title:'Local Listening', target:'#modeBtnLocal', text:'Real music from where the pin is: the Popular chart, Homegrown artists and local Radio.'},
+  {title:'Make it yours', target:'#tourHelpBtn', text:'Build your own packs from YouTube, Spotify or SoundCloud links in Packs. This tour is always here on the ?.'}
+];
+let tourAt=-1;
+function openTour(e){
+  if(e?.preventDefault) e.preventDefault();
+  tourAt=0; showTourStep();
+  document.getElementById('tourCard').hidden=false;
+  setTimeout(()=>document.getElementById('tourNext')?.focus(),50);
+}
+function closeTour(){
+  tourAt=-1; ss('tourSeen',true);
+  document.getElementById('tourCard').hidden=true; document.getElementById('tourRing').hidden=true;
+}
+function tourGo(d){ const n=tourAt+d; if(n>=TOUR.length) return closeTour(); if(n<0) return; tourAt=n; showTourStep(); }
+function showTourStep(){
+  const s=TOUR[tourAt]; if(!s) return;
+  document.getElementById('tourStep').textContent=(tourAt+1)+' / '+TOUR.length;
+  document.getElementById('tourTitle').textContent=s.title;
+  document.getElementById('tourText').textContent=s.text;
+  const act=document.getElementById('tourAction'); act.innerHTML='';
+  if(s.action){ const b=document.createElement('button'); b.type='button'; b.textContent=s.action.label; b.onclick=s.action.run; act.append(b); }
+  const dots=document.getElementById('tourDots'); dots.innerHTML='';
+  TOUR.forEach((_,i)=>{ const d=document.createElement('span'); if(i===tourAt) d.className='on'; dots.append(d); });
+  document.getElementById('tourBack').hidden=tourAt===0;
+  document.getElementById('tourNext').textContent=tourAt===TOUR.length-1?'Done':'Next';
+  const el=s.target?document.querySelector(s.target):null;
+  if(el&&el.offsetParent){ el.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(placeTourRing,450); }
+  placeTourRing();
+}
+function placeTourRing(){
+  const ring=document.getElementById('tourRing'), s=TOUR[tourAt];
+  const el=s?.target?document.querySelector(s.target):null;
+  if(!el||!el.offsetParent){ ring.hidden=true; return; }
+  const r=el.getBoundingClientRect(), pad=6;
+  Object.assign(ring.style,{left:(r.left-pad)+'px',top:(r.top-pad)+'px',width:(r.width+pad*2)+'px',height:(r.height+pad*2)+'px'});
+  ring.hidden=false;
+}
+window.addEventListener('scroll',()=>{ if(tourAt>=0) placeTourRing(); },{passive:true});
+window.addEventListener('resize',()=>{ if(tourAt>=0) placeTourRing(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&tourAt>=0) closeTour(); });
+// The tour's demo: Hoenn's "The Hall of Fame", then the biome carries on
+async function tourPlayHallOfFame(){
+  if(appMode==='local') await setAppMode('packs');
+  const pack=getAllPacks().find(p=>p.id==='hoenn'); if(!pack) return;
+  const t=getAllPackTracks(pack).findIndex(x=>/hall of fame/i.test(x.title||'')); if(t<0) return;
+  spotifyUnlockAudio();
+  if(getActivePackId()!=='hoenn'){ isPlaying=false; await pauseTrack(); activatePack('hoenn'); }
+  else switchTab('player');
+  favPlaying=t; favQueue=[]; favTag='Tour · '; shuffleQueue=[];
+  isPlaying=true; renderTrackList(); updateNowPlaying(); playCurrentTrack(false);
+  setTimeout(placeTourRing,500);
+}
+
 // ── REPORT A PROBLEM ── sent to the site's MusicMap plugin (MusicMap > Reports); needs the plugin
 const H2C_SRC='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
 const H2C_SRI='sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H';
@@ -1598,7 +1659,8 @@ let toastTimeout=null;
 function showBiomeToast(emoji, biomeName, trackName, accentCss, plain, sticky){
   const toast=document.getElementById('biomeToast');
   toast.classList.toggle('sticky',!!sticky);
-  toast.onclick=sticky?dismissStickyToast:null;
+  toast.onclick=sticky?dismissStickyToast:null; // tap anywhere on it to dismiss (it also has ✕, and swipes away)
+  document.getElementById('toastEntering').textContent=appMode==='local'?'NOW ENTERING':'ENTERING BIOME';
   const inner=document.getElementById('biomeToastInner');
   // Update content
   document.getElementById('toastEmoji').textContent=emoji;
@@ -1621,6 +1683,17 @@ function showBiomeToast(emoji, biomeName, trackName, accentCss, plain, sticky){
     if(!sticky) toastTimeout=setTimeout(()=>toast.classList.remove('show'), 3800);
   },40);
 }
+// Swipe a pop-up that stays (up or sideways) to dismiss it
+(function(){
+  let x0=null,y0=null;
+  const el=()=>document.getElementById('biomeToast');
+  document.addEventListener('touchstart',e=>{ const t=el(); if(!t?.classList.contains('sticky')||!t.contains(e.target)) return; x0=e.touches[0].clientX; y0=e.touches[0].clientY; t.classList.add('dragging'); },{passive:true});
+  document.addEventListener('touchmove',e=>{ const t=el(); if(x0===null||!t) return; const dx=e.touches[0].clientX-x0, dy=Math.min(0,e.touches[0].clientY-y0);
+    t.style.transform='translateX(calc(-50% + '+dx+'px)) translateY('+dy+'px)'; t.style.opacity=String(Math.max(.3,1-(Math.abs(dx)+Math.abs(dy))/250)); },{passive:true});
+  document.addEventListener('touchend',e=>{ const t=el(); if(x0===null||!t) return; const p=e.changedTouches[0], dx=p.clientX-x0, dy=p.clientY-y0; x0=y0=null;
+    t.classList.remove('dragging'); t.style.transform=''; t.style.opacity='';
+    if(Math.abs(dx)>70||dy<-40) dismissStickyToast(); });
+})();
 // the song or station changed: a "you're somewhere new" pop-up that waited for it can go
 function dismissStickyToast(){
   const toast=document.getElementById('biomeToast');
@@ -1695,9 +1768,8 @@ async function init(){
   }
   // live location was on last time: turn it back on, but only if the browser already allows it (never prompt
   // on page load), and not when a shared link chose the spot
-  if(!fromShare&&gs('liveLocation',false)&&navigator.permissions?.query){
-    navigator.permissions.query({name:'geolocation'}).then(p=>{ if(p.state==='granted'&&!trackingActive) startTracking({autoplay:false}); }).catch(()=>{});
-  }
+  // Live location starts only from a tap on Listen to World (never by itself when the page opens)
+  if(!fromShare&&!gs('tourSeen',false)) setTimeout(()=>{ if(tourAt<0) openTour(); },900);
 }
 
 // Back from the lock screen / another app: if Spotify stopped while the screen was off, carry on
@@ -2110,7 +2182,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.19.2';
+const MM_VERSION = '1.20';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2659,7 +2731,7 @@ function updateNowPlaying(){
   updateFavBtn();
   if(!t)return;
   document.getElementById('npTrack').textContent=t.title;
-  document.getElementById('npGame').textContent=(favPlaying!=null?'♥ Favourites · ':'')+(pack?.source||pack?.name||'');
+  document.getElementById('npGame').textContent=(favPlaying!=null?favTag:'')+(pack?.source||pack?.name||'');
   setNowPlayingSource(t);
   const ytVid=t.videoId||pack?.videoId;
   {const yb=document.getElementById('npYtBtn');yb.disabled=false;yb.onclick=()=>window.open('https://www.youtube.com/watch?v='+encodeURIComponent(ytVid)+'&t='+(parseInt(t.start,10)||0),'_blank','noopener');}
@@ -3274,7 +3346,7 @@ function playFavourites(packId,startTIdx){
   if(getActivePackId()!==packId){ isPlaying=false; pauseTrack(); activatePack(packId); } else switchTab('player');
   list=shuffledIdx(list.length).map(i=>list[i]);
   if(startTIdx!=null&&list.includes(startTIdx)) list=[startTIdx,...list.filter(x=>x!==startTIdx)];
-  favPlaying=list[0]; favQueue=list.slice(1); shuffleQueue=[];
+  favPlaying=list[0]; favQueue=list.slice(1); favTag='♥ Favourites · '; shuffleQueue=[];
   isPlaying=true; renderTrackList(); updateNowPlaying(); renderFavList(); playCurrentTrack(false);
 }
 

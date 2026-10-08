@@ -1,6 +1,24 @@
 # MusicMap Changelog
 
-## v1.19.2 — Current
+## v1.20 — Current
+**Release date:** 2026-10-08
+
+### Added
+- **A quick tour for first-time visitors**:
+  - **What it covers:** six short steps (Biome Beats, Listen to World, ♡ and 👎, Local Listening, your own packs), each highlighting the part it's about.
+  - **The demo:** a button that plays "The Hall of Fame" from the Hoenn pack.
+  - **Dismissing it:** the app stays usable while it's open, and ✕, Skip or Esc closes it. It shows once, and not to visitors arriving from a shared link.
+  - **Reopening it:** the **?** at the top of the app, or **Settings > Help > Take the tour**.
+
+### Changed
+- The Local Listening pop-up says **NOW ENTERING** (it said "ENTERING BIOME").
+- Pop-ups that stay until the song changes now have a ✕, can be swiped away (up or sideways), and still close on a tap anywhere on them.
+- **Live location only starts from a tap on Listen to World.** It used to switch itself back on (without music) when the page opened, if it had been on last time and the browser already allowed location.
+
+### Fixed
+- The player's controls overflowed on narrow phones. They now shrink to fit the card (checked at 320 px wide).
+
+## v1.19.2
 **Release date:** 2026-10-08
 
 ### Fixed

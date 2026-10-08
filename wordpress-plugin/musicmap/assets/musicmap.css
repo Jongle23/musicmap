@@ -128,7 +128,19 @@
 .musicmap-root:not(#mm-scope) .hero-biome-right{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;width:100%;min-width:0}
 .musicmap-root:not(#mm-scope) #biomeToast{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-110%);z-index:9000;width:100%;max-width:420px;padding:0 16px;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none}
 .musicmap-root:not(#mm-scope) #biomeToast.show{transform:translateX(-50%) translateY(0)}
-.musicmap-root:not(#mm-scope) #biomeToast.sticky{pointer-events:auto;cursor:pointer}
+.musicmap-root:not(#mm-scope) #biomeToast.sticky{pointer-events:auto;cursor:pointer;touch-action:pan-y}
+.musicmap-root:not(#mm-scope) #toastClose{display:none;flex:0 0 auto;align-self:flex-start;width:28px;height:28px;margin:-4px -8px 0 auto;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);align-items:center;justify-content:center;cursor:pointer;padding:0}
+.musicmap-root:not(#mm-scope) #biomeToast.sticky #toastClose{display:flex}
+.musicmap-root:not(#mm-scope) #toastClose:hover,.musicmap-root:not(#mm-scope) #toastClose:focus-visible{background:rgba(255,255,255,.18);color:#fff}
+.musicmap-root:not(#mm-scope) #biomeToast.dragging{transition:none}
+@supports (container-type:inline-size){.musicmap-root:not(#mm-scope) .hero-player{container-type:inline-size}
+.musicmap-root:not(#mm-scope) .hero-controls{gap:1.5cqi}
+.musicmap-root:not(#mm-scope) .hero-ctrl-btn{width:min(48px,13cqi);height:min(48px,13cqi)}
+.musicmap-root:not(#mm-scope) .hero-ctrl-btn .ic{width:min(22px,6cqi);height:min(22px,6cqi)}
+.musicmap-root:not(#mm-scope) .hero-ctrl-btn.primary{width:min(64px,17cqi);height:min(64px,17cqi)}
+.musicmap-root:not(#mm-scope) .hero-ctrl-btn.primary .ic{width:min(26px,7cqi);height:min(26px,7cqi)}
+.musicmap-root:not(#mm-scope) .hero-ctrl-btn.ghost{width:min(44px,12cqi);height:min(44px,12cqi)}
+.musicmap-root:not(#mm-scope) .hero-ctrl-btn.ghost .ic{width:min(20px,5.6cqi);height:min(20px,5.6cqi)}}
 .musicmap-root:not(#mm-scope) #biomeToast.sticky #toastAccentBar{animation:none!important;width:100%!important}
 .musicmap-root:not(#mm-scope) #biomeToastInner{background:rgba(10,10,24,0.92);border:1px solid rgba(255,255,255,0.12);border-radius:0 0 18px 18px;padding:14px 20px 16px;display:flex;align-items:center;gap:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.5)}
 .musicmap-root:not(#mm-scope) #toastEmoji{font-size:32px;flex-shrink:0;animation:toastBounce 0.5s ease 0.3s both}
@@ -427,6 +439,31 @@
 .musicmap-root:not(#mm-scope) .dislike-menu button{display:block;width:100%;text-align:left;padding:10px;border:0;border-radius:8px;background:none;color:#fff;font:inherit;font-size:13px;cursor:pointer}
 .musicmap-root:not(#mm-scope) .dislike-menu button:hover,.musicmap-root:not(#mm-scope) .dislike-menu button:focus-visible{background:rgba(255,255,255,.08)}
 .musicmap-root:not(#mm-scope) .dislike-menu button small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.musicmap-root:not(#mm-scope) .hero-help-btn{position:absolute;top:10px;right:10px;z-index:5;width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.25);color:#fff;font:700 15px/1 var(--sans);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.musicmap-root:not(#mm-scope) .hero-help-btn:hover,.musicmap-root:not(#mm-scope) .hero-help-btn:focus-visible{background:rgba(0,0,0,.45);border-color:#fff}
+.musicmap-root:not(#mm-scope) .tour-card{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9500;width:calc(100% - 32px);max-width:420px;background:rgba(16,16,36,.97);border:1px solid rgba(167,139,250,.45);border-radius:16px;padding:16px 16px 12px;box-shadow:0 14px 40px rgba(0,0,0,.55);color:var(--text);animation:tourIn .3s ease}
+.musicmap-root:not(#mm-scope) .tour-card[hidden],.musicmap-root:not(#mm-scope) .tour-ring[hidden]{display:none!important}
+@keyframes tourIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.musicmap-root:not(#mm-scope) .tour-x{position:absolute;top:8px;right:8px;width:30px;height:30px;border:0;border-radius:50%;background:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.musicmap-root:not(#mm-scope) .tour-x:hover,.musicmap-root:not(#mm-scope) .tour-x:focus-visible{background:rgba(255,255,255,.08);color:#fff}
+.musicmap-root:not(#mm-scope) .tour-step{font-family:var(--pixel);font-size:8px;letter-spacing:1px;color:#b794f6;margin-bottom:8px}
+.musicmap-root:not(#mm-scope) .tour-title{font-size:17px;font-weight:700;color:#fff;margin:0 34px 6px 0}
+.musicmap-root:not(#mm-scope) .tour-text{font-size:13px;line-height:1.55;color:rgba(255,255,255,.82)}
+.musicmap-root:not(#mm-scope) .tour-action:empty{display:none}
+.musicmap-root:not(#mm-scope) .tour-action{margin-top:12px}
+.musicmap-root:not(#mm-scope) .tour-action button{width:100%;padding:11px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font:600 14px var(--sans);cursor:pointer}
+.musicmap-root:not(#mm-scope) .tour-action button:hover,.musicmap-root:not(#mm-scope) .tour-action button:focus-visible{background:rgba(255,255,255,.18)}
+.musicmap-root:not(#mm-scope) .tour-nav{display:flex;align-items:center;gap:8px;margin-top:14px}
+.musicmap-root:not(#mm-scope) .tour-skip,.musicmap-root:not(#mm-scope) .tour-back{border:0;background:none;color:var(--muted);font:500 12px var(--sans);cursor:pointer;padding:8px 4px}
+.musicmap-root:not(#mm-scope) .tour-skip:hover,.musicmap-root:not(#mm-scope) .tour-back:hover{color:#fff}
+.musicmap-root:not(#mm-scope) .tour-back[hidden]{display:none!important}
+.musicmap-root:not(#mm-scope) .tour-dots{display:flex;gap:5px;margin:0 auto}
+.musicmap-root:not(#mm-scope) .tour-dots span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.25)}
+.musicmap-root:not(#mm-scope) .tour-dots span.on{background:#b794f6}
+.musicmap-root:not(#mm-scope) .tour-next{padding:9px 18px;min-width:84px}
+.musicmap-root:not(#mm-scope) .tour-ring{position:fixed;z-index:9400;pointer-events:none;border:2px solid #b794f6;border-radius:16px;box-shadow:0 0 0 4px rgba(183,148,246,.25),0 0 24px rgba(183,148,246,.45);transition:all .3s ease}
+@media (prefers-reduced-motion:reduce){.musicmap-root:not(#mm-scope) .tour-card{animation:none}
+.musicmap-root:not(#mm-scope) .tour-ring{transition:none}}
 .musicmap-root:not(#mm-scope) .report-tick{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:13px;cursor:pointer}
 .musicmap-root:not(#mm-scope) .report-tick input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent);flex:0 0 auto}
 .musicmap-root:not(#mm-scope) .report-tick small{display:block;color:var(--muted);font-size:11px;line-height:1.5;margin-top:2px}
