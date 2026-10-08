@@ -46,7 +46,69 @@ def scope_css(css):
     leaks = re.findall(r'(?m)^\s*(html|body)\s*[{,]', css)
     if leaks:
         raise SystemExit(f'build_plugin: unscoped page-level selectors left: {leaks}')
-    return css
+    return prefix_rules(css)
+
+
+# Themes style bare elements (Astra: button{background:#e6e6e6}, button:hover{color:#fff},
+# input:focus{color:#111}), and button:hover outranks a plain .class rule, so on hover the theme won and
+# icons vanished. Every app rule is prefixed with SCOPE, which adds one id's worth of specificity: the
+# app's rules beat any theme rule without an id, and keep the same order among themselves.
+SCOPE = '.musicmap-root:not(#mm-scope)'
+
+
+def split_selectors(sel):
+    out, depth, cur = [], 0, ''
+    for ch in sel:
+        if ch in '([':
+            depth += 1
+        elif ch in ')]':
+            depth -= 1
+        if ch == ',' and depth == 0:
+            out.append(cur)
+            cur = ''
+        else:
+            cur += ch
+    out.append(cur)
+    return [s.strip() for s in out if s.strip()]
+
+
+def scope_selector(sel):
+    if sel.startswith('.musicmap-root'):
+        return SCOPE + sel[len('.musicmap-root'):]
+    return f'{SCOPE} {sel}'
+
+
+def prefix_rules(css):
+    css = re.sub(r'/\*[\s\S]*?\*/', '', css)
+    # @import must stay first and its URL can hold ';' (font weights): keep those statements as they are
+    imports = re.findall(r'@import\s+url\([^)]*\)[^;]*;', css)
+    for imp in imports:
+        css = css.replace(imp, '', 1)
+    out, i, n = list(imports), 0, len(css)
+    while i < n:
+        brace = css.find('{', i)
+        if brace < 0:
+            out.append(css[i:])
+            break
+        head = css[i:brace]
+        # the matching close brace (blocks nest inside @media / @supports)
+        depth, j = 1, brace + 1
+        while depth:
+            if css[j] == '{':
+                depth += 1
+            elif css[j] == '}':
+                depth -= 1
+            j += 1
+        body = css[brace + 1:j - 1]
+        h = head.strip()
+        if h.startswith(('@media', '@supports')):
+            out.append(f'{h}{{{prefix_rules(body)}}}')
+        elif h.startswith('@'):
+            out.append(f'{h}{{{body}}}')  # @keyframes, @font-face: left as they are
+        else:
+            out.append(','.join(scope_selector(s) for s in split_selectors(h)) + f'{{{body}}}')
+        i = j
+    return '\n'.join(x.strip() for x in out if x.strip())
 
 
 def build():

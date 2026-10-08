@@ -1,6 +1,22 @@
 # MusicMap Changelog
 
-## v1.18.1 — Current
+## v1.19 — Current
+**Release date:** 2026-10-08
+
+### Changed
+- **One player layout in both modes**: ♡ 👎 ⏮ ▶ ⏭ ↗.
+  - **♡:** saves the song or station in Local Listening, and adds the track to favourites in Biome Beats. It replaces the heart that sat beside the title.
+  - **Video & album art:** now a setting (Settings, under Location chimes) instead of a player button. It's on by default in both modes, since YouTube's terms ask for its player to stay visible while it plays. With nothing playing, the area takes no space.
+  - **Spotify's "play on…" button:** now a small chip next to the source line. It fades in when Spotify connects and doesn't move anything else.
+
+### Fixed
+- **WordPress themes restyling the app.** For example, Astra's `button:hover` turned buttons into black boxes or made icons vanish on hover. Its input styles also made the map search box light grey, and its focus style turned typed text dark on dark fields.
+  - The plugin build now scopes every MusicMap rule to the app, with enough priority to beat theme element styles. The standalone app is unchanged.
+- **On a light page (or a site's light mode)** the app showed the page's white through its main area, so white icons and hover colours disappeared. The app now has its own dark background and dark form controls (`color-scheme: dark`).
+- **The 👎 menu on WordPress** lost the app's colours, because it was attached outside the app's wrapper.
+- **Contrast:** the active tab's label, the footer text and links, and the make-a-pack step numbers are easier to read.
+
+## v1.18.1
 **Release date:** 2026-10-08
 
 ### Added

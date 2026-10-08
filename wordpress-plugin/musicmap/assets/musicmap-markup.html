@@ -66,25 +66,26 @@
   </div>
   <!-- NOW PLAYING (integrated) -->
   <div class="hero-player">
-    <!-- Spotify: choose where it plays (this browser or one of your Spotify apps), like Spotify's own device picker -->
-    <div class="cast-row"><div class="cast-wrap" id="castWrap" hidden>
-      <button class="cast-btn" id="castBtn" type="button" aria-haspopup="menu" aria-expanded="false" onclick="toggleCastMenu()" title="Play Spotify on…"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg><span class="cast-name" id="castName"></span></button>
-      <div class="cast-menu" id="castMenu" role="menu" hidden></div>
-    </div></div>
     <div id="ytContainer"><div id="localYtWrap"><div id="localYtPlayer"></div></div><iframe id="ytFrameA" allow="autoplay; encrypted-media" allowfullscreen></iframe><div id="scWrap" hidden><iframe id="scFrame" title="SoundCloud player" allow="autoplay; encrypted-media"></iframe></div><div class="sp-art" id="spArt" hidden><img class="sp-art-bg" id="spArtBg" alt="" aria-hidden="true"><img class="sp-art-img" id="spArtImg" alt=""></div></div>
     <div class="hero-np-head">
       <div class="playing-bars" id="playingBars" style="display:none" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-np-track mq" id="npTrack">Route 104</div>
-      <button class="np-fav-btn packs-only" id="npFavBtn" type="button" onclick="toggleFavCurrent()" aria-pressed="false" aria-label="Add to favourites" title="Add to favourites"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></button>
     </div>
-    <div class="hero-np-game"><span class="np-source" id="npSource"></span><span class="mq" id="npGame">Pokémon Ruby &amp; Sapphire</span></div>
+    <div class="np-sub-row">
+      <div class="hero-np-game"><span class="np-source" id="npSource"></span><span class="mq" id="npGame">Pokémon Ruby &amp; Sapphire</span></div>
+      <!-- Spotify: where it plays (this browser or one of your Spotify apps); small, only while Spotify is connected -->
+      <div class="cast-wrap" id="castWrap" hidden>
+      <button class="cast-btn" id="castBtn" type="button" aria-haspopup="menu" aria-expanded="false" onclick="toggleCastMenu()" title="Play Spotify on…"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><line x1="2" y1="20" x2="2.01" y2="20"/></svg><span class="cast-name" id="castName"></span></button>
+      <div class="cast-menu" id="castMenu" role="menu" hidden></div>
+      </div>
+    </div>
     <div class="hero-progress">
       <span class="hero-progress-time" id="progressTime">0:00</span>
       <div class="hero-progress-bg"><div class="hero-progress-fill" id="progressFill"></div></div>
       <span class="hero-progress-time" id="progressDur">0:00</span>
     </div>
     <div class="hero-controls">
-      <button class="hero-ctrl-btn ghost" id="videoToggleBtn" onclick="onVideoBtn()" aria-label="Show video" aria-pressed="false" title="Show video"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg></button>
+      <button class="hero-ctrl-btn ghost" id="npHeartBtn" type="button" onclick="onHeartBtn()" aria-pressed="false" aria-label="Save" title="Save"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></button>
       <button class="hero-ctrl-btn ghost" id="npDislikeBtn" onclick="dislikeCurrent(event)" aria-label="Don't play this again" aria-haspopup="menu" title="Don't play this again"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg></button>
       <button class="hero-ctrl-btn" onclick="prevTrack()" aria-label="Previous track" title="Previous"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></button>
       <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()" aria-label="Play / pause" title="Play / pause"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
@@ -269,6 +270,10 @@
           <option value="km">Kilometres</option>
         </select>
       </label>
+      <label class="settings-inline" for="showVideoToggle" style="margin-top:10px">Video &amp; album art in the player
+        <input type="checkbox" id="showVideoToggle" onchange="setShowVideo(this.checked)" style="width:20px;height:20px;accent-color:var(--accent)">
+      </label>
+      <div class="conn-hint">The YouTube video, or the album art while Spotify plays, above the song name.</div>
       <label class="settings-inline" for="chimesToggle" style="margin-top:10px">Location chimes
         <input type="checkbox" id="chimesToggle" onchange="setLocationChimes(this.checked)" style="width:20px;height:20px;accent-color:var(--accent)">
       </label>
@@ -698,8 +703,8 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.18.1</div>
-  <div style="font-size:11px;color:rgba(255,255,255,.3);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.5)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.5)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.5)">Report a problem</a></span></div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.19</div>
+  <div style="font-size:11px;color:rgba(255,255,255,.55);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.75)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.75)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.75)">Report a problem</a></span></div>
 </div>
 </div><!-- #geovibes-app -->
 </div>

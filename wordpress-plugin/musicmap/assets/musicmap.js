@@ -1663,6 +1663,7 @@ async function init(){
   resumePendingSpotifyLink();
   // Apple Music: check the saved sign-in is still good
   if(isAppleConnected()) amLoad().then(m=>{ if(!m.isAuthorized){ ss('appleMusicLinked',false); renderConnectionsUI(); } }).catch(()=>{});
+  setShowVideo(gs('showVideo',true));
   applyLogo(); applySupportLink(); applyReportButtons(); fitWideLayout(); setMapShown(mapShown(),false,true);
   applyModeUI();
   // the last known location, shared by both modes (a week at most)
@@ -1776,6 +1777,7 @@ function switchTab(id){
   if(id==='settings'){
     syncDistUnitsSelect();
     const ct=document.getElementById('chimesToggle'); if(ct) ct.checked=chimesOn();
+    const vt=document.getElementById('showVideoToggle'); if(vt) vt.checked=videoVisible;
     renderCredits();
     renderHiddenTracks();
     renderConnectionsUI();
@@ -2092,7 +2094,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.18.1';
+const MM_VERSION = '1.19';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2813,22 +2815,15 @@ function setPlayerBusy(on){
 }
 // A status line that is waiting on something: spinner + text (text is escaped)
 function busyText(el,text){ if(el) el.innerHTML='<span class="mm-busy-text"><span class="mm-spinner" aria-hidden="true"></span><span>'+esc(text)+'</span></span>'; }
-function toggleVideo(){
-  videoVisible=!videoVisible;
+// Video (or Spotify album art) above the song name: a setting (Settings > Play songs), the same in both modes.
+// On by default: YouTube's terms ask for its player to stay visible while it plays.
+function setShowVideo(on){
+  videoVisible=!!on; ss('showVideo',videoVisible);
   document.getElementById('ytContainer').style.display=videoVisible?'block':'none';
-  const btn=document.getElementById('videoToggleBtn');
-  btn.classList.toggle('active',videoVisible);
-  btn.setAttribute('aria-pressed',videoVisible);
-  updateVideoToggleLabel();
+  document.getElementById('geovibes-app')?.classList.toggle('mm-novideo',!videoVisible);
 }
-// The same button shows YouTube video, or album art while Spotify plays
-function updateVideoToggleLabel(){
-  const btn=document.getElementById('videoToggleBtn');
-  if(!btn) return;
-  const what=spotifyActive?'album art':'video';
-  const label=(videoVisible?'Hide ':'Show ')+what;
-  btn.setAttribute('aria-label',label); btn.title=label;
-}
+function toggleVideo(){ setShowVideo(!videoVisible); }
+function updateVideoToggleLabel(){} // (the player button moved to Settings)
 let progressTrackStart=0; // wall-clock ms when track started playing
 let progressTrackDur=0;
 let progressPaused=false;
@@ -3208,10 +3203,10 @@ function toggleFavCurrent(){
   if(t) toggleFav(pack.id,tIdx,t.title,pack.name);
 }
 function updateFavBtn(){
-  const b=document.getElementById('npFavBtn'); if(!b) return;
+  const b=document.getElementById('npHeartBtn'); if(!b||isLocalMode()) return;
   const pack=getActivePack(), tIdx=currentPackTIdx(), t=getAllPackTracks(pack)[tIdx];
   const on=!!t&&isFav(pack.id,tIdx);
-  b.disabled=!t; b.classList.toggle('on',on); b.setAttribute('aria-pressed',on);
+  b.disabled=!t; b.classList.toggle('saved',on); b.setAttribute('aria-pressed',on);
   const label=on?'Remove from favourites':'Add to favourites'; b.setAttribute('aria-label',label); b.title=label;
 }
 function renderFavList(){
@@ -3384,7 +3379,7 @@ function dislikeCurrent(e){
   if(inHere) opt('In '+here,'Takes it off this list. Other biomes keep it.',()=>dislikeTrack('biome',tIdx));
   opt('Anywhere in '+(pack.name||'this pack'),'Takes it out of every biome and place in this pack.',()=>dislikeTrack('pack',tIdx));
   opt('Cancel','',()=>{});
-  document.body.append(menu);
+  (document.getElementById('geovibes-app')?.parentElement||document.body).append(menu); // inside the plugin's wrapper, so it keeps the app's colours
   const r=document.getElementById('npDislikeBtn').getBoundingClientRect(), m=menu.getBoundingClientRect();
   menu.style.left=Math.max(16,Math.min(innerWidth-m.width-16,r.left+r.width/2-m.width/2))+'px';
   menu.style.top=(r.bottom+8+m.height<innerHeight?r.bottom+8:Math.max(8,r.top-m.height-8))+'px';
@@ -6022,21 +6017,10 @@ function applyModeUI(){
   syncVideoBtnForMode();
   renderCustomPins(); renderSavedMarkers(); renderMapLegend();
 }
-// In Local Listening the video button saves the current station instead
-let videoBtnPacksHtml=null;
+// The heart in the player: Saved (Local Listening) or favourites (Biome Beats)
 const SAVE_BTN_HTML='<svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
-function syncVideoBtnForMode(){
-  const vb=document.getElementById('videoToggleBtn'); if(!vb) return;
-  if(videoBtnPacksHtml===null) videoBtnPacksHtml=vb.innerHTML;
-  if(appMode==='local'){
-    vb.innerHTML=SAVE_BTN_HTML; vb.classList.remove('active'); updateSaveStationBtn();
-  } else {
-    vb.innerHTML=videoBtnPacksHtml; vb.disabled=false; vb.classList.remove('saved');
-    vb.classList.toggle('active',videoVisible); vb.setAttribute('aria-pressed',videoVisible);
-    updateVideoToggleLabel();
-  }
-}
-function onVideoBtn(){ if(isLocalMode()) toggleSaveCurrentStation(); else toggleVideo(); }
+function syncVideoBtnForMode(){ if(appMode==='local') updateSaveStationBtn(); else updateFavBtn(); }
+function onHeartBtn(){ if(isLocalMode()) toggleSaveCurrentStation(); else toggleFavCurrent(); }
 async function setAppMode(mode){
   mode=mode==='local'?'local':'packs';
   if(mode===appMode) return;
@@ -6528,7 +6512,7 @@ function heartButton(st){
 }
 function updateSaveStationBtn(){
   updateDislikeBtn();
-  const vb=document.getElementById('videoToggleBtn');
+  const vb=document.getElementById('npHeartBtn');
   if(!vb||!isLocalMode()) return;
   if(localChannel!=='radio'){
     const s=currentSongForSave(), on=!!s&&isSongSaved(s);
