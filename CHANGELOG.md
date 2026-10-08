@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.18 — Current
+## v1.18.1 — Current
+**Release date:** 2026-10-08
+
+### Added
+- **⚠ Report** button at the end of the tab bar, on every screen. The screenshot is taken the moment you tap it, so it shows the problem you're looking at. The Report a problem row stays in Settings > Help, which now mentions the new button.
+
+## v1.18
 **Release date:** 2026-10-08
 
 ### Added
