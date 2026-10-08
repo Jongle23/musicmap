@@ -1,6 +1,13 @@
 # MusicMap Changelog
 
-## v1.20 — Current
+## v1.20.1 — Current
+**Release date:** 2026-10-08
+
+### Fixed
+- **Firefox: "Unable to load image data:image/svg+xml…" errors** when taking the Report a problem screenshot. The screenshot draws the app's icons as images, and Firefox refuses SVG images without their namespace (Chrome doesn't mind). The screenshot copy now adds it, so the icons appear in Firefox screenshots too.
+- Biome detection checks the Overpass reply before reading it (a busy server answers with an HTML page).
+
+## v1.20
 **Release date:** 2026-10-08
 
 ### Added

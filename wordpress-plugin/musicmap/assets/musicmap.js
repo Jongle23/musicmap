@@ -1531,6 +1531,8 @@ async function reportShotToggled(){
 // html2canvas 1.4 can't read newer colour formats (color(), oklch(), lab()…) and gives up on the whole
 // screenshot. In its copy of the page, swap any such colour for a plain one it can draw.
 function safeColorsForScreenshot(doc){
+  // the app's inline icons leave out the SVG namespace (fine in a page); as images, Firefox refuses them without it
+  doc.querySelectorAll('svg').forEach(s=>{ if(!s.getAttribute('xmlns')) s.setAttribute('xmlns','http://www.w3.org/2000/svg'); });
   const bad=/\b(color|oklch|oklab|lab|lch|hwb|color-mix|light-dark)\(/;
   const win=doc.defaultView;
   doc.querySelectorAll('#geovibes-app, #geovibes-app *').forEach(el=>{
@@ -2182,7 +2184,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.20';
+const MM_VERSION = '1.20.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3916,6 +3918,7 @@ out tags 20;`;
     body: 'data=' + encodeURIComponent(query),
     headers: {'Content-Type':'application/x-www-form-urlencoded'}
   });
+  if (!r.ok) throw new Error('Overpass is busy (HTTP ' + r.status + ')'); // busy/rate-limited answers are an HTML page, not JSON
   const d = await r.json();
   const elements = d.elements || [];
 
