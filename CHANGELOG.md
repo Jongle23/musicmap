@@ -1,6 +1,18 @@
 # MusicMap Changelog
 
-## v1.16 — Current
+## v1.17 — Current
+**Release date:** 2026-10-07
+
+### Added
+- **👎 Don't play this again** in the player:
+  - **Biome Beats:** choose "In <this biome or place>" or "Anywhere in <pack>". "Anywhere in <pack>" takes the track out of every biome and place in the pack, and out of the whole-pack shuffle in empty biomes.
+  - **Local Listening:** one tap hides the song from Popular (all its genre mixes, in every country), the artist from Homegrown, or the station from Radio, then moves on to the next one. Not shown for Saved or shared songs.
+- **Settings > Removed & disliked** (was "Removed tracks", now in both modes): tabs for Biomes & places, Whole pack, Popular, Homegrown and Radio, each with a count and a Restore button. Tracks removed with ✕ in a track list still show under Biomes & places.
+
+### Fixed
+- The track picker offered **Spotify search on YouTube packs**, and Spotify tracks added there never showed up. Spotify search now appears only in your own Spotify packs.
+
+## v1.16
 **Release date:** 2026-10-07
 
 ### Added

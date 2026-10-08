@@ -1607,7 +1607,9 @@ function biomeUsesWholePack(id){
 function playIdxs(id){
   id=id||currentLocId;
   const own=getLocTracks(getPackId(),id);
-  return own.length||!biomeUsesWholePack(id)?own:getAllPackTracks(getActivePack()).map((_,i)=>i);
+  if(own.length||!biomeUsesWholePack(id)) return own;
+  const gone=packDisliked(getPackId());
+  return getAllPackTracks(getActivePack()).map((_,i)=>i).filter(i=>!gone.has(i));
 }
 // Saved places with no tracks don't count for live location (you hear the biome around you instead)
 function customLocsWithTracks(){ return getAllCustomLocs().filter(l=>getLocTracks(getPackId(),l.id).length>0); }
@@ -2057,7 +2059,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.16';
+const MM_VERSION = '1.17';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2830,6 +2832,10 @@ function openTrackPicker(){
   const displayName=(ov.name||loc?.name||currentLocId).toUpperCase();
   document.getElementById('pickerTitle').textContent='ADD TO '+displayName;
   document.getElementById('pickerSearch').value='';
+  // Spotify search adds Spotify tracks, so it's only offered in your own Spotify packs
+  const spOk=pickerCanAddSpotify(pack);
+  document.getElementById('pickerTabs').hidden=!spOk;
+  switchPickerTab('yt');
   document.getElementById('trackPickerOverlay').classList.add('open');
   renderPickerList('');
 }
@@ -3135,45 +3141,186 @@ function deleteCustomLoc(){
 // ═══════════════════════════════════════════
 // SETTINGS
 // ═══════════════════════════════════════════
-function renderHiddenTracksList(){
-  const list=document.getElementById('hiddenTrackList');
-  if(!list)return;
-  list.innerHTML='';
-  const packId=getPackId();
-  const pack=getActivePack();
-  let any=false;
+// ── REMOVED & DISLIKED ──
+// One list of everything removed with 👎 (Settings > Removed & disliked). Biome removals change the biome's
+// own list too; "whole pack" takes the track out of every biome and place in that pack and out of whole-pack shuffles;
+// Popular songs, Homegrown artists and radio stations are hidden from those lists wherever you listen.
+const DISLIKE_KEY='dislikes';
+const DISLIKE_TABS=[['biome','Biomes & places'],['pack','Whole pack'],['popular','Popular'],['made','Homegrown'],['radio','Radio']];
+function getDislikes(){
+  const d=gs(DISLIKE_KEY,[]);
+  return (Array.isArray(d)?d:[]).filter(x=>x&&typeof x==='object'&&DISLIKE_TABS.some(t=>t[0]===x.kind)&&typeof x.key==='string'&&x.key);
+}
+function putDislikes(a){ ss(DISLIKE_KEY,a.slice(-500)); }
+function addDislike(entry){
+  const all=getDislikes().filter(d=>!(d.kind===entry.kind&&d.key===entry.key));
+  all.push({...entry, title:String(entry.title||'').slice(0,160), sub:String(entry.sub||'').slice(0,160), at:Date.now()});
+  putDislikes(all);
+}
+function dropDislike(kind,key){ putDislikes(getDislikes().filter(d=>!(d.kind===kind&&d.key===key))); }
+const dislikedKeys=kind=>new Set(getDislikes().filter(d=>d.kind===kind).map(d=>d.key));
+// keys for Local Listening (the same song or station anywhere)
+const chanDislikeKey=it=>it.kind==='artist'?String(it.name||'').toLowerCase():songKey(it);
+function chanItemsWithoutDisliked(items){
+  if(localChannel!=='popular'&&localChannel!=='made') return items;
+  const gone=dislikedKeys(localChannel); if(!gone.size) return items;
+  return items.filter(x=>!gone.has(chanDislikeKey(x)));
+}
+function stationsWithoutDisliked(arr){
+  const gone=dislikedKeys('radio'); return gone.size?(arr||[]).filter(s=>!gone.has(s.uuid)):arr;
+}
+// whole-pack dislikes for a pack (track numbers)
+const packDisliked=packId=>new Set(getDislikes().filter(d=>d.kind==='pack'&&d.packId===packId).map(d=>d.tIdx));
+
+let removedTab=null;
+function removedRows(){
+  const rows={biome:[],pack:[],popular:[],made:[],radio:[]};
+  const all=getDislikes();
+  all.forEach(d=>rows[d.kind].push({title:d.title, sub:d.sub, restore:()=>restoreDislike(d)}));
+  // tracks taken out of a biome another way (the ✕ in a track list), for the pack in use
+  const packId=getPackId(), pack=getActivePack(), allTracks=getAllPackTracks(pack);
+  const listed=new Set(all.filter(d=>d.kind==='biome').map(d=>d.key));
+  const wholePack=packDisliked(packId);
   (pack?.biomes||[]).forEach(b=>{
-    const defaults=b.defaultTracks||[];
     const current=new Set(getLocTracks(packId,b.id));
     const ov=getBiomeOverride(packId,b.id);
-    const name=ov.name||b.name;
-    const allTracks=getAllPackTracks(pack);
-    defaults.forEach(tIdx=>{
-      if(!current.has(tIdx)&&allTracks[tIdx]){
-        any=true;
-        const t=allTracks[tIdx];
-        const item=document.createElement('div');
-        item.className='track-item';
-        item.innerHTML='<div class="track-info"><div class="track-title">'+esc(t.title)+'</div><div class="track-game">'+esc(ov.emoji||b.emoji)+' '+esc(name)+'</div></div>';
-        const restBtn=document.createElement('button');
-        restBtn.className='pill-btn';
-        restBtn.textContent='Restore';
-        restBtn.onclick=()=>restoreTrack(b.id,tIdx);
-        item.appendChild(restBtn);
-        list.appendChild(item);
-      }
+    (b.defaultTracks||[]).forEach(tIdx=>{
+      if(current.has(tIdx)||!allTracks[tIdx]||wholePack.has(tIdx)||listed.has(packId+'|'+b.id+'|'+tIdx)) return;
+      rows.biome.push({title:allTracks[tIdx].title, sub:(ov.emoji||b.emoji)+' '+(ov.name||b.name)+' · '+(pack.name||''), restore:()=>restoreTrack(b.id,tIdx)});
     });
   });
-  if(!any)list.innerHTML='<div class="empty-state">No removed tracks.</div>';
+  rows.biome.reverse(); rows.pack.reverse(); rows.popular.reverse(); rows.made.reverse(); rows.radio.reverse(); // newest first
+  return rows;
+}
+function renderHiddenTracksList(){
+  const list=document.getElementById('hiddenTrackList'), tabs=document.getElementById('removedTabs');
+  if(!list||!tabs) return 0;
+  const rows=removedRows();
+  const total=Object.values(rows).reduce((n,r)=>n+r.length,0);
+  if(!removedTab||!rows[removedTab]){
+    const mine=isLocalMode()?['popular','made','radio']:['biome','pack'];
+    removedTab=mine.find(k=>rows[k].length)||DISLIKE_TABS.map(t=>t[0]).find(k=>rows[k].length)||mine[0];
+  }
+  tabs.innerHTML='';
+  DISLIKE_TABS.forEach(([k,label])=>{
+    const b=document.createElement('button'); b.type='button'; b.setAttribute('role','tab'); b.setAttribute('aria-selected',k===removedTab);
+    b.textContent=label; const n=document.createElement('span'); n.className='n'; n.textContent=rows[k].length; b.append(n);
+    b.onclick=()=>{ removedTab=k; renderHiddenTracksList(); };
+    tabs.append(b);
+  });
+  list.innerHTML='';
+  rows[removedTab].forEach(r=>{
+    const item=document.createElement('div'); item.className='track-item';
+    const info=document.createElement('div'); info.className='track-info';
+    const t=document.createElement('div'); t.className='track-title'; t.textContent=r.title;
+    const g=document.createElement('div'); g.className='track-game'; g.textContent=r.sub||'';
+    info.append(t,g);
+    const btn=document.createElement('button'); btn.className='pill-btn'; btn.textContent='Restore'; btn.onclick=r.restore;
+    item.append(info,btn); list.append(item);
+  });
+  if(!rows[removedTab].length){
+    const e=document.createElement('div'); e.className='empty-state';
+    e.textContent=removedTab==='biome'?'Nothing removed from a biome or place.':removedTab==='pack'?'Nothing removed from a whole pack.':'Nothing removed from '+DISLIKE_TABS.find(t=>t[0]===removedTab)[1]+'.';
+    list.append(e);
+  }
+  return total;
 }
 function renderHiddenTracks(){
-  renderHiddenTracksList();
-  const n=document.querySelectorAll('#hiddenTrackList .track-item').length;
+  const n=renderHiddenTracksList();
   const c=document.getElementById('removedTracksCount'); if(c) c.textContent=n?'('+n+')':'(none)';
 }
+function restoreDislike(d){
+  dropDislike(d.kind,d.key);
+  if(d.kind==='biome'||d.kind==='pack'){
+    const locs=d.kind==='biome'?[d.locId]:(Array.isArray(d.locs)?d.locs:[]);
+    locs.forEach(id=>{ if(typeof id!=='string') return; const t=getLocTracks(d.packId,id); if(Number.isInteger(d.tIdx)&&!t.includes(d.tIdx)) setLocTracks(d.packId,id,[...t,d.tIdx]); });
+    if(d.packId===getPackId()&&appMode!=='local') renderTrackList();
+    spotifyShowSnack('Restored: '+d.title);
+  } else spotifyShowSnack('Restored. '+d.title+' is back next time the list loads.');
+  renderHiddenTracks();
+}
 
+// ── 👎 in the player ──
+function closeDislikeMenu(){ document.getElementById('dislikeMenu')?.remove(); }
+function dislikeCurrent(e){
+  if(e) e.stopPropagation();
+  if(document.getElementById('dislikeMenu')){ closeDislikeMenu(); return; }
+  if(appMode==='local') return dislikeLocal();
+  const packId=getPackId(), pack=getActivePack(), idxs=playIdxs();
+  const tIdx=idxs[currentTrackPlayIdx]??idxs[0], t=getAllPackTracks(pack)[tIdx];
+  if(!t){ spotifyShowSnack('Nothing playing to remove.'); return; }
+  const inHere=getLocTracks(packId,currentLocId).includes(tIdx);
+  const here=biomeDisplayName(currentLocId)||'this place';
+  const menu=document.createElement('div'); menu.className='dislike-menu'; menu.id='dislikeMenu'; menu.setAttribute('role','menu');
+  const head=document.createElement('div'); head.className='t'; head.textContent='Don’t play “'+t.title+'”…'; menu.append(head);
+  const opt=(label,sub,fn)=>{ const b=document.createElement('button'); b.type='button'; b.setAttribute('role','menuitem'); b.textContent=label;
+    const sm=document.createElement('small'); sm.textContent=sub; b.append(sm); b.onclick=()=>{ closeDislikeMenu(); fn(); }; menu.append(b); return b; };
+  if(inHere) opt('In '+here,'Takes it off this list. Other biomes keep it.',()=>dislikeTrack('biome',tIdx));
+  opt('Anywhere in '+(pack.name||'this pack'),'Takes it out of every biome and place in this pack.',()=>dislikeTrack('pack',tIdx));
+  opt('Cancel','',()=>{});
+  document.body.append(menu);
+  const r=document.getElementById('npDislikeBtn').getBoundingClientRect(), m=menu.getBoundingClientRect();
+  menu.style.left=Math.max(16,Math.min(innerWidth-m.width-16,r.left+r.width/2-m.width/2))+'px';
+  menu.style.top=(r.bottom+8+m.height<innerHeight?r.bottom+8:Math.max(8,r.top-m.height-8))+'px';
+  menu.querySelector('button')?.focus();
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#dislikeMenu,#npDislikeBtn')) closeDislikeMenu(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('dislikeMenu')){ closeDislikeMenu(); document.getElementById('npDislikeBtn')?.focus(); } });
+function dislikeTrack(scope,tIdx){
+  const packId=getPackId(), pack=getActivePack(), t=getAllPackTracks(pack)[tIdx]; if(!t) return;
+  if(scope==='biome'){
+    setLocTracks(packId,currentLocId,getLocTracks(packId,currentLocId).filter(x=>x!==tIdx));
+    addDislike({kind:'biome', key:packId+'|'+currentLocId+'|'+tIdx, packId, locId:currentLocId, tIdx, title:t.title, sub:(biomeDisplayName(currentLocId)||currentLocId)+' · '+(pack.name||'')});
+    spotifyShowSnack('Won’t play in '+(biomeDisplayName(currentLocId)||'this place')+'. Restore it in Settings.');
+  } else {
+    const locs=[...(pack.biomes||[]).map(b=>b.id), ...getAllCustomLocs().map(l=>l.id)].filter(id=>getLocTracks(packId,id).includes(tIdx));
+    locs.forEach(id=>setLocTracks(packId,id,getLocTracks(packId,id).filter(x=>x!==tIdx)));
+    addDislike({kind:'pack', key:packId+'|'+tIdx, packId, tIdx, locs, title:t.title, sub:pack.name||''});
+    spotifyShowSnack('Won’t play anywhere in '+(pack.name||'this pack')+'. Restore it in Settings.');
+  }
+  // carry on with something else from what's left
+  shuffleQueue=[];
+  const left=playIdxs();
+  if(!left.length){ isPlaying=false; pauseTrack(); currentTrackPlayIdx=0; renderTrackList(); updateNowPlaying(); renderHiddenTracks(); return; }
+  currentTrackPlayIdx=Math.floor(Math.random()*left.length);
+  renderTrackList(); updateNowPlaying(); renderHiddenTracks();
+  if(isPlaying) playCurrentTrack(true);
+}
+function dislikeLocal(){
+  const where=placeLabel(localPoint?.place)||'';
+  if(localChannel==='radio'){
+    const st=localStations[localIdx]; if(!st){ spotifyShowSnack('Nothing playing to remove.'); return; }
+    addDislike({kind:'radio', key:st.uuid, title:st.name, sub:where});
+    const next=localStations.length>1?localStations[radOrder[(radOrder.indexOf(localIdx)+1)%radOrder.length]]:null;
+    const was=localPlaying;
+    localStations=localStations.filter(s=>s!==st); buildRadOrder();
+    const ni=next?localStations.indexOf(next):-1;
+    spotifyShowSnack('Won’t show '+st.name+' again. Restore it in Settings.');
+    if(ni>=0&&was){ radOrderPos=Math.max(0,radOrder.indexOf(ni)); playStation(ni); }
+    else { if(was){ stopRadio(); setPlayIcon(false); } localIdx=-1; renderLocalList(); }
+    renderHiddenTracks(); return;
+  }
+  if(localChannel!=='popular'&&localChannel!=='made'){ spotifyShowSnack('Saved and shared songs can be removed in Saved.'); return; }
+  const it=chanItems[chanIdx]; if(!it){ spotifyShowSnack('Nothing playing to remove.'); return; }
+  const made=localChannel==='made';
+  addDislike({kind:localChannel, key:chanDislikeKey(it), title:made?it.name:it.title+' — '+it.artist, sub:made?[it.genre,it.place||where].filter(Boolean).join(' · '):(it.genre||'')});
+  const next=chanItems.length>1?chanItems[chanNextIdx(chanIdx)]:null, was=chanPlaying;
+  chanItems=chanItems.filter(x=>x!==it); chanIdx=-1; buildChanOrder();
+  // the same song is also in the other Popular lists: take it out of those too
+  if(!made&&chanData?.mixes) chanData.mixes.forEach(m=>{ m.list=m.list.filter(x=>songKey(x)!==songKey(it)); });
+  spotifyShowSnack(made?'Won’t show '+it.name+' in Homegrown again. Restore it in Settings.':'Won’t play '+it.title+' again. Restore it in Settings.');
+  const ni=next?chanItems.indexOf(next):-1;
+  if(ni>=0&&was){ chanOrderPos=Math.max(0,chanOrder.indexOf(ni)); playChanItem(ni); }
+  else { if(was) stopChanPlayback(); renderChanList(); setLocalIdle(); }
+  renderHiddenTracks();
+}
+function updateDislikeBtn(){
+  const b=document.getElementById('npDislikeBtn'); if(!b) return;
+  b.hidden=isLocalMode()&&!['popular','made','radio'].includes(localChannel);
+}
 function restoreTrack(locId,tIdx){
   const packId=getPackId();
+  dropDislike('biome',packId+'|'+locId+'|'+tIdx);
   const tracks=getLocTracks(packId,locId);
   if(!tracks.includes(tIdx))setLocTracks(packId,locId,[...tracks,tIdx]);
   renderHiddenTracks();
@@ -5565,6 +5712,12 @@ function resumePendingSpotifyLink(){
   miOnUrlInput();
 }
 
+// Spotify tracks can go in a user's own Spotify pack (one service per pack; YouTube packs keep tracks per video)
+function pickerCanAddSpotify(pack){
+  if(!pack||pack.builtin||pack.videos?.length) return false;
+  const src=packSources(pack);
+  return src.length===1&&src[0]==='spotify';
+}
 // ── Picker tab switching ──
 let pickerActiveTab='yt';
 function switchPickerTab(tab){
@@ -5634,7 +5787,7 @@ function renderSpotifyPickerResults(items){
 async function addSpotifyTrackToPack(item,rowEl){
   const packId=getPackId();
   const pack=getActivePack();
-  if(!pack||pack.builtin){ spotifyShowSnack('Switch to a custom pack to add Spotify tracks.'); return; }
+  if(!pickerCanAddSpotify(pack)){ spotifyShowSnack('Spotify tracks can only be added to your own Spotify packs.'); return; }
   const dur=Math.round(item.duration_ms/1000);
   const artists=item.artists.map(a=>a.name).join(', ');
   const newTrack={ title:`${item.name} — ${artists}`, start:0, dur, spotifyUri:item.uri, videoId:null };
@@ -5712,6 +5865,7 @@ function applyLogo(){
   if(el&&typeof MM_CONFIG.logoUrl==='string'&&/^https?:\/\//.test(MM_CONFIG.logoUrl)) el.src=MM_CONFIG.logoUrl.replace('-512.png','-192.png');
 }
 function applyModeUI(){
+  updateDislikeBtn(); closeDislikeMenu();
   const root=document.getElementById('geovibes-app');
   if(root){ root.classList.toggle('mode-local',appMode==='local'); root.classList.toggle('mode-packs',appMode!=='local'); }
   [['modeBtnPacks','packs'],['modeBtnLocal','local']].forEach(([id,m])=>{
@@ -5978,14 +6132,14 @@ async function loadLocalChannel(opts){
       if(localStations.length) renderLocalList(); else renderLocalNote('Choose a spot with radio nearby: tap <b>Move pin</b>.');
       return;
     }
-    localStations=stations; localIdx=-1; buildRadOrder();
+    localStations=stationsWithoutDisliked(stations); localIdx=-1; buildRadOrder();
     renderLocalList();
     playStation(radOrder[0]??0);
     return;
   }
   // Keep the selected station (playing or still buffering) when the list refreshes
   const current=localIdx>=0&&radioAudio?.getAttribute('src')?localStations[localIdx]:null;
-  localStations=stations||[];
+  localStations=stationsWithoutDisliked(stations||[]);
   localIdx=current?localStations.findIndex(s=>s.uuid===current.uuid):-1;
   if(current&&localIdx<0){ localStations.unshift(current); localIdx=0; } // moved away: keep it listed while it plays
   buildRadOrder(); if(localIdx>=0) radOrderPos=Math.max(0,radOrder.indexOf(localIdx));
@@ -6227,6 +6381,7 @@ function heartButton(st){
   return h;
 }
 function updateSaveStationBtn(){
+  updateDislikeBtn();
   const vb=document.getElementById('videoToggleBtn');
   if(!vb||!isLocalMode()) return;
   if(localChannel!=='radio'){
@@ -6744,6 +6899,7 @@ function setChanList(items, data, opts, keepGenre){
   if(!keepGenre) chanData=data;
   ensureYtPlayer().catch(()=>{});
   const playing=chanPlaying?chanItems[chanIdx]:null;
+  items=chanItemsWithoutDisliked(items);
   chanItems=items;
   chanIdx=playing?items.findIndex(x=>itemKey(x)===itemKey(playing)):-1;
   // a fresh order every time the list loads (random when shuffle is on)
@@ -6839,7 +6995,7 @@ function openMix(genre,autoplay,shuffle){
   chanGenre=genre; chanOverview=false;
   if(shuffle){ const s=gs('chanShuffle',{}); s.popular=true; ss('chanShuffle',s); renderShuffleBtn(); }
   document.getElementById('localListTitle').textContent=mixTitle(m).toUpperCase();
-  chanItems=m.list.map(x=>({kind:'song',...x})); chanIdx=-1;
+  chanItems=chanItemsWithoutDisliked(m.list.map(x=>({kind:'song',...x}))); chanIdx=-1;
   buildChanOrder(); renderChanList();
   if(autoplay) playChanItem(chanOrder[0]??0);
   else if(!chanPlaying&&!localPlaying) setLocalIdle();
