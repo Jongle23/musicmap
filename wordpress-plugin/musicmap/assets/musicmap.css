@@ -246,9 +246,9 @@
 .musicmap-root:not(#mm-scope) .pack-action-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:12px;transition:all .15s}
 .musicmap-root:not(#mm-scope) .pack-action-btn:hover{color:#fff;border-color:var(--border2)}
 .musicmap-root:not(#mm-scope) .pack-action-btn.danger:hover{color:var(--red)}
-.musicmap-root:not(#mm-scope) .pack-star{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:4px;flex-shrink:0;border-radius:8px}
-.musicmap-root:not(#mm-scope) .pack-star:hover{color:#facc15}
-.musicmap-root:not(#mm-scope) .pack-star.on{color:#facc15}
+.musicmap-root:not(#mm-scope) .pack-star{background:none;border:none;cursor:pointer;color:var(--muted);line-height:0;padding:6px;flex-shrink:0;border-radius:8px}
+.musicmap-root:not(#mm-scope) .pack-star:hover{color:var(--accent2)}
+.musicmap-root:not(#mm-scope) .pack-star.on{color:var(--accent2)}
 .musicmap-root:not(#mm-scope) .packs-top-row{display:flex;gap:8px;margin-bottom:14px}
 .musicmap-root:not(#mm-scope) .packs-top-row .make-import-btn{margin-bottom:0;flex:1;min-width:0}
 .musicmap-root:not(#mm-scope) .packs-group-label{display:flex;align-items:center;gap:10px;margin:12px 0 10px}
@@ -270,6 +270,13 @@
 .musicmap-root:not(#mm-scope) .share-public input{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--accent)}
 .musicmap-root:not(#mm-scope) .share-public b{color:var(--text)}
 .musicmap-root:not(#mm-scope) .share-public[hidden]{display:none}
+.musicmap-root:not(#mm-scope) .rate-stars{display:flex;justify-content:center;gap:4px;margin:10px 0 6px}
+.musicmap-root:not(#mm-scope) .rate-star{background:none;border:none;cursor:pointer;font-size:34px;line-height:1;color:var(--muted);padding:2px 4px;border-radius:8px;transition:transform .12s}
+.musicmap-root:not(#mm-scope) .rate-star.on{color:#facc15}
+.musicmap-root:not(#mm-scope) .rate-star:hover{transform:scale(1.15);color:#facc15}
+.musicmap-root:not(#mm-scope) .pack-action-btn.rated{color:#facc15;border-color:rgba(250,204,21,.45)}
+.musicmap-root:not(#mm-scope) .pub-row-rating{color:#facc15;font-weight:600}
+.musicmap-root:not(#mm-scope) .pub-tools select{background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:7px 8px;color:var(--text);font-size:13px}
 .musicmap-root:not(#mm-scope) .priv-toggle input:disabled~.priv-toggle-track{opacity:.35}
 .musicmap-root:not(#mm-scope) .video-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:var(--surface2);border:1px solid var(--border);margin-bottom:6px}
 .musicmap-root:not(#mm-scope) .video-row-info{flex:1;min-width:0}

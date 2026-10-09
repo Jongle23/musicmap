@@ -6,6 +6,8 @@
  *   musicmap_packs  shared packs, one row per share code (public = listed in the app's Public Packs)
  *   musicmap_cache  cached third-party lookups (charts, now playing, YouTube matches…)
  *   musicmap_rate   per-visitor rate-limit counters (hashed IPs only)
+ *   musicmap_votes  one star rating per device per pack (hashed device ids)
+ *   musicmap_installs  which devices have a pack added (hashed device ids), for the install count
  *
  * All queries go through $wpdb->prepare / insert / delete. IPs are never stored raw.
  */
@@ -14,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
 
 class MusicMap_Store {
 
-	const DB_VERSION = '3'; // 2: problem reports; 3: public packs
+	const DB_VERSION = '4'; // 2: problem reports; 3: public packs; 4: pack ratings and installs
 	const CODE_RE    = '/^[A-Z0-9]{4,12}$/';
 	const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -55,6 +57,9 @@ class MusicMap_Store {
   public tinyint(1) unsigned NOT NULL DEFAULT 0,
   icon varchar(16) NOT NULL DEFAULT '',
   subtitle varchar(80) NOT NULL DEFAULT '',
+  rating_sum int(10) unsigned NOT NULL DEFAULT 0,
+  rating_count int(10) unsigned NOT NULL DEFAULT 0,
+  installs int(10) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY  (code),
   KEY created_gmt (created_gmt),
   KEY public (public)
@@ -95,6 +100,24 @@ class MusicMap_Store {
   ip_hash char(64) NOT NULL DEFAULT '',
   PRIMARY KEY  (id),
   KEY created_gmt (created_gmt)
+) $c;"
+		);
+		// Ratings and installs: one row per pack per device (an HMAC of the app's random device id, never the id itself)
+		dbDelta(
+			'CREATE TABLE ' . self::table( 'votes' ) . " (
+  code varchar(12) NOT NULL,
+  voter char(64) NOT NULL,
+  stars tinyint(1) unsigned NOT NULL DEFAULT 0,
+  updated_gmt datetime NOT NULL,
+  PRIMARY KEY  (code,voter)
+) $c;"
+		);
+		dbDelta(
+			'CREATE TABLE ' . self::table( 'installs' ) . " (
+  code varchar(12) NOT NULL,
+  device char(64) NOT NULL,
+  created_gmt datetime NOT NULL,
+  PRIMARY KEY  (code,device)
 ) $c;"
 		);
 		update_option( 'musicmap_db_version', self::DB_VERSION, false );
@@ -278,7 +301,7 @@ class MusicMap_Store {
 	public static function list_packs( $search, $orderby, $order, $per_page, $page ) {
 		global $wpdb;
 		$t       = self::table( 'packs' );
-		$cols    = array( 'code', 'name', 'track_count', 'size_bytes', 'views', 'created_gmt', 'public' );
+		$cols    = array( 'code', 'name', 'track_count', 'size_bytes', 'views', 'created_gmt', 'public', 'installs', 'rating_count' );
 		$orderby = in_array( $orderby, $cols, true ) ? $orderby : 'created_gmt';
 		$order   = 'ASC' === strtoupper( (string) $order ) ? 'ASC' : 'DESC';
 		$where   = '';
@@ -290,13 +313,13 @@ class MusicMap_Store {
 		}
 		$total_sql = "SELECT COUNT(*) FROM $t $where";
 		$total     = (int) ( $args ? $wpdb->get_var( $wpdb->prepare( $total_sql, $args ) ) : $wpdb->get_var( $total_sql ) ); // phpcs:ignore WordPress.DB.PreparedSQL
-		$rows_sql  = "SELECT code,name,track_count,size_bytes,views,created_gmt,public FROM $t $where ORDER BY $orderby $order LIMIT %d OFFSET %d";
+		$rows_sql  = "SELECT code,name,track_count,size_bytes,views,created_gmt,public,installs,rating_sum,rating_count FROM $t $where ORDER BY $orderby $order LIMIT %d OFFSET %d";
 		$rows      = $wpdb->get_results( $wpdb->prepare( $rows_sql, array_merge( $args, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL
 		return array( $rows, $total );
 	}
 
 	/**
-	 * Public Packs for the app: name search, most imported or newest first. Only list fields, never the pack itself.
+	 * Public Packs for the app: name search; most installed, top rated, newest or A–Z. Only list fields, never the pack itself.
 	 *
 	 * @return array{0: array, 1: int} rows and the total
 	 */
@@ -309,10 +332,55 @@ class MusicMap_Store {
 			$where .= ' AND name LIKE %s';
 			$args[] = '%' . $wpdb->esc_like( $search ) . '%';
 		}
-		$order = 'new' === $sort ? 'created_gmt DESC' : 'views DESC, created_gmt DESC';
+		$orders = array(
+			'popular' => 'installs DESC, views DESC, created_gmt DESC',
+			'rating'  => '(rating_count > 0) DESC, rating_sum / GREATEST(rating_count, 1) DESC, rating_count DESC, installs DESC',
+			'new'     => 'created_gmt DESC',
+			'title'   => 'name ASC, created_gmt DESC',
+		);
+		$order = $orders[ $sort ] ?? $orders['popular'];
 		$total = (int) ( $args ? $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t $where", $args ) ) : $wpdb->get_var( "SELECT COUNT(*) FROM $t $where" ) ); // phpcs:ignore WordPress.DB.PreparedSQL
-		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT code,name,icon,subtitle,track_count,views,created_gmt FROM $t $where ORDER BY $order LIMIT %d OFFSET %d", array_merge( $args, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT code,name,icon,subtitle,track_count,views,installs,rating_sum,rating_count,created_gmt FROM $t $where ORDER BY $order LIMIT %d OFFSET %d", array_merge( $args, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL
 		return array( is_array( $rows ) ? $rows : array(), $total );
+	}
+
+	/** A device's star rating for a pack (1–5), or 0 to take it back. Keeps the pack's totals in step. */
+	public static function rate_pack( $code, $voter, $stars ) {
+		global $wpdb;
+		$v = self::table( 'votes' );
+		if ( $stars > 0 ) {
+			$wpdb->replace( $v, array( 'code' => $code, 'voter' => $voter, 'stars' => $stars, 'updated_gmt' => gmdate( 'Y-m-d H:i:s' ) ), array( '%s', '%s', '%d', '%s' ) );
+		} else {
+			$wpdb->delete( $v, array( 'code' => $code, 'voter' => $voter ), array( '%s', '%s' ) );
+		}
+		$t = self::table( 'packs' );
+		$wpdb->query( $wpdb->prepare( "UPDATE $t SET rating_sum = (SELECT COALESCE(SUM(stars),0) FROM $v WHERE code = %s), rating_count = (SELECT COUNT(*) FROM $v WHERE code = %s) WHERE code = %s", $code, $code, $code ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return self::rating_of( $code );
+	}
+
+	/** The average rating (one decimal), or null when nobody has rated it. The number of ratings stays private. */
+	public static function rating_of( $code ) {
+		global $wpdb;
+		$t   = self::table( 'packs' );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT rating_sum, rating_count FROM $t WHERE code = %s", $code ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return self::average( $row );
+	}
+
+	public static function average( $row ) {
+		return ( $row && (int) $row['rating_count'] > 0 ) ? round( (int) $row['rating_sum'] / (int) $row['rating_count'], 1 ) : null;
+	}
+
+	/** Record that a device added (or removed) a pack, and keep the pack's install count in step. */
+	public static function set_installed( $code, $device, $on ) {
+		global $wpdb;
+		$i = self::table( 'installs' );
+		if ( $on ) {
+			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO $i (code,device,created_gmt) VALUES (%s,%s,%s)", $code, $device, gmdate( 'Y-m-d H:i:s' ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		} else {
+			$wpdb->delete( $i, array( 'code' => $code, 'device' => $device ), array( '%s', '%s' ) );
+		}
+		$t = self::table( 'packs' );
+		$wpdb->query( $wpdb->prepare( "UPDATE $t SET installs = (SELECT COUNT(*) FROM $i WHERE code = %s) WHERE code = %s", $code, $code ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/** Admin: list or unlist packs in Public Packs. */
@@ -333,6 +401,8 @@ class MusicMap_Store {
 		foreach ( $codes as $code ) {
 			if ( preg_match( self::CODE_RE, (string) $code ) ) {
 				$n += (int) $wpdb->delete( self::table( 'packs' ), array( 'code' => $code ), array( '%s' ) );
+				$wpdb->delete( self::table( 'votes' ), array( 'code' => $code ), array( '%s' ) );
+				$wpdb->delete( self::table( 'installs' ), array( 'code' => $code ), array( '%s' ) );
 			}
 		}
 		return $n;

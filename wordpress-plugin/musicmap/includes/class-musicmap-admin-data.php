@@ -34,6 +34,8 @@ class MusicMap_Packs_Table extends WP_List_Table {
 			'views'       => __( 'Views', 'musicmap' ),
 			'created_gmt' => __( 'Created', 'musicmap' ),
 			'public'      => __( 'Public Packs', 'musicmap' ),
+			'installs'    => __( 'Installed on', 'musicmap' ),
+			'rating_count' => __( 'Rating', 'musicmap' ),
 		);
 	}
 
@@ -46,6 +48,8 @@ class MusicMap_Packs_Table extends WP_List_Table {
 			'views'       => array( 'views', false ),
 			'created_gmt' => array( 'created_gmt', true ),
 			'public'      => array( 'public', true ),
+			'installs'    => array( 'installs', true ),
+			'rating_count' => array( 'rating_count', true ),
 		);
 	}
 
@@ -90,6 +94,13 @@ class MusicMap_Packs_Table extends WP_List_Table {
 		switch ( $col ) {
 			case 'size_bytes':
 				return esc_html( size_format( (int) $item['size_bytes'], 1 ) );
+			case 'installs':
+				/* translators: %d: number of devices */
+				return esc_html( sprintf( _n( '%d device', '%d devices', (int) $item['installs'], 'musicmap' ), (int) $item['installs'] ) );
+			case 'rating_count':
+				$avg = MusicMap_Store::average( $item );
+				/* translators: 1: average stars, 2: number of ratings */
+				return null === $avg ? '—' : esc_html( sprintf( _n( '★ %1$s (%2$d rating)', '★ %1$s (%2$d ratings)', (int) $item['rating_count'], 'musicmap' ), number_format_i18n( $avg, 1 ), (int) $item['rating_count'] ) );
 			case 'public':
 				return empty( $item['public'] ) ? '—' : '<strong>' . esc_html__( 'Listed', 'musicmap' ) . '</strong>';
 			case 'created_gmt':

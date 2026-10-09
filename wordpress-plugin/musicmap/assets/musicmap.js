@@ -1060,7 +1060,7 @@ const REMOVED_DEFAULTS_KEY='removedDefaultPacks';
 function getRemovedDefaults(){ const ids=gs(REMOVED_DEFAULTS_KEY,[]); return Array.isArray(ids)?ids.filter(id=>BUILTIN_PACKS.some(p=>p.id===id)):[]; }
 function getAllPacks(){ const gone=new Set(getRemovedDefaults()); return [...BUILTIN_PACKS.filter(p=>!gone.has(p.id)),...getUserPacks()]; }
 function getActivePack(){const all=getAllPacks(); return all.find(p=>p.id===getActivePackId())||all[0]||BUILTIN_PACKS[0]}
-// ★ favourite packs: listed first in the Packs tab
+// Favourite packs (the bookmark on a pack): listed first in the Packs tab
 const STARRED_PACKS_KEY='starredPacks';
 function getStarredPacks(){ const ids=gs(STARRED_PACKS_KEY,[]); return Array.isArray(ids)?ids.filter(x=>typeof x==='string'):[]; }
 function togglePackStar(id){
@@ -1873,12 +1873,15 @@ async function resumeAfterScreenOff(){
   },2500);
 }
 
-function importSharedPack(pack, silent){
+// code: the share code it came from (server codes only), kept so the pack can be rated and counted as installed
+function importSharedPack(pack, silent, code){
   if(!pack||!Array.isArray(pack.tracks)||!Array.isArray(pack.biomes)) return false; // it gets a fresh id below
   const existing=getUserPacks();
   // Assign a fresh id to avoid collision with existing packs
   const freshId='imported_'+Date.now();
-  const toSave={...pack, id:freshId, builtin:false};
+  code=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const toSave={...pack, id:freshId, builtin:false, _code:/^[A-Z0-9]{4,12}$/.test(code)?code:undefined};
+  if(toSave._code) packServerAction(toSave._code,'install',{on:true}).catch(()=>{});
   // Restore any bundled overrides into the store
   if(pack._biomeOverrides){
     ss(packKey(freshId,'biomeOverrides'), pack._biomeOverrides);
@@ -2097,7 +2100,7 @@ function renderPacksList(){
   const favPacks=otherPacks.filter(p=>starred.includes(p.id)).sort((a,b)=>starred.indexOf(a.id)-starred.indexOf(b.id));
   const restPacks=otherPacks.filter(p=>!starred.includes(p.id));
   const groupStart=new Map();
-  if(favPacks.length) groupStart.set(favPacks[0].id,'★ FAVOURITES');
+  if(favPacks.length) groupStart.set(favPacks[0].id,'FAVOURITES');
   if(restPacks.length&&(activePack||favPacks.length)) groupStart.set(restPacks[0].id,'ALL PACKS');
   const packsToRender=[...(activePack?[activePack]:[]),...favPacks,...restPacks];
 
@@ -2123,10 +2126,11 @@ function renderPacksList(){
     topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
       +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
     const starOn=starred.includes(pack.id);
-    const star=document.createElement('button');
-    star.type='button'; star.className='pack-star'+(starOn?' on':''); star.textContent=starOn?'★':'☆';
-    star.setAttribute('aria-pressed',starOn); star.setAttribute('aria-label',(starOn?'Remove ':'Add ')+pack.name+(starOn?' from favourites':' to favourites'));
-    star.title=starOn?'Favourite: listed first':'Add to favourites';
+    const star=document.createElement('button'); // a bookmark, so it isn't mistaken for the star rating
+    star.type='button'; star.className='pack-star'+(starOn?' on':'');
+    star.innerHTML='<svg class="ic ic-md" viewBox="0 0 24 24" fill="'+(starOn?'currentColor':'none')+'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>';
+    star.setAttribute('aria-pressed',starOn); star.setAttribute('aria-label',(starOn?'Remove ':'Bookmark ')+pack.name+(starOn?' from favourites':' as a favourite'));
+    star.title=starOn?'Favourite: listed first':'Bookmark as a favourite';
     star.onclick=(e)=>{ e.stopPropagation(); togglePackStar(pack.id); };
     if(isActive){
       const badge=document.createElement('span');
@@ -2155,6 +2159,16 @@ function renderPacksList(){
     shareBtn.innerHTML=ic('share','ic-sm')+' Share';
     shareBtn.onclick=(e)=>{ e.stopPropagation(); sharePackById(pack.id); };
     actionsDiv.appendChild(shareBtn);
+    if(packCode(pack)&&MM_CONFIG.restBase){
+      const mine=myRating(pack._code);
+      const rateBtn=document.createElement('button');
+      rateBtn.className='pack-action-btn'+(mine?' rated':'');
+      rateBtn.textContent=mine?'★ '+mine:'☆ Rate';
+      rateBtn.title=mine?'Your rating: '+mine+' of 5. Tap to change it.':'Rate this pack';
+      rateBtn.setAttribute('aria-label',mine?'Your rating for '+pack.name+': '+mine+' of 5 stars. Change it':'Rate '+pack.name);
+      rateBtn.onclick=(e)=>{ e.stopPropagation(); openRatePack(pack); };
+      actionsDiv.appendChild(rateBtn);
+    }
     const dupBtn=document.createElement('button');
     dupBtn.className='pack-action-btn';
     dupBtn.innerHTML=ic('copy','ic-sm')+' Copy';
@@ -2213,6 +2227,7 @@ function deletePack(id){
   } else {
     if(!confirm('Delete this pack?'))return;
     saveUserPacks(getUserPacks().filter(p=>p.id!==id));
+    if(packCode(pack)&&!getUserPacks().some(p=>p._code===pack._code)) packServerAction(pack._code,'install',{on:false}).catch(()=>{});
   }
   ss(STARRED_PACKS_KEY,getStarredPacks().filter(x=>x!==id));
   if(getActivePackId()===id){ setActivePackId(getAllPacks()[0].id); renderLocGrid(); loadLocation('beach',false,false); }
@@ -2222,6 +2237,55 @@ function restoreDefaultPack(id){
   ss(REMOVED_DEFAULTS_KEY,getRemovedDefaults().filter(x=>x!==id));
   renderPacksList(); renderPublicRemoved();
   const p=BUILTIN_PACKS.find(x=>x.id===id); if(p) spotifyShowSnack(p.name+' is back in your packs.');
+}
+
+// ── Ratings and installs ── Packs added with a server code can be rated 1–5. The server keeps one rating and
+// one install per device, keyed by a random id this app makes (not tied to the person), and only shows the average.
+function deviceId(){
+  let id=gs('deviceId','');
+  if(!/^[a-f0-9]{32}$/.test(id)){ const b=new Uint8Array(16); crypto.getRandomValues(b); id=[...b].map(x=>x.toString(16).padStart(2,'0')).join(''); ss('deviceId',id); }
+  return id;
+}
+const packCode=p=>/^[A-Z0-9]{4,12}$/.test(p?._code||'')?p._code:'';
+async function packServerAction(code,act,body){
+  const base=typeof MM_CONFIG.restBase==='string'&&/^https?:\/\//.test(MM_CONFIG.restBase)?MM_CONFIG.restBase:'';
+  if(!base||!/^[A-Z0-9]{4,12}$/.test(code)) throw new Error('This needs the MusicMap server.');
+  const r=await fetch(base+'packs/'+code+'/'+act,{method:'POST',credentials:'omit',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:deviceId(),...body})});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!r.ok||!j||j.ok===false) throw new Error(j?.error||'Request failed');
+  return j;
+}
+const myRating=code=>{ const v=(gs('packRatings',{})||{})[code]; return Number.isInteger(v)&&v>=1&&v<=5?v:0; };
+const starsText=n=>'★'.repeat(n)+'☆'.repeat(5-n);
+let ratingCode='', ratingName='';
+function openRatePack(pack){
+  ratingCode=packCode(pack); ratingName=pack.name; if(!ratingCode) return;
+  document.getElementById('rateTitle').textContent='RATE: '+String(pack.name).toUpperCase();
+  document.getElementById('rateFlash').textContent='';
+  renderRateStars(myRating(ratingCode));
+  document.getElementById('rateOverlay').classList.add('open');
+  setTimeout(()=>document.querySelector('#rateStars button')?.focus(),50);
+}
+function closeRatePack(){ document.getElementById('rateOverlay').classList.remove('open'); }
+function renderRateStars(n){
+  const box=document.getElementById('rateStars'); box.innerHTML='';
+  for(let i=1;i<=5;i++){
+    const b=document.createElement('button'); b.type='button'; b.className='rate-star'+(i<=n?' on':'');
+    b.textContent=i<=n?'★':'☆'; b.setAttribute('aria-label',i+' star'+(i>1?'s':'')); b.setAttribute('aria-pressed',i===n);
+    b.onclick=()=>sendRating(i);
+    box.append(b);
+  }
+  document.getElementById('rateClear').hidden=!n;
+}
+async function sendRating(stars){
+  const flash=document.getElementById('rateFlash');
+  busyText(flash,'Saving…');
+  try{
+    const d=await packServerAction(ratingCode,'rate',{stars});
+    const all=gs('packRatings',{})||{}; if(stars) all[ratingCode]=stars; else delete all[ratingCode]; ss('packRatings',all);
+    renderRateStars(stars); renderPacksList();
+    flash.textContent=stars?'✓ Thanks! '+(d.rating!=null?'Average: ★ '+Number(d.rating).toFixed(1):''):'Your rating was removed.';
+  }catch(e){ flash.textContent=e.message||'Couldn’t save your rating.'; }
 }
 
 // ── Public Packs ── packs shared with everyone (from the server), plus default packs you removed
@@ -2239,12 +2303,20 @@ function openPublicPacks(){
   if(publicPacksOn()) loadPublicPacks(false);
 }
 function closePublicPacks(){ document.getElementById('publicPacksOverlay').classList.remove('open'); }
-function pubRow(icon,name,sub,btnLabel,onAdd){
+function pubRow(icon,name,sub,btnLabel,onAdd,rating){
   const row=document.createElement('div'); row.className='pub-row';
   const i=document.createElement('div'); i.className='pub-row-icon'; i.textContent=icon||'🎵';
   const main=document.createElement('div'); main.className='pub-row-main';
   const n=document.createElement('div'); n.className='pub-row-name'; n.textContent=name;
-  const s=document.createElement('div'); s.className='pub-row-sub'; s.textContent=sub;
+  const s=document.createElement('div'); s.className='pub-row-sub';
+  if(rating!==undefined){
+    const r=document.createElement('span'); r.className='pub-row-rating';
+    const ok=Number.isFinite(rating)&&rating>=1&&rating<=5;
+    r.textContent=ok?'★ '+rating.toFixed(1):'☆ Not rated';
+    r.setAttribute('aria-label',ok?'Rated '+rating.toFixed(1)+' out of 5':'Not rated yet');
+    s.append(r,document.createTextNode(' · '));
+  }
+  s.append(document.createTextNode(sub));
   main.append(n,s);
   const b=document.createElement('button'); b.type='button'; b.className='btn-primary'; b.textContent=btnLabel;
   b.setAttribute('aria-label',btnLabel+' '+name);
@@ -2262,9 +2334,8 @@ function renderPublicRemoved(){
   });
 }
 function setPubSort(s){
-  pubSort=s==='new'?'new':'popular';
-  document.getElementById('pubSortPopular').classList.toggle('on',pubSort==='popular');
-  document.getElementById('pubSortNew').classList.toggle('on',pubSort==='new');
+  pubSort=['popular','rating','new','title'].includes(s)?s:'popular';
+  document.getElementById('pubSort').value=pubSort;
   loadPublicPacks(false);
 }
 function pubSearchSoon(){ clearTimeout(pubSearchTimer); pubSearchTimer=setTimeout(()=>loadPublicPacks(false),350); }
@@ -2284,9 +2355,10 @@ async function loadPublicPacks(more){
   if(!packs.length&&!more){ list.innerHTML='<div class="pub-note">'+(q?'No public packs match that.':'No public packs yet. Share one of yours and tick <b>Make public</b>.')+'</div>'; return; }
   packs.forEach(p=>{
     if(!/^[A-Z0-9]{4,12}$/.test(String(p.code||''))) return;
-    const tracks=Number.isFinite(p.tracks)?p.tracks:0, views=Number.isFinite(p.views)?p.views:0;
-    const sub=[String(p.subtitle||'').slice(0,80), tracks+' track'+(tracks===1?'':'s'), views+' add'+(views===1?'':'s')].filter(Boolean).join(' · ');
-    list.append(pubRow(String(p.icon||'').slice(0,8),String(p.name||'Untitled pack').slice(0,80),sub,'Add',b=>addPublicPack(p.code,b)));
+    const tracks=Number.isFinite(p.tracks)?p.tracks:0;
+    const sub=[String(p.subtitle||'').slice(0,80), tracks+' track'+(tracks===1?'':'s')].filter(Boolean).join(' · ');
+    const have=getUserPacks().some(u=>u._code===p.code);
+    list.append(pubRow(String(p.icon||'').slice(0,8),String(p.name||'Untitled pack').slice(0,80),sub,have?'Add again':'Add',b=>addPublicPack(p.code,b),typeof p.rating==='number'?p.rating:null));
   });
   moreBtn.hidden=!d.more;
 }
@@ -2294,7 +2366,7 @@ async function addPublicPack(code,btn){
   btn.disabled=true; btn.textContent='Adding…';
   try{
     const pack=await ShareBackend.loadFromServer(code);
-    if(!importSharedPack(pack,false)) throw new Error('That pack couldn’t be added.');
+    if(!importSharedPack(pack,false,code)) throw new Error('That pack couldn’t be added.');
     btn.textContent='Added ✓';
     spotifyShowSnack('Added '+(pack.name||'the pack')+' and switched to it.');
   }catch(e){ btn.disabled=false; btn.textContent='Add'; spotifyShowSnack(e.message||'That pack couldn’t be added.'); }
@@ -2341,7 +2413,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.21';
+const MM_VERSION = '1.22';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2499,6 +2571,7 @@ async function confirmShare(){
     _biomeOverrides:biomeOverrides,
     _locTracks:locTracks,
     _customLocs:allLocs.filter(l=>!PERSONAL_BIOME_IDS.has(l.id)),
+    _code:undefined, // the code this copy was imported from belongs to the original
     ...(isPublic?{_public:true}:{}),
   };
 
@@ -2664,7 +2737,7 @@ async function importFromCode(){
     if(!pack){flash.textContent='❌ Invalid code — should start with MM- or {';return;}
   }
 
-  const ok=importSharedPack(pack,false);
+  const ok=importSharedPack(pack,false,raw.startsWith('{')||raw.startsWith('MM-')?'':raw);
   if(ok){
     flash.textContent=`✓ "${pack.name}" imported and activated!`;
     document.getElementById('importCodeInput').value='';
@@ -5122,7 +5195,7 @@ async function miDoImport(){
     if(!pack){flash.textContent='❌ Invalid code';return;}
   }
 
-  const ok=importSharedPack(pack,false);
+  const ok=importSharedPack(pack,false,raw.startsWith('{')||raw.startsWith('MM-')?'':raw);
   if(ok){
     flash.textContent='✓ "'+pack.name+'" imported!';
     document.getElementById('miImportInput').value='';

@@ -10,7 +10,12 @@
  *     GET  /wp-json/musicmap/v1/ping
  *     POST /wp-json/musicmap/v1/packs
  *     GET  /wp-json/musicmap/v1/packs/CODE
- *     GET  /wp-json/musicmap/v1/public?q=&sort=popular|new&page=N   → packs shared to everyone (list fields only)
+ *     GET  /wp-json/musicmap/v1/public?q=&sort=popular|rating|new|title&page=N   → packs shared to everyone (list fields only)
+ *     POST /wp-json/musicmap/v1/packs/CODE/rate     body {"device":"<32 hex>","stars":0-5}  → {"ok":true,"rating":4.3|null}
+ *     POST /wp-json/musicmap/v1/packs/CODE/install  body {"device":"<32 hex>","on":true|false}
+ *
+ * Ratings are averaged; how many there are is only shown to admins. Device ids are random ids made by the
+ * app, stored only as an HMAC, and every write is also rate-limited per (hashed) IP.
  *
  * A pack saved with "_public": true is listed in Public Packs. Its Home / Work / School / Gym
  * locations never keep their coordinates, whatever the app sent.
@@ -148,7 +153,8 @@ class MusicMap_Api {
 		$q        = mb_substr( trim( wp_strip_all_tags( (string) $q ) ), 0, 60 );
 		$page     = max( 1, min( 50, (int) $page ) );
 		$per_page = 24;
-		list( $rows, $total ) = MusicMap_Store::list_public( $q, 'new' === $sort ? 'new' : 'popular', $per_page, $page );
+		$sort     = in_array( $sort, array( 'popular', 'rating', 'new', 'title' ), true ) ? $sort : 'popular';
+		list( $rows, $total ) = MusicMap_Store::list_public( $q, $sort, $per_page, $page );
 		$packs = array();
 		foreach ( $rows as $r ) {
 			$packs[] = array(
@@ -157,7 +163,7 @@ class MusicMap_Api {
 				'icon'     => (string) $r['icon'],
 				'subtitle' => (string) $r['subtitle'],
 				'tracks'   => (int) $r['track_count'],
-				'views'    => (int) $r['views'],
+				'rating'   => MusicMap_Store::average( $r ),
 				'created'  => gmdate( 'Y-m-d', strtotime( $r['created_gmt'] . ' UTC' ) ),
 			);
 		}
@@ -171,6 +177,67 @@ class MusicMap_Api {
 				'more'  => $page * $per_page < $total,
 			),
 		);
+	}
+
+	/** The app's random device id (32 hex characters) as the HMAC that is stored, or '' when it isn't one. */
+	private static function device_hash( $device ) {
+		return is_string( $device ) && preg_match( '/^[a-f0-9]{32}$/', $device ) ? hash_hmac( 'sha256', 'device|' . $device, wp_salt( 'auth' ) ) : '';
+	}
+
+	/** Read a small JSON body ({device, stars|on}) and the pack it's about. @return array|WP_Error-like error tuple */
+	private static function pack_action_input( $raw_code, $body ) {
+		$code = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $raw_code ) );
+		$in   = strlen( (string) $body ) <= 512 ? json_decode( (string) $body, true ) : null;
+		if ( ! preg_match( MusicMap_Store::CODE_RE, $code ) || ! is_array( $in ) ) {
+			return array( null, self::err( 400, 'Bad request' ) );
+		}
+		$device = self::device_hash( $in['device'] ?? '' );
+		if ( '' === $device ) {
+			return array( null, self::err( 400, 'Bad request' ) );
+		}
+		$row = MusicMap_Store::get_pack_row( $code );
+		if ( ! $row ) {
+			return array( null, self::err( 404, 'Pack not found' ) );
+		}
+		return array( array( $code, $device, $in, $row ), null );
+	}
+
+	public static function do_rate( $raw_code, $body ) {
+		if ( ! MusicMap_Store::rate_hit( self::ip_hash(), 'rate', 60, HOUR_IN_SECONDS ) ) {
+			return self::err( 429, 'Too many ratings — try again later' );
+		}
+		list( $ok, $fail ) = self::pack_action_input( $raw_code, $body );
+		if ( $fail ) {
+			return $fail;
+		}
+		list( $code, $device, $in, $row ) = $ok;
+		$stars = (int) ( $in['stars'] ?? -1 );
+		if ( $stars < 0 || $stars > 5 ) {
+			return self::err( 400, 'Rate it from 1 to 5 stars' );
+		}
+		if ( $stars > 0 && '' !== $row['ip_hash'] && hash_equals( (string) $row['ip_hash'], self::ip_hash() ) ) {
+			return self::err( 403, 'You can’t rate a pack you shared' );
+		}
+		return array(
+			200,
+			array(
+				'ok'     => true,
+				'rating' => MusicMap_Store::rate_pack( $code, $device, $stars ),
+			),
+		);
+	}
+
+	public static function do_install( $raw_code, $body ) {
+		if ( ! MusicMap_Store::rate_hit( self::ip_hash(), 'install', 120, HOUR_IN_SECONDS ) ) {
+			return self::err( 429, 'Too many requests — try again later' );
+		}
+		list( $ok, $fail ) = self::pack_action_input( $raw_code, $body );
+		if ( $fail ) {
+			return $fail;
+		}
+		list( $code, $device, $in ) = $ok;
+		MusicMap_Store::set_installed( $code, $device, ! empty( $in['on'] ) );
+		return array( 200, array( 'ok' => true ) );
 	}
 
 	/** Strip tags from every string (the app also escapes on render) and cap lengths. */
@@ -275,6 +342,19 @@ class MusicMap_Api {
 				},
 			)
 		);
+		foreach ( array( 'rate', 'install' ) as $act ) {
+			register_rest_route(
+				'musicmap/v1',
+				'/packs/(?P<code>[A-Za-z0-9]{4,12})/' . $act,
+				array(
+					'methods'             => 'POST',
+					'permission_callback' => '__return_true',
+					'callback'            => function ( WP_REST_Request $req ) use ( $act ) {
+						return self::rest( 'rate' === $act ? self::do_rate( $req['code'], $req->get_body() ) : self::do_install( $req['code'], $req->get_body() ) );
+					},
+				)
+			);
+		}
 		register_rest_route(
 			'musicmap/v1',
 			'/packs/(?P<code>[A-Za-z0-9]{4,12})',

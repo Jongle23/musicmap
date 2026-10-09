@@ -1,6 +1,27 @@
 # MusicMap Changelog
 
-## v1.21 — Current
+## v1.22 — Current
+**Release date:** 2026-10-09
+
+### New
+- **Rate packs:** packs added with a share code or from Public Packs have a **☆ Rate** button.
+  - Tap it to give 1 to 5 stars, change your rating, or remove it. The button then shows your rating, e.g. "★ 4".
+  - Everyone sees only the average. How many ratings there are is shown only to admins.
+  - You can't rate a pack you shared.
+- **Ratings in Public Packs:** each pack shows its average rating, or "Not rated". The list can be sorted by Most installed, Top rated, Newest or Title A–Z.
+- **Install counts (admin only):** the server counts how many devices have each pack added. Adding a pack counts it, and deleting it takes it off. MusicMap → Data → Share codes now has "Installed on" and "Rating" columns (average and number of ratings), and both can be sorted.
+
+### Changes
+- The favourite-pack button is now a bookmark, so it isn't mistaken for the star rating. The group is labelled "Favourites".
+
+### Plugin
+- New endpoints: `POST /packs/CODE/rate` (`{device, stars: 0–5}`) and `POST /packs/CODE/install` (`{device, on}`).
+- Each install of the app makes a random device id. The server stores it only as an HMAC, and it isn't linked to the person.
+- Ratings are limited to 60 per visitor per hour, and installs to 120.
+- `GET /public` gains `sort=rating|title` and returns `rating` (the average, or null). Install and rating counts aren't returned.
+- New tables: `musicmap_votes` and `musicmap_installs` (database version 4). They're removed with a pack's code, and on uninstall when that setting is on.
+
+## v1.21
 **Release date:** 2026-10-09
 
 ### New
