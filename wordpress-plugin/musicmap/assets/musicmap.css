@@ -324,6 +324,9 @@
 .musicmap-root:not(#mm-scope) .modal-track-item:hover{background:rgba(255,255,255,.05);border-color:var(--border)}
 .musicmap-root:not(#mm-scope) .modal-track-item.already-added{opacity:.4;cursor:default;pointer-events:none}
 .musicmap-root:not(#mm-scope) .modal-track-add{font-size:15px;color:var(--accent2);flex-shrink:0}
+.musicmap-root:not(#mm-scope) .track-preview-btn{flex-shrink:0;width:34px;height:34px;border-radius:50%;border:1px solid var(--border2);background:var(--surface2);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.musicmap-root:not(#mm-scope) .track-preview-btn:hover{border-color:var(--accent);color:var(--accent2)}
+.musicmap-root:not(#mm-scope) .track-preview-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .musicmap-root:not(#mm-scope) .form-row{margin-bottom:13px}
 .musicmap-root:not(#mm-scope) .form-label{font-size:11px;color:var(--muted);margin-bottom:5px;display:block;letter-spacing:.5px;text-transform:uppercase}
 .musicmap-root:not(#mm-scope) .form-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 12px;color:#fff;font-size:13px;font-family:var(--sans);outline:none}
@@ -361,6 +364,9 @@
 @media (max-width:600px){.musicmap-root:not(#mm-scope) #leafletMap{height:280px!important}}
 .musicmap-root:not(#mm-scope) #leafletMap{width:100%;height:360px;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#0c2d48;cursor:crosshair}
 .musicmap-root:not(#mm-scope) .map-legend{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.musicmap-root:not(#mm-scope) .map-legend .legend-item[hidden]{display:none}
+.musicmap-root:not(#mm-scope) .legend-more{align-self:flex-start;background:none;border:1px solid var(--border2);border-radius:9px;padding:6px 12px;color:var(--accent2);font-size:12px;cursor:pointer}
+.musicmap-root:not(#mm-scope) .legend-more:hover{border-color:var(--accent)}
 .musicmap-root:not(#mm-scope) .legend-sw{flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:50%}
 .musicmap-root:not(#mm-scope) .legend-sw .mm-user-marker{transform:scale(.75)}
 .musicmap-root:not(#mm-scope) .legend-sw .mm-listen-marker{transform:rotate(-45deg) scale(.62)}

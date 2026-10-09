@@ -672,6 +672,9 @@ Rules:
 <div id="packEditOverlay" class="modal-overlay center" onclick="closePackEdit(event)">
   <div class="modal-box" style="max-width:500px">
     <div class="modal-title" style="margin-bottom:12px" id="packEditTitle">ADD PACK</div>
+    <div class="pub-note" id="peCopyNote" hidden style="border:1px solid var(--border2);border-radius:10px;padding:9px 11px;margin-bottom:12px">
+      This is <b>your own copy</b> of a shared pack. Changes stay on this device and never change it for anyone else. To give people your version, share it again: it gets its own new code.
+    </div>
 
     <!-- Guide (shown for new packs only) -->
     <div class="guide-box" id="peGuide">
@@ -780,7 +783,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.22</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.22.1</div>
   <div style="font-size:11px;color:rgba(255,255,255,.55);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.75)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.75)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.75)">Report a problem</a></span></div>
 </div>
 </div><!-- #geovibes-app -->

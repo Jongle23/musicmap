@@ -2413,7 +2413,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.22';
+const MM_VERSION = '1.22.1';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2985,7 +2985,7 @@ function doRemoveTrack(tIdx){
   else if(isPlaying)playCurrentTrack();
 }
 function selectTrack(i){
-  favPlaying=null; favQueue=[];
+  favPlaying=null; favQueue=[]; previewTIdx=null;
   currentTrackPlayIdx=i;renderTrackList();updateNowPlaying();playCurrentTrack(false);isPlaying=true;
 }
 function updatePinStatus(){
@@ -3346,6 +3346,15 @@ function renderPickerList(q){
       infoD.appendChild(usageRow);
     }
     item.appendChild(infoD);
+    // ▶ hear it first: plays in the player without adding it
+    const previewing=previewTIdx===gIdx&&isPlaying&&favPlaying===gIdx;
+    const pv=document.createElement('button');
+    pv.type='button'; pv.className='track-preview-btn'+(previewing?' on':'');
+    pv.innerHTML=previewing?ic('pause','ic-sm'):ic('play','ic-sm');
+    pv.title=previewing?'Stop preview':'Preview';
+    pv.setAttribute('aria-label',(previewing?'Stop preview of ':'Preview ')+t.title);
+    pv.onclick=(e)=>{ e.stopPropagation(); previewPackTrack(gIdx); renderPickerList(q); };
+    item.appendChild(pv);
     item.onclick=()=>{
       const cur=getLocTracks(packId,pickerTargetLocId);
       if(added){
@@ -3625,6 +3634,16 @@ function renderFavList(){
   });
 }
 // Plays a pack's favourites, shuffled (the tapped one first), then the biome carries on
+// Preview a track while choosing tracks for a biome: plays it once, then the biome's own list carries on.
+// Tapping it again pauses.
+let previewTIdx=null;
+function previewPackTrack(tIdx){
+  if(previewTIdx===tIdx&&favPlaying===tIdx&&isPlaying){ isPlaying=false; pauseTrack(); return; }
+  spotifyUnlockAudio();
+  previewTIdx=tIdx;
+  favPlaying=tIdx; favQueue=[]; favTag='Preview · '; shuffleQueue=[];
+  isPlaying=true; renderTrackList(); updateNowPlaying(); playCurrentTrack(false);
+}
 function playFavourites(packId,startTIdx){
   const pack=getAllPacks().find(p=>p.id===packId);
   if(!pack){ spotifyShowSnack('That pack isn’t installed any more.'); return; }
@@ -4272,6 +4291,7 @@ function openPackEdit(packId){
     peSelectedEmoji = '🌿';
     peVideos = [];
     document.getElementById('packEditTitle').textContent = 'ADD PACK';
+    document.getElementById('peCopyNote').hidden = true;
     document.getElementById('peNameInput').value = '';
     document.getElementById('peSubtitleInput').value = '';
     if(guide) guide.style.display = 'block';
@@ -4284,6 +4304,7 @@ function openPackEdit(packId){
       ? JSON.parse(JSON.stringify(pack.videos))
       : [{id: pack.videoId, tracks: JSON.parse(JSON.stringify(pack.tracks||[]))}];
     document.getElementById('packEditTitle').textContent = pack.builtin ? 'CUSTOMISE PACK' : 'EDIT PACK';
+    document.getElementById('peCopyNote').hidden = !packCode(pack);
     document.getElementById('peNameInput').value = pack.name;
     document.getElementById('peSubtitleInput').value = pack.subtitle||pack.source||'';
     if(guide) guide.style.display = 'none';
@@ -7193,12 +7214,17 @@ function showLocalAlert(title,msg,actions){
 function closeLocalAlert(){ document.getElementById('localAlertOverlay').classList.remove('open'); }
 
 // ── Map key: only what is actually drawn on the map ──
+// A long key (lots of saved places) shows its first few entries and a "See N more" button
+const LEGEND_SHOWN=4;
+let legendExpanded=false;
 function renderMapLegend(){
   const el=document.getElementById('mapLegend'), hint=document.getElementById('mapHint');
   if(!el) return;
   el.innerHTML='';
+  let count=0;
   const item=(sw,label,sub)=>{
     const d=document.createElement('div'); d.className='legend-item';
+    if(++count>LEGEND_SHOWN){ d.classList.add('legend-extra'); d.hidden=!legendExpanded; }
     const swEl=document.createElement('span'); swEl.className='legend-sw'; swEl.innerHTML=sw; // app-written markup only
     const t=document.createElement('span'); t.className='legend-text';
     const l=document.createElement('span'); l.className='legend-label'; l.textContent=label;
@@ -7226,6 +7252,13 @@ function renderMapLegend(){
     item('<span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;border:2px dashed '+color+';font-size:16px">'+esc(loc.emoji||'📍')+'</span>',
       loc.name, 'Saved place · plays its own tracks within '+fmtRadius((loc.pins&&loc.pins[0]?.radius)||loc.radius||200));
   });
+  if(count>LEGEND_SHOWN){
+    const more=document.createElement('button'); more.type='button'; more.className='legend-more';
+    more.textContent=legendExpanded?'Show less':'See '+(count-LEGEND_SHOWN)+' more';
+    more.setAttribute('aria-expanded',legendExpanded);
+    more.onclick=()=>{ legendExpanded=!legendExpanded; renderMapLegend(); };
+    el.appendChild(more);
+  }
   // Biomes aren't drawn: say how they work and which one is active
   const pack=getActivePack();
   const cur=pack?.biomes?.find(b=>b.id===currentLocId);

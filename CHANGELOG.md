@@ -1,6 +1,14 @@
 # MusicMap Changelog
 
-## v1.22 — Current
+## v1.22.1 — Current
+**Release date:** 2026-10-09
+
+### Improvements
+- **Preview tracks while choosing them:** each track in a biome's track list (Add tracks) has a ▶ button that plays it in the player without adding it. Tap it again to pause. Once the preview ends, the biome's own tracks carry on. The player shows "Preview ·" meanwhile.
+- **Shared packs are your own copy:** editing a pack you added from Public Packs or with a code shows a note. Your changes stay on your device and never change the pack for anyone else, and sharing it again gives your version its own new code. This was already true; the app now says so.
+- **Map key stays short:** with lots of saved places, the key shows the first 4 entries and a "See N more" / "Show less" button.
+
+## v1.22
 **Release date:** 2026-10-09
 
 ### New
