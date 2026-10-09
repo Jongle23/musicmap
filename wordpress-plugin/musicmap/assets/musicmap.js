@@ -2232,7 +2232,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.20.4';
+const MM_VERSION = '1.20.5';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2381,7 +2381,10 @@ async function confirmShare(){
   // Switch to result view BEFORE async work — keep modal open
   document.getElementById('sharePrivacyBox').style.display='none';
   document.getElementById('shareResultBox').style.display='block';
-  busyText(document.getElementById('shareCodeDisplay'),'Generating…');
+  const shareDisp=document.getElementById('shareCodeDisplay');
+  delete shareDisp.dataset.plain; delete shareDisp.dataset.md; delete shareDisp.dataset.rich; delete shareDisp.dataset.code;
+  document.getElementById('shareMdToggle').checked=!!gs('shareMarkdown',false);
+  busyText(shareDisp,'Generating…');
   document.getElementById('copyFlash').textContent='';
 
   let code;
@@ -2397,9 +2400,10 @@ async function confirmShare(){
     return;
   }
 
-  // Build rich share text: code + link + instructions
+  // Build rich share text: code + link + instructions, plain and as Markdown
   const pageUrl=location.href.split('?')[0];
   const trackCount=getAllPackTracks(pack).length;
+  const markdown=shareMarkdownText(pack,code,pageUrl,trackCount);
   const richText=
     'MusicMap Pack: '+pack.name+'\n'
     +(pack.subtitle?pack.subtitle+'\n':'')
@@ -2413,10 +2417,42 @@ async function confirmShare(){
     +'3. Paste the code above and hit Import\n'
     +'4. Turn on "Listen to World" and explore!';
 
-  document.getElementById('shareCodeDisplay').textContent=richText;
-  // Store just the code for the copy button, store rich text for the share button
-  document.getElementById('shareCodeDisplay').dataset.code=code;
-  document.getElementById('shareCodeDisplay').dataset.rich=richText;
+  // Store just the code for the copy button, both full messages for the Markdown toggle
+  const disp=document.getElementById('shareCodeDisplay');
+  disp.dataset.code=code;
+  disp.dataset.plain=richText;
+  disp.dataset.md=markdown;
+  setShareMarkdown(gs('shareMarkdown',false));
+}
+
+// ── Share message as Markdown ── for Discord, Reddit and other apps that format it.
+// Pack names and subtitles are the sharer's own text, so Markdown characters in them are escaped.
+const mdEscape=t=>String(t||'').replace(/[\\`*_~|<>\[\]()#]/g,'\\$&').replace(/[\r\n]+/g,' ');
+function shareMarkdownText(pack,code,pageUrl,trackCount){
+  const url=pageUrl.replace(/[()\s<>]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0'));
+  const lines=[
+    '**MusicMap Pack: '+mdEscape(pack.name)+'**',
+    ...(pack.subtitle?[(pack.icon?pack.icon+' ':'')+'*'+mdEscape(pack.subtitle)+'*']:[]),
+    '🎵 **'+trackCount+' tracks** · 🗺️ **'+pack.biomes.length+' biomes**',
+    '',
+    '**Import Code**',
+    '`'+String(code).replace(/`/g,'')+'`',
+    '',
+    '**How to play:**',
+    '1️⃣ Visit [MusicMap]('+url+')',
+    '2️⃣ Open the **Packs** tab ➔ **Make or Import Pack** ➔ **Import**',
+    '3️⃣ Paste the code above and click **Import**',
+    '4️⃣ Toggle **"Listen to World"** and start exploring!'
+  ];
+  return lines.map(l=>l?'> '+l:'>').join('\n');
+}
+function setShareMarkdown(on){
+  on=!!on; ss('shareMarkdown',on);
+  const t=document.getElementById('shareMdToggle'); if(t) t.checked=on;
+  const disp=document.getElementById('shareCodeDisplay');
+  if(!disp.dataset.plain) return;
+  disp.dataset.rich=on?disp.dataset.md:disp.dataset.plain;
+  disp.textContent=disp.dataset.rich;
 }
 
 function copyShareCode(richOnly){

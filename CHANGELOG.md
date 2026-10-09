@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.20.4 — Current
+## v1.20.5 — Current
+**Release date:** 2026-10-09
+
+### Fixes
+- **Share messages in Markdown:** a Markdown toggle on the share window formats the message for Discord, Reddit and other apps that read Markdown: a quote block with the pack name in bold, the code in a code box, numbered steps and a MusicMap link. The choice is remembered. Markdown characters in pack names and subtitles are escaped, so a name can't change the formatting or add links.
+
+## v1.20.4
 **Release date:** 2026-10-08
 
 ### Fixes
