@@ -1473,6 +1473,7 @@ function openTour(e){
 }
 function closeTour(){
   tourAt=-1; ss('tourSeen',true); clearInterval(tourTimer); tourTimer=null;
+  document.getElementById('tourCard').classList.remove('tour-away');
   document.getElementById('tourCard').hidden=true; document.getElementById('tourRing').hidden=true;
 }
 function tourGo(d){ tourDir=d; const n=tourAt+d; if(n>=TOUR.length) return closeTour(); if(n<0) return; tourShow(n); }
@@ -1503,8 +1504,13 @@ async function tourShow(n){
   }
   placeTourRing();
 }
+// a window opened over the app (New place, Make or Import Pack…): the tour steps aside until it closes
+const tourCovered=()=>!!document.querySelector('.modal-overlay.open,#mapPickerOverlay.open,#privacyModalOverlay.open');
 function placeTourRing(){
   const ring=document.getElementById('tourRing'), s=TOUR[tourAt];
+  const away=tourAt>=0&&tourCovered();
+  document.getElementById('tourCard').classList.toggle('tour-away',away);
+  if(away){ ring.hidden=true; return; }
   const el=s?.target?document.querySelector(s.target):null;
   if(!el||!el.offsetParent){ ring.hidden=true; return; }
   const r=el.getBoundingClientRect(), pad=6, top=Math.max(4,r.top-pad), bottom=Math.min(innerHeight-4,r.bottom+pad);
@@ -2226,7 +2232,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.20.3';
+const MM_VERSION = '1.20.4';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -7095,9 +7101,11 @@ async function getChart(cc){
   const k='chart:'+cc; if(chanCache[k]) return chanCache[k];
   return chanCache[k]=await mmApi('chart?cc='+encodeURIComponent(cc));
 }
-async function getMade(lat,lon){
-  const k='made:'+lat.toFixed(1)+','+lon.toFixed(1); if(chanCache[k]) return chanCache[k];
-  return chanCache[k]=await mmApi('made?lat='+lat.toFixed(4)+'&lon='+lon.toFixed(4));
+// cc: the pin's country. When few artists are near the pin, the server adds ones from across the country.
+async function getMade(lat,lon,cc){
+  cc=/^[a-z]{2}$/i.test(cc||'')?cc.toLowerCase():'';
+  const k='made:'+lat.toFixed(1)+','+lon.toFixed(1)+':'+cc; if(chanCache[k]) return chanCache[k];
+  return chanCache[k]=await mmApi('made?lat='+lat.toFixed(4)+'&lon='+lon.toFixed(4)+(cc?'&cc='+cc:''));
 }
 function genreMixes(songs){
   const by={};
@@ -7127,9 +7135,10 @@ async function loadSongChannel(opts){
     if(localChannel==='made'){
       title.textContent='HOMEGROWN AROUND '+(pl?.city||'THE PIN').toUpperCase();
       renderLocalLoading('Finding artists from around <b>'+esc(placeLabel(pl)||'this spot')+'</b>…');
-      const d=await getMade(localPoint.lat,localPoint.lon);
+      const d=await getMade(localPoint.lat,localPoint.lon,pl?.cc);
       if(token!==localLoadToken) return;
-      if(!d.artists.length) return fail('No well-known artists found within '+fmtDist(d.radius_km||80)+' of '+(placeLabel(pl)||'that spot')+'.');
+      if(!d.artists.length) return fail('No well-known artists found within '+fmtDist(d.radius_km||80)+' of '+(placeLabel(pl)||'that spot')+(pl?.country?' or across '+pl.country:'')+'.');
+      if(d.country) title.textContent=((d.local?'Homegrown around '+(pl?.city||'the pin')+' & ':'Homegrown across ')+(pl?.country||'the country')).toUpperCase();
       setChanList(d.artists.map(a=>({kind:'artist',...a})), d, opts);
     } else {
       // Popular and Genre Mixes are country-wide: they always say which country
@@ -7184,7 +7193,7 @@ function setLocalIdle(){
   setPlayerBusy(false);
   const pl=localPoint?.place;
   const n=chanItems.length;
-  const what=localChannel==='shared'?'Shared with you':localChannel==='saved'?n+' saved song'+(n===1?'':'s'):localChannel==='made'?n+' artists from around '+(placeLabel(pl)||'the pin')
+  const what=localChannel==='shared'?'Shared with you':localChannel==='saved'?n+' saved song'+(n===1?'':'s'):localChannel==='made'?n+' artists from '+(chanItems.every(x=>x.wide)?'across '+(pl?.country||'the country'):'around '+(placeLabel(pl)||'the pin')+(chanItems.some(x=>x.wide)?' and across '+(pl?.country||'the country'):''))
     :n?(chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Top '+n+' in '+(pl?.country||'this country'))
     :'Top songs and genre mixes for '+(pl?.country||'this country');
   setChanNowPlaying(null,what,localChannel==='made'?'Tap play or pick an artist':n?'Tap play or pick a song':'Pick the top songs or a genre: it shuffles and plays');
@@ -7241,7 +7250,7 @@ function renderChanList(){
     const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block';
     name.textContent=it.kind==='song'?it.title:it.name;
     const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
-    sub.textContent=it.kind==='song'?[it.artist,localChannel==='popular'?it.genre:''].filter(Boolean).join(' · '):[it.genre,it.place].filter(Boolean).join(' · ');
+    sub.textContent=it.kind==='song'?[it.artist,localChannel==='popular'?it.genre:''].filter(Boolean).join(' · '):[it.genre,it.place||(it.wide?localPoint?.place?.country:'')].filter(Boolean).join(' · ');
     main.append(name,sub); b.append(main);
     if(i===chanIdx&&chanPlaying){ const bars=document.createElement('span'); bars.className='playing-bars'; bars.innerHTML='<span></span><span></span><span></span>'; b.append(bars); }
     b.onclick=()=>playChanItem(i,preferredPlatform());

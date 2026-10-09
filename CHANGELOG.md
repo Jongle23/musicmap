@@ -1,6 +1,13 @@
 # MusicMap Changelog
 
-## v1.20.3 — Current
+## v1.20.4 — Current
+**Release date:** 2026-10-08
+
+### Fixes
+- **Homegrown finds artists in quiet places:** when fewer than 8 well-known artists come from near the pin, the list adds artists from across the pin's country, so remote spots aren't empty. The title and player say when this happens ("Homegrown across Australia"), and those artists show the country instead of a town. The country lists come from Wikidata and are cached for 30 days. If Wikidata fails, the failure is remembered for an hour.
+- **The tour steps aside for pop-up windows:** if you open something during the tour (New place, Make or Import Pack, and so on), the tour bubble hides until you close it, then carries on from the same step.
+
+## v1.20.3
 **Release date:** 2026-10-08
 
 ### Changed

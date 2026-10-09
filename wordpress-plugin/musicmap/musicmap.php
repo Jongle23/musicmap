@@ -3,7 +3,7 @@
  * Plugin Name:       MusicMap
  * Plugin URI:        https://jongle.me/musicmap
  * Description:       Location-aware music player. Add the [musicmap] shortcode to any page. Settings and data live under the MusicMap admin menu.
- * Version:           1.20.3
+ * Version:           1.20.4
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Jongle
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'MUSICMAP_VERSION', '1.20.3' );
+define( 'MUSICMAP_VERSION', '1.20.4' );
 define( 'MUSICMAP_FILE', __FILE__ );
 define( 'MUSICMAP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MUSICMAP_URL', plugin_dir_url( __FILE__ ) );

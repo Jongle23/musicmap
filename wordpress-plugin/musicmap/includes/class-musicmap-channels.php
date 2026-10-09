@@ -66,6 +66,13 @@ class MusicMap_Channels {
 							return is_numeric( $v ) && abs( (float) $v ) <= 180;
 						},
 					),
+					// the pin's country: when few artists are near the pin, the list grows to the whole country
+					'cc'  => array(
+						'required'          => false,
+						'validate_callback' => function ( $v ) {
+							return is_string( $v ) && preg_match( '/^[A-Za-z]{2}$/', $v );
+						},
+					),
 				),
 			)
 		);
@@ -390,35 +397,99 @@ class MusicMap_Channels {
 	public static function made( WP_REST_Request $req ) {
 		$lat = round( (float) $req['lat'], 1 ); // ~10 km cells: nearby pins share one cached answer
 		$lon = round( (float) $req['lon'], 1 );
+		$cc  = preg_match( '/^[A-Za-z]{2}$/', (string) $req['cc'] ) ? strtoupper( (string) $req['cc'] ) : '';
 		$key = sprintf( 'made3:%.1f,%.1f', $lat, $lon ); // v3: artist photos and real place names (older answers had neither)
-		$hit = MusicMap_Store::cache_get( $key );
-		if ( is_array( $hit ) ) {
-			$hit['artists'] = self::with_known_videos( $hit['artists'] ?? array(), true );
-			return self::reply( $hit, 200, 3600 );
-		}
-		if ( ! self::allowed( 'made', 60 ) ) {
+		$out = MusicMap_Store::cache_get( $key );
+		$ask = ! is_array( $out ) || ( '' !== $cc && count( $out['artists'] ?? array() ) < 8 && ! MusicMap_Store::cache_get( 'madecc1:' . $cc ) );
+		if ( $ask && ! self::allowed( 'made', 60 ) ) {
 			return self::fail( 'rate_limited', 'Too many requests — try again later', 429 );
 		}
-		$artists = array();
-		$radius  = 0;
-		foreach ( array( 25, 80 ) as $radius ) {
-			$artists = self::wikidata_artists( $lat, $lon, $radius );
-			if ( null === $artists ) {
-				return self::fail( 'upstream', 'Could not reach Wikidata. Please try again.', 502 );
+		if ( ! is_array( $out ) ) {
+			$artists = array();
+			$radius  = 0;
+			foreach ( array( 25, 80 ) as $radius ) {
+				$artists = self::wikidata_artists( $lat, $lon, $radius );
+				if ( null === $artists ) {
+					return self::fail( 'upstream', 'Could not reach Wikidata. Please try again.', 502 );
+				}
+				if ( count( $artists ) >= 8 ) {
+					break;
+				}
 			}
-			if ( count( $artists ) >= 8 ) {
-				break;
+			$out = array(
+				'ok'        => true,
+				'radius_km' => $radius,
+				'source'    => 'Wikidata',
+				'artists'   => $artists,
+			);
+			MusicMap_Store::cache_set( $key, 'made', $out, 30 * DAY_IN_SECONDS );
+		}
+		// Few or none nearby: add well-known artists from across the pin's country, after them (marked 'wide').
+		// The country only shapes this reply, never the cached nearby list, so a wrong one changes nothing for others.
+		$out['local'] = count( $out['artists'] ?? array() );
+		if ( $out['local'] < 8 && '' !== $cc ) {
+			$more = self::country_artists( $cc );
+			$seen = array();
+			foreach ( $out['artists'] as $a ) {
+				$seen[ '' !== $a['wikidata'] ? $a['wikidata'] : $a['name'] ] = true;
+			}
+			foreach ( is_array( $more ) ? $more : array() as $a ) {
+				if ( empty( $seen[ '' !== $a['wikidata'] ? $a['wikidata'] : $a['name'] ] ) ) {
+					$a['wide']        = true;
+					$out['artists'][] = $a;
+				}
 			}
 		}
-		$out = array(
-			'ok'        => true,
-			'radius_km' => $radius,
-			'source'    => 'Wikidata',
-			'artists'   => $artists,
-		);
-		MusicMap_Store::cache_set( $key, 'made', $out, 30 * DAY_IN_SECONDS );
+		$out['country'] = count( $out['artists'] ) > $out['local'];
 		$out['artists'] = self::with_known_videos( $out['artists'], true );
 		return self::reply( $out, 200, 3600 );
+	}
+
+	/**
+	 * Well-known artists from a whole country (bands from it, musicians who are its citizens), cached per
+	 * country. Big countries take Wikidata a while, so a failure is remembered for an hour.
+	 *
+	 * @return array|null null when Wikidata couldn't answer
+	 */
+	private static function country_artists( $cc ) {
+		$key = 'madecc1:' . $cc;
+		$hit = MusicMap_Store::cache_get( $key );
+		if ( is_array( $hit ) ) {
+			return empty( $hit['failed'] ) ? ( $hit['artists'] ?? array() ) : null;
+		}
+		// $cc is two letters (checked above), so nothing else reaches SPARQL as text. The occupations and
+		// kinds of group are listed rather than followed through subclasses, which is too slow country-wide.
+		$sparql = 'SELECT ?artist ?artistLabel ?links (SAMPLE(?genreLabel) AS ?genre) (SAMPLE(?yt) AS ?ytc) (SAMPLE(?sp) AS ?spotify) (SAMPLE(?img) AS ?image) WHERE {
+  { SELECT DISTINCT ?artist ?links WHERE {
+    hint:Query hint:optimizer "None" .
+    ?country wdt:P297 "' . $cc . '" .
+    { ?artist wdt:P495 ?country . ?artist wdt:P31 ?kind . VALUES ?kind { wd:Q215380 wd:Q5741069 wd:Q2088357 wd:Q641066 wd:Q9212979 } }
+    UNION
+    { ?artist wdt:P27 ?country . ?artist wdt:P106 ?job . VALUES ?job { wd:Q639669 wd:Q177220 wd:Q488205 wd:Q2252262 wd:Q753110 wd:Q36834 wd:Q130857 wd:Q855091 } }
+    ?artist wdt:P1902 ?s0 .
+    # actors who also sang only count with a record label
+    FILTER(NOT EXISTS { ?artist wdt:P106 wd:Q33999 . } || EXISTS { ?artist wdt:P264 ?lab . })
+    ?artist wikibase:sitelinks ?links . FILTER(?links > 20)
+  } ORDER BY DESC(?links) LIMIT 60 }
+  OPTIONAL { ?artist wdt:P136 ?g . ?g rdfs:label ?genreLabel . FILTER(LANG(?genreLabel) = "en") }
+  OPTIONAL { ?artist wdt:P2397 ?yt . }
+  OPTIONAL { ?artist wdt:P1902 ?sp . }
+  OPTIONAL { ?artist wdt:P18 ?img . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+} GROUP BY ?artist ?artistLabel ?links ORDER BY DESC(?links) LIMIT 40';
+		$artists = self::parse_artists( self::sparql( $sparql, 55 ) );
+		if ( null === $artists ) {
+			MusicMap_Store::cache_set( $key, 'made', array( 'failed' => true ), HOUR_IN_SECONDS );
+			return null;
+		}
+		MusicMap_Store::cache_set( $key, 'made', array( 'artists' => $artists ), 30 * DAY_IN_SECONDS );
+		return $artists;
+	}
+
+	/** Run a Wikidata query: its result rows, or null when it couldn't answer. */
+	private static function sparql( $sparql, $timeout = 30 ) {
+		list( $code, $data ) = self::get_json( 'https://query.wikidata.org/sparql?format=json&query=' . rawurlencode( $sparql ), $timeout );
+		return ( 200 === $code && isset( $data['results']['bindings'] ) && is_array( $data['results']['bindings'] ) ) ? $data['results']['bindings'] : null;
 	}
 
 	/** @return array|null null when Wikidata can't be reached */
@@ -442,13 +513,17 @@ class MusicMap_Channels {
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 } GROUP BY ?artist ?artistLabel ?links ORDER BY DESC(?links) LIMIT 40';
 
-		list( $code, $data ) = self::get_json( 'https://query.wikidata.org/sparql?format=json&query=' . rawurlencode( $sparql ), 30 );
-		if ( 200 !== $code || ! isset( $data['results']['bindings'] ) ) {
+		return self::parse_artists( self::sparql( $sparql ) );
+	}
+
+	/** Artists from Wikidata result rows (null stays null). Every value is checked or trimmed here. */
+	private static function parse_artists( $rows ) {
+		if ( null === $rows ) {
 			return null;
 		}
 		$out  = array();
 		$seen = array();
-		foreach ( $data['results']['bindings'] as $b ) {
+		foreach ( $rows as $b ) {
 			$name = self::str( $b['artistLabel']['value'] ?? '', 120 );
 			$qid  = preg_replace( '#^.*/#', '', (string) ( $b['artist']['value'] ?? '' ) );
 			if ( '' === $name || preg_match( '/^Q\d+$/', $name ) || isset( $seen[ $qid ] ) ) {
