@@ -1414,66 +1414,107 @@ function stopSoundCloud(){
   const wrap=document.getElementById('scWrap'); if(wrap) wrap.hidden=true;
 }
 
-// ── TOUR ── a short, skippable first-visit guide (Settings > Help or the ? at the top reopen it)
+// ── TOUR ── a guided first-visit walk through the app. It moves between tabs and modes itself, never starts
+// music, and closes with ✕, Skip or Esc. Settings > Help or the ? at the top reopen it.
+// Each step: target (what to highlight), enter() (where to take you first), advanceOn: 'click' (tapping the
+// highlighted thing moves on) or 'pack' (choosing a pack moves on).
 const TOUR=[
-  {title:'Welcome to MusicMap', text:'Music that fits where you are. Here’s a quick look around. Skip any time.'},
-  {title:'Biome Beats', target:'.hero-player', text:'Game soundtracks that change with your surroundings: beach, city, forest and more. Here’s one of our favourites:',
-    action:{label:'▶ Play “The Hall of Fame” · Hoenn Pack', run:()=>tourPlayHallOfFame()}},
-  {title:'Listen to World', target:'#heroDetectBtn', text:'Tap it and MusicMap follows you, changing the music as you move. It only asks for your location when you tap it.'},
-  {title:'Keep or skip', target:'.hero-controls', text:'♡ saves a track you love. 👎 stops one from playing again (undo it in Settings).'},
-  {title:'Local Listening', target:'#modeBtnLocal', text:'Real music from where the pin is: the Popular chart, Homegrown artists and local Radio.'},
-  {title:'Make it yours', target:'#tourHelpBtn', text:'Build your own packs from YouTube, Spotify or SoundCloud links in Packs. This tour is always here on the ?.'}
+  {title:'Welcome to MusicMap', text:'Music that fits where you are. This tour walks you through the app. Skip it any time.',
+    enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('player'); window.scrollTo({top:0,behavior:'smooth'}); }},
+  {title:'Biome Beats: choose a pack', target:'.pack-eyebrow-name', advanceOn:'click',
+    text:'A pack is a set of music for the places around you: a game soundtrack, or one you made. Tap here to choose one.',
+    enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('player'); }},
+  {title:'Pick a pack', target:'#packsList', advanceOn:'pack',
+    text:'These are your packs. Tap one to use it (try Hoenn Pack), or tap Next to keep the one you have.',
+    enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('packs'); }},
+  {title:'The biomes', target:'#locGrid',
+    text:'Each pack has biomes: beach, city, forest and more. With Listen to World on, MusicMap picks the one around you. You can also tap one to hear it. Its tracks are listed below, and you can change them.',
+    enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('player'); }},
+  {title:'Add your own pack', target:'.make-import-btn',
+    text:'Make a pack from YouTube, Spotify or SoundCloud links, or import one a friend shared with a code.',
+    enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('packs'); }},
+  {title:'Listen to World', target:'#heroDetectBtn',
+    text:'Tap this and MusicMap follows you, changing the music as you move. It only asks for your location when you tap it.',
+    enter:async()=>{ switchTab('player'); }},
+  {title:'Local Listening', target:'#modeBtnLocal',
+    text:'The second mode plays real music from the place where the pin is. Tap Next to take a look.'},
+  {title:'Popular', target:'#localList',
+    text:'The most-played songs in the pin’s country right now, plus genre mixes. Tap a song or mix to play it.',
+    enter:async()=>{ await tourLocal('popular'); }},
+  {title:'Homegrown', target:'#localList',
+    text:'Artists born or formed near the pin. Tap one to hear their music.',
+    enter:async()=>{ await tourLocal('made'); }},
+  {title:'Radio', target:'#localList',
+    text:'Live radio stations near the pin.',
+    enter:async()=>{ await tourLocal('radio'); }},
+  {title:'Move the pin', target:'#mapSection',
+    text:'Drag the pin, tap the map or search for a place to listen somewhere else. Save spots you like.',
+    enter:async()=>{ if(appMode!=='local') await setAppMode('local'); switchTab('player'); }},
+  {title:'Keep or skip', target:'.hero-controls',
+    text:'♡ saves what’s playing. 👎 stops it playing again (you can undo that in Settings). These work in both modes.'},
+  {title:'Report a problem', target:'#tabReportBtn',
+    text:'Something not working? Tap Report on the screen where it happens. It sends a screenshot of that moment.'},
+  {title:'That’s it!', target:'#tourHelpBtn',
+    text:'Switch modes at the top whenever you like. This tour is always here on the ? button.'}
 ];
-let tourAt=-1;
+let tourAt=-1, tourTimer=null, tourStepSeq=0, tourDir=1;
+// Local Listening on a channel, without starting music (choosing a channel yourself may play it)
+async function tourLocal(ch){
+  if(appMode!=='local') await setAppMode('local');
+  switchTab('player');
+  if(localChannel!==ch){ localChannel=ch; ss('localChannel',ch); chanGenre=null; renderLocalHeader(); loadLocalChannel(); updateSaveStationBtn(); }
+}
 function openTour(e){
   if(e?.preventDefault) e.preventDefault();
-  tourAt=0; showTourStep();
   document.getElementById('tourCard').hidden=false;
+  clearInterval(tourTimer); tourTimer=setInterval(placeTourRing,400); // lists load and move things: keep the ring on its target
+  tourDir=1; tourShow(0);
   setTimeout(()=>document.getElementById('tourNext')?.focus(),50);
 }
 function closeTour(){
-  tourAt=-1; ss('tourSeen',true);
+  tourAt=-1; ss('tourSeen',true); clearInterval(tourTimer); tourTimer=null;
   document.getElementById('tourCard').hidden=true; document.getElementById('tourRing').hidden=true;
 }
-function tourGo(d){ const n=tourAt+d; if(n>=TOUR.length) return closeTour(); if(n<0) return; tourAt=n; showTourStep(); }
-function showTourStep(){
-  const s=TOUR[tourAt]; if(!s) return;
-  document.getElementById('tourStep').textContent=(tourAt+1)+' / '+TOUR.length;
+function tourGo(d){ tourDir=d; const n=tourAt+d; if(n>=TOUR.length) return closeTour(); if(n<0) return; tourShow(n); }
+// called by the app when something a step waits for happens
+function tourEvent(kind){ if(tourAt>=0&&TOUR[tourAt]?.advanceOn===kind) setTimeout(()=>tourGo(1),250); }
+async function tourShow(n){
+  // a step whose target isn't shown here (e.g. Report without the plugin) is skipped
+  tourAt=n; const s=TOUR[n], seq=++tourStepSeq;
+  document.getElementById('tourStep').textContent=(n+1)+' / '+TOUR.length;
   document.getElementById('tourTitle').textContent=s.title;
   document.getElementById('tourText').textContent=s.text;
-  const act=document.getElementById('tourAction'); act.innerHTML='';
-  if(s.action){ const b=document.createElement('button'); b.type='button'; b.textContent=s.action.label; b.onclick=s.action.run; act.append(b); }
+  document.getElementById('tourAction').innerHTML='';
   const dots=document.getElementById('tourDots'); dots.innerHTML='';
-  TOUR.forEach((_,i)=>{ const d=document.createElement('span'); if(i===tourAt) d.className='on'; dots.append(d); });
-  document.getElementById('tourBack').hidden=tourAt===0;
-  document.getElementById('tourNext').textContent=tourAt===TOUR.length-1?'Done':'Next';
+  TOUR.forEach((_,i)=>{ const d=document.createElement('span'); if(i===n) d.className='on'; dots.append(d); });
+  document.getElementById('tourBack').hidden=n===0;
+  document.getElementById('tourNext').textContent=n===TOUR.length-1?'Done':'Next';
+  document.getElementById('tourRing').hidden=true;
+  try{ await s.enter?.(); }catch(e){}
+  if(seq!==tourStepSeq) return; // moved on meanwhile
+  await new Promise(r=>setTimeout(r,250)); // let the tab or mode render
+  if(seq!==tourStepSeq) return;
   const el=s.target?document.querySelector(s.target):null;
-  if(el&&el.offsetParent){ el.scrollIntoView({block:'center',behavior:'smooth'}); setTimeout(placeTourRing,450); }
+  if(s.target&&(!el||!el.offsetParent)&&s.target==='#tabReportBtn'){ return tourGo(tourDir<0&&n>0?-1:1); }
+  if(el&&el.offsetParent){
+    const tall=el.getBoundingClientRect().height>innerHeight*.55;
+    el.scrollIntoView({block:tall?'start':'center',behavior:'smooth'});
+    if(s.advanceOn==='click') el.addEventListener('click',()=>{ if(tourAt===n) tourGo(1); },{once:true});
+  }
   placeTourRing();
 }
 function placeTourRing(){
   const ring=document.getElementById('tourRing'), s=TOUR[tourAt];
   const el=s?.target?document.querySelector(s.target):null;
   if(!el||!el.offsetParent){ ring.hidden=true; return; }
-  const r=el.getBoundingClientRect(), pad=6;
-  Object.assign(ring.style,{left:(r.left-pad)+'px',top:(r.top-pad)+'px',width:(r.width+pad*2)+'px',height:(r.height+pad*2)+'px'});
+  const r=el.getBoundingClientRect(), pad=6, top=Math.max(4,r.top-pad), bottom=Math.min(innerHeight-4,r.bottom+pad);
+  if(bottom<=top){ ring.hidden=true; return; } // scrolled out of view
+  Object.assign(ring.style,{left:(r.left-pad)+'px',top:top+'px',width:(r.width+pad*2)+'px',height:(bottom-top)+'px'});
   ring.hidden=false;
 }
 window.addEventListener('scroll',()=>{ if(tourAt>=0) placeTourRing(); },{passive:true});
 window.addEventListener('resize',()=>{ if(tourAt>=0) placeTourRing(); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&tourAt>=0) closeTour(); });
-// The tour's demo: Hoenn's "The Hall of Fame", then the biome carries on
-async function tourPlayHallOfFame(){
-  if(appMode==='local') await setAppMode('packs');
-  const pack=getAllPacks().find(p=>p.id==='hoenn'); if(!pack) return;
-  const t=getAllPackTracks(pack).findIndex(x=>/hall of fame/i.test(x.title||'')); if(t<0) return;
-  spotifyUnlockAudio();
-  if(getActivePackId()!=='hoenn'){ isPlaying=false; await pauseTrack(); activatePack('hoenn'); }
-  else switchTab('player');
-  favPlaying=t; favQueue=[]; favTag='Tour · '; shuffleQueue=[];
-  isPlaying=true; renderTrackList(); updateNowPlaying(); playCurrentTrack(false);
-  setTimeout(placeTourRing,500);
-}
 
 // ── REPORT A PROBLEM ── sent to the site's MusicMap plugin (MusicMap > Reports); needs the plugin
 const H2C_SRC='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
@@ -2118,6 +2159,7 @@ function activatePack(id){
   const target=getAllPacks().find(p=>p.id===id);
   if(target && packNeedsSpotify(target) && !isSpotifyConnected()) setTimeout(openSpotifyNeeded,0);
   setActivePackId(id);
+  tourEvent('pack');
   renderPacksList();
   renderLocGrid();
   loadLocation('beach',false,false);
@@ -2184,7 +2226,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.20.2';
+const MM_VERSION = '1.20.3';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")

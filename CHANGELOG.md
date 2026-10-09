@@ -1,6 +1,20 @@
 # MusicMap Changelog
 
-## v1.20.2 — Current
+## v1.20.3 — Current
+**Release date:** 2026-10-08
+
+### Changed
+- **The tour now walks you through the app**, instead of just describing it. It no longer plays a demo song, and never starts music.
+  - **Biome Beats:**
+    - It highlights Change pack and moves on when you tap it.
+    - It opens your packs and moves on when you pick one.
+    - It shows the biome grid, then where to make or import a pack.
+    - It shows Listen to World.
+  - **Local Listening:** it switches over and opens **Popular**, **Homegrown** and **Radio** in turn, then shows the map and pin.
+  - **Finishing:** it covers ♡ and 👎, and the **Report** button (when the site has it).
+  - **Moving around:** Back and Next move between steps, and the highlight follows lists as they load.
+
+## v1.20.2
 **Release date:** 2026-10-08
 
 ### Fixed
