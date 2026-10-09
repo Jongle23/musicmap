@@ -171,6 +171,17 @@ Data comes from free sources only — Apple Music charts, Wikidata, Radio Browse
 
 ---
 
+## 🗺️ Roadmap
+
+Ideas planned for later. These aren't built yet.
+
+### Collaborative public packs
+A kind of public pack that people improve together, not just copy.
+- **Each edit asks where it goes:** when you change a collaborative pack (add a track, move one to another biome, rename a biome), MusicMap asks whether to **add it to the collective pack** for everyone, or **keep it private** on your device.
+- **Personal places stay private:** you can still add your own Home, Gym, Work or School places to a collaborative pack. Those are always kept private and never sent to the collective version, the same as public packs today.
+- **Updates reach everyone:** people who added the pack get the shared changes, and their private additions stay on top of them.
+- **Still to work out:** how edits are approved or moderated (owner approval, votes, or admin review), undoing bad edits (a version history), and limits on edit spam.
+
 ## 📁 File Structure
 
 ```
