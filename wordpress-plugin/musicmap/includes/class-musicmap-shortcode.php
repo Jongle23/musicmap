@@ -78,12 +78,13 @@ class MusicMap_Shortcode {
 		wp_enqueue_script( 'musicmap', MUSICMAP_URL . 'assets/musicmap.js', array( 'musicmap-leaflet-js' ), $ver, true );
 
 		$config = array(
-			'version'  => MUSICMAP_VERSION,
+			'version'     => MUSICMAP_VERSION,
 			// the app appends "ping" / "save" / "load&code=…", so this must end in "mm_action="
 			// (add_query_arg() would drop the "=" for an empty value)
-			'shareApi' => esc_url_raw( home_url( '/' ) ) . ( false === strpos( home_url( '/' ), '?' ) ? '?' : '&' ) . 'mm_action=',
-			'restBase' => esc_url_raw( rest_url( 'musicmap/v1/' ) ),
-			'logoUrl'  => MUSICMAP_URL . 'assets/musicmap-logo-512.png', // header uses the 192px copy; lock screens the 512px one
+			'shareApi'    => esc_url_raw( home_url( '/' ) ) . ( false === strpos( home_url( '/' ), '?' ) ? '?' : '&' ) . 'mm_action=',
+			'restBase'    => esc_url_raw( rest_url( 'musicmap/v1/' ) ),
+			'publicPacks' => (bool) MusicMap_Settings::get( 'public_packs' ),
+			'logoUrl'     => MUSICMAP_URL . 'assets/musicmap-logo-512.png', // header uses the 192px copy; lock screens the 512px one
 		);
 		$spotify = (string) MusicMap_Settings::get( 'spotify_client_id' );
 		if ( '' !== $spotify ) {

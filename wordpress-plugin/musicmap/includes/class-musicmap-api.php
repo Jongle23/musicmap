@@ -10,7 +10,10 @@
  *     GET  /wp-json/musicmap/v1/ping
  *     POST /wp-json/musicmap/v1/packs
  *     GET  /wp-json/musicmap/v1/packs/CODE
+ *     GET  /wp-json/musicmap/v1/public?q=&sort=popular|new&page=N   → packs shared to everyone (list fields only)
  *
+ * A pack saved with "_public": true is listed in Public Packs. Its Home / Work / School / Gym
+ * locations never keep their coordinates, whatever the app sent.
  * Everything here is public by design, so input is validated, sizes are capped and saves
  * are rate-limited per (hashed) visitor IP.
  */
@@ -77,8 +80,19 @@ class MusicMap_Api {
 		if ( ! $has_tracks || ! is_array( $pack['biomes'] ?? null ) ) {
 			return self::err( 400, 'tracks and biomes must be arrays' );
 		}
+		$public = ! empty( $pack['_public'] );
+		unset( $pack['_public'] );
+		if ( $public ) {
+			if ( ! MusicMap_Settings::get( 'public_packs' ) ) {
+				return self::err( 403, 'Public packs are turned off on this site' );
+			}
+			if ( ! MusicMap_Store::rate_hit( self::ip_hash(), 'save_public', 10, DAY_IN_SECONDS ) ) {
+				return self::err( 429, 'You can make 10 packs public a day — try again tomorrow' );
+			}
+			$pack = self::without_personal_places( $pack );
+		}
 		$pack = self::clean( $pack );
-		$code = MusicMap_Store::save_pack( $pack, self::ip_hash() );
+		$code = MusicMap_Store::save_pack( $pack, self::ip_hash(), $public );
 		if ( '' === $code ) {
 			return self::err( 500, 'Could not store the pack, please try again' );
 		}
@@ -106,6 +120,55 @@ class MusicMap_Api {
 				'ok'    => true,
 				'pack'  => $row['pack'],
 				'views' => (int) $row['views'],
+			),
+		);
+	}
+
+	/** Home / Work / School / Gym (and their preset_ forms) keep their name and tracks but lose where they are. */
+	private static function without_personal_places( array $pack ) {
+		if ( ! is_array( $pack['_customLocs'] ?? null ) ) {
+			return $pack;
+		}
+		foreach ( $pack['_customLocs'] as $i => $loc ) {
+			$id = is_array( $loc ) && is_string( $loc['id'] ?? null ) ? preg_replace( '/^preset_/', '', $loc['id'] ) : '';
+			if ( in_array( $id, array( 'home', 'work', 'school', 'gym' ), true ) ) {
+				unset( $pack['_customLocs'][ $i ]['lat'], $pack['_customLocs'][ $i ]['lon'], $pack['_customLocs'][ $i ]['radius'], $pack['_customLocs'][ $i ]['pins'] );
+			}
+		}
+		return $pack;
+	}
+
+	public static function do_public_list( $q, $sort, $page ) {
+		if ( ! MusicMap_Settings::get( 'public_packs' ) ) {
+			return self::err( 403, 'Public packs are turned off on this site' );
+		}
+		if ( ! MusicMap_Store::rate_hit( self::ip_hash(), 'public_list', 300, HOUR_IN_SECONDS ) ) {
+			return self::err( 429, 'Too many requests — try again later' );
+		}
+		$q        = mb_substr( trim( wp_strip_all_tags( (string) $q ) ), 0, 60 );
+		$page     = max( 1, min( 50, (int) $page ) );
+		$per_page = 24;
+		list( $rows, $total ) = MusicMap_Store::list_public( $q, 'new' === $sort ? 'new' : 'popular', $per_page, $page );
+		$packs = array();
+		foreach ( $rows as $r ) {
+			$packs[] = array(
+				'code'     => (string) $r['code'],
+				'name'     => (string) $r['name'],
+				'icon'     => (string) $r['icon'],
+				'subtitle' => (string) $r['subtitle'],
+				'tracks'   => (int) $r['track_count'],
+				'views'    => (int) $r['views'],
+				'created'  => gmdate( 'Y-m-d', strtotime( $r['created_gmt'] . ' UTC' ) ),
+			);
+		}
+		return array(
+			200,
+			array(
+				'ok'    => true,
+				'packs' => $packs,
+				'total' => $total,
+				'page'  => $page,
+				'more'  => $page * $per_page < $total,
 			),
 		);
 	}
@@ -198,6 +261,17 @@ class MusicMap_Api {
 				'permission_callback' => '__return_true',
 				'callback'            => function ( WP_REST_Request $req ) {
 					return self::rest( self::do_save( (string) $req->get_body() ) );
+				},
+			)
+		);
+		register_rest_route(
+			'musicmap/v1',
+			'/public',
+			array(
+				'methods'             => 'GET',
+				'permission_callback' => '__return_true',
+				'callback'            => function ( WP_REST_Request $req ) {
+					return self::rest( self::do_public_list( (string) $req['q'], (string) $req['sort'], (int) $req['page'] ) );
 				},
 			)
 		);

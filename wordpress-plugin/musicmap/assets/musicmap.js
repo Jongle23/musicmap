@@ -1055,8 +1055,19 @@ function setActivePackId(id){ss('activePackId',id)}
 function getUserPacks(){return gs('userPacks',[])}
 function saveUserPacks(arr){ss('userPacks',arr)}
 
-function getAllPacks(){return [...BUILTIN_PACKS,...getUserPacks()]}
-function getActivePack(){return getAllPacks().find(p=>p.id===getActivePackId())||BUILTIN_PACKS[0]}
+// Default packs can be removed; they come back from Public Packs
+const REMOVED_DEFAULTS_KEY='removedDefaultPacks';
+function getRemovedDefaults(){ const ids=gs(REMOVED_DEFAULTS_KEY,[]); return Array.isArray(ids)?ids.filter(id=>BUILTIN_PACKS.some(p=>p.id===id)):[]; }
+function getAllPacks(){ const gone=new Set(getRemovedDefaults()); return [...BUILTIN_PACKS.filter(p=>!gone.has(p.id)),...getUserPacks()]; }
+function getActivePack(){const all=getAllPacks(); return all.find(p=>p.id===getActivePackId())||all[0]||BUILTIN_PACKS[0]}
+// ★ favourite packs: listed first in the Packs tab
+const STARRED_PACKS_KEY='starredPacks';
+function getStarredPacks(){ const ids=gs(STARRED_PACKS_KEY,[]); return Array.isArray(ids)?ids.filter(x=>typeof x==='string'):[]; }
+function togglePackStar(id){
+  const ids=getStarredPacks(), on=ids.includes(id);
+  ss(STARRED_PACKS_KEY,on?ids.filter(x=>x!==id):[...ids,id]);
+  renderPacksList();
+}
 
 // per-pack overrides: names, emojis, track lists, pins
 function packKey(packId,key){return `pack_${packId}_${key}`}
@@ -1430,8 +1441,8 @@ const TOUR=[
   {title:'The biomes', target:'#locGrid',
     text:'Each pack has biomes: beach, city, forest and more. With Listen to World on, MusicMap picks the one around you. You can also tap one to hear it. Its tracks are listed below, and you can change them.',
     enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('player'); }},
-  {title:'Add your own pack', target:'.make-import-btn',
-    text:'Make a pack from YouTube, Spotify or SoundCloud links, or import one a friend shared with a code.',
+  {title:'Add your own pack', target:'.packs-top-row',
+    text:'Make a pack from YouTube, Spotify or SoundCloud links, or import one a friend shared with a code. Public Packs, next to it, has packs other people shared with everyone.',
     enter:async()=>{ if(appMode==='local') await setAppMode('packs'); switchTab('packs'); }},
   {title:'Listen to World', target:'#heroDetectBtn',
     text:'Tap this and MusicMap follows you, changing the music as you move. It only asks for your location when you tap it.',
@@ -1863,7 +1874,7 @@ async function resumeAfterScreenOff(){
 }
 
 function importSharedPack(pack, silent){
-  if(!pack||!pack.id||!pack.tracks||!pack.biomes) return false;
+  if(!pack||!Array.isArray(pack.tracks)||!Array.isArray(pack.biomes)) return false; // it gets a fresh id below
   const existing=getUserPacks();
   // Assign a fresh id to avoid collision with existing packs
   const freshId='imported_'+Date.now();
@@ -2081,18 +2092,19 @@ function renderPacksList(){
     el.appendChild(activeLabel);
   }
 
-  const packsToRender=activePack?[activePack,...otherPacks]:otherPacks;
-  let addedDivider=!activePack; // skip divider if no active pack
+  // ★ favourites come first, then the rest, each under its own label
+  const starred=getStarredPacks();
+  const favPacks=otherPacks.filter(p=>starred.includes(p.id)).sort((a,b)=>starred.indexOf(a.id)-starred.indexOf(b.id));
+  const restPacks=otherPacks.filter(p=>!starred.includes(p.id));
+  const groupStart=new Map();
+  if(favPacks.length) groupStart.set(favPacks[0].id,'★ FAVOURITES');
+  if(restPacks.length&&(activePack||favPacks.length)) groupStart.set(restPacks[0].id,'ALL PACKS');
+  const packsToRender=[...(activePack?[activePack]:[]),...favPacks,...restPacks];
 
   packsToRender.forEach(pack=>{
-    // Insert divider before the "other packs" section
-    if(!addedDivider && pack.id!==activeId){
-      addedDivider=true;
-      const divider=document.createElement('div');
-      divider.style.cssText='display:flex;align-items:center;gap:10px;margin:12px 0 10px';
-      divider.innerHTML='<div style="flex:1;height:1px;background:var(--border)"></div>'
-        +'<span style="font-family:var(--pixel);font-size:7px;color:var(--muted);letter-spacing:1.5px;white-space:nowrap">ALL PACKS</span>'
-        +'<div style="flex:1;height:1px;background:var(--border)"></div>';
+    if(pack.id!==activeId&&groupStart.has(pack.id)){
+      const divider=document.createElement('div'); divider.className='packs-group-label';
+      const t=document.createElement('span'); t.textContent=groupStart.get(pack.id); divider.append(t);
       el.appendChild(divider);
     }
 
@@ -2110,12 +2122,19 @@ function renderPacksList(){
     topRow.className='pack-card-top';
     topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
       +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
+    const starOn=starred.includes(pack.id);
+    const star=document.createElement('button');
+    star.type='button'; star.className='pack-star'+(starOn?' on':''); star.textContent=starOn?'★':'☆';
+    star.setAttribute('aria-pressed',starOn); star.setAttribute('aria-label',(starOn?'Remove ':'Add ')+pack.name+(starOn?' from favourites':' to favourites'));
+    star.title=starOn?'Favourite: listed first':'Add to favourites';
+    star.onclick=(e)=>{ e.stopPropagation(); togglePackStar(pack.id); };
     if(isActive){
       const badge=document.createElement('span');
       badge.style.cssText='font-size:10px;color:var(--green);font-family:var(--pixel);letter-spacing:.5px;flex-shrink:0';
       badge.textContent='✓ ACTIVE';
       topRow.appendChild(badge);
     }
+    topRow.appendChild(star);
     card.appendChild(topRow);
     // Button row (separate line)
     const actionsDiv=document.createElement('div');
@@ -2141,10 +2160,11 @@ function renderPacksList(){
     dupBtn.innerHTML=ic('copy','ic-sm')+' Copy';
     dupBtn.onclick=(e)=>{ e.stopPropagation(); duplicatePack(pack.id); };
     actionsDiv.appendChild(dupBtn);
-    if(!pack.builtin){
+    {
       const delBtn=document.createElement('button');
       delBtn.className='pack-action-btn danger';
-      delBtn.innerHTML=ic('trash','ic-sm')+' Delete';
+      delBtn.innerHTML=ic('trash','ic-sm')+(pack.builtin?' Remove':' Delete');
+      if(pack.builtin) delBtn.title='Remove this default pack. You can add it back from Public Packs.';
       delBtn.onclick=(e)=>{ e.stopPropagation(); deletePack(pack.id); };
       actionsDiv.appendChild(delBtn);
     }
@@ -2185,10 +2205,99 @@ function editPackBiomes(id){
   },120);
 }
 function deletePack(id){
-  if(!confirm('Delete this pack?'))return;
-  saveUserPacks(getUserPacks().filter(p=>p.id!==id));
-  if(getActivePackId()===id)setActivePackId('hoenn');
+  const pack=getAllPacks().find(p=>p.id===id); if(!pack) return;
+  if(getAllPacks().length<=1){ spotifyShowSnack('Keep at least one pack. Add another first.'); return; }
+  if(pack.builtin){
+    if(!confirm('Remove '+pack.name+'? You can add it back from Public Packs.')) return;
+    ss(REMOVED_DEFAULTS_KEY,[...new Set([...getRemovedDefaults(),id])]); // its biome edits and pins are kept for when it comes back
+  } else {
+    if(!confirm('Delete this pack?'))return;
+    saveUserPacks(getUserPacks().filter(p=>p.id!==id));
+  }
+  ss(STARRED_PACKS_KEY,getStarredPacks().filter(x=>x!==id));
+  if(getActivePackId()===id){ setActivePackId(getAllPacks()[0].id); renderLocGrid(); loadLocation('beach',false,false); }
   renderPacksList();
+}
+function restoreDefaultPack(id){
+  ss(REMOVED_DEFAULTS_KEY,getRemovedDefaults().filter(x=>x!==id));
+  renderPacksList(); renderPublicRemoved();
+  const p=BUILTIN_PACKS.find(x=>x.id===id); if(p) spotifyShowSnack(p.name+' is back in your packs.');
+}
+
+// ── Public Packs ── packs shared with everyone (from the server), plus default packs you removed
+const publicPacksOn=()=>!!(API_URL&&MM_CONFIG.restBase&&MM_CONFIG.publicPacks);
+let pubSort='popular', pubPage=0, pubSeq=0, pubSearchTimer=null;
+function openPublicPacks(){
+  document.getElementById('publicPacksOverlay').classList.add('open');
+  renderPublicRemoved();
+  document.getElementById('pubSharedBox').hidden=!publicPacksOn();
+  if(!publicPacksOn()&&!getRemovedDefaults().length){
+    document.getElementById('pubRemovedBox').hidden=false;
+    document.getElementById('pubRemovedList').innerHTML='<div class="pub-note">Public Packs need the MusicMap server, which this copy of the app doesn’t have.</div>';
+    return;
+  }
+  if(publicPacksOn()) loadPublicPacks(false);
+}
+function closePublicPacks(){ document.getElementById('publicPacksOverlay').classList.remove('open'); }
+function pubRow(icon,name,sub,btnLabel,onAdd){
+  const row=document.createElement('div'); row.className='pub-row';
+  const i=document.createElement('div'); i.className='pub-row-icon'; i.textContent=icon||'🎵';
+  const main=document.createElement('div'); main.className='pub-row-main';
+  const n=document.createElement('div'); n.className='pub-row-name'; n.textContent=name;
+  const s=document.createElement('div'); s.className='pub-row-sub'; s.textContent=sub;
+  main.append(n,s);
+  const b=document.createElement('button'); b.type='button'; b.className='btn-primary'; b.textContent=btnLabel;
+  b.setAttribute('aria-label',btnLabel+' '+name);
+  b.onclick=()=>onAdd(b);
+  row.append(i,main,b);
+  return row;
+}
+function renderPublicRemoved(){
+  const ids=getRemovedDefaults(), box=document.getElementById('pubRemovedBox'), list=document.getElementById('pubRemovedList');
+  if(!box) return;
+  box.hidden=!ids.length; list.innerHTML='';
+  ids.forEach(id=>{
+    const p=BUILTIN_PACKS.find(x=>x.id===id); if(!p) return;
+    list.append(pubRow(p.icon,p.name,[p.subtitle||p.source,getAllPackTracks(p).length+' tracks'].filter(Boolean).join(' · '),'Add back',()=>restoreDefaultPack(id)));
+  });
+}
+function setPubSort(s){
+  pubSort=s==='new'?'new':'popular';
+  document.getElementById('pubSortPopular').classList.toggle('on',pubSort==='popular');
+  document.getElementById('pubSortNew').classList.toggle('on',pubSort==='new');
+  loadPublicPacks(false);
+}
+function pubSearchSoon(){ clearTimeout(pubSearchTimer); pubSearchTimer=setTimeout(()=>loadPublicPacks(false),350); }
+async function loadPublicPacks(more){
+  const list=document.getElementById('pubList'), moreBtn=document.getElementById('pubMore');
+  const seq=++pubSeq;
+  pubPage=more?pubPage+1:1;
+  if(!more){ list.innerHTML=''; busyText(list,'Loading…'); }
+  moreBtn.hidden=true;
+  const q=document.getElementById('pubSearch').value.trim().slice(0,60);
+  let d;
+  try{ d=await mmApi('public?sort='+pubSort+'&page='+pubPage+(q?'&q='+encodeURIComponent(q):'')); }
+  catch(e){ if(seq===pubSeq) list.innerHTML='<div class="pub-note">'+esc(e.message||'Couldn’t load Public Packs.')+'</div>'; return; }
+  if(seq!==pubSeq) return;
+  if(!more) list.innerHTML='';
+  const packs=Array.isArray(d.packs)?d.packs:[];
+  if(!packs.length&&!more){ list.innerHTML='<div class="pub-note">'+(q?'No public packs match that.':'No public packs yet. Share one of yours and tick <b>Make public</b>.')+'</div>'; return; }
+  packs.forEach(p=>{
+    if(!/^[A-Z0-9]{4,12}$/.test(String(p.code||''))) return;
+    const tracks=Number.isFinite(p.tracks)?p.tracks:0, views=Number.isFinite(p.views)?p.views:0;
+    const sub=[String(p.subtitle||'').slice(0,80), tracks+' track'+(tracks===1?'':'s'), views+' add'+(views===1?'':'s')].filter(Boolean).join(' · ');
+    list.append(pubRow(String(p.icon||'').slice(0,8),String(p.name||'Untitled pack').slice(0,80),sub,'Add',b=>addPublicPack(p.code,b)));
+  });
+  moreBtn.hidden=!d.more;
+}
+async function addPublicPack(code,btn){
+  btn.disabled=true; btn.textContent='Adding…';
+  try{
+    const pack=await ShareBackend.loadFromServer(code);
+    if(!importSharedPack(pack,false)) throw new Error('That pack couldn’t be added.');
+    btn.textContent='Added ✓';
+    spotifyShowSnack('Added '+(pack.name||'the pack')+' and switched to it.');
+  }catch(e){ btn.disabled=false; btn.textContent='Add'; spotifyShowSnack(e.message||'That pack couldn’t be added.'); }
 }
 
 function duplicatePack(id){
@@ -2232,7 +2341,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.20.5';
+const MM_VERSION = '1.21';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2312,6 +2421,8 @@ function openPrivacyModal(){
     label.style.display='block';
   }
 
+  document.getElementById('sharePublicRow').hidden=!publicPacksOn();
+  document.getElementById('sharePublicToggle').checked=false;
   locs.forEach(loc=>{
     const isPersonal=PERSONAL_BIOME_IDS.has(loc.id)||PERSONAL_BIOME_IDS.has(loc.id.replace(/^preset_/,''));
     const firstPin=(loc.pins&&loc.pins[0])||null;
@@ -2329,7 +2440,7 @@ function openPrivacyModal(){
       </div>
       ${isPersonal?'<div class="priv-warn-icon" title="Personal location — consider removing">'+ic('alert','ic-sm')+'</div>':''}
       <label class="priv-toggle" title="Toggle off to exclude from share">
-        <input type="checkbox" id="${esc(uid)}" ${isPersonal?'':'checked'}>
+        <input type="checkbox" id="${esc(uid)}" ${isPersonal?'data-personal="1"':'checked'}>
         <div class="priv-toggle-track"></div>
         <div class="priv-toggle-thumb"></div>
       </label>`;
@@ -2342,6 +2453,16 @@ function openPrivacyModal(){
   document.getElementById('shareModalOverlay').classList.add('open');
 }
 
+// Public: Home / Work / School / Gym can't be included; every other pin starts off (you can switch them back on)
+function onSharePublicChange(){
+  const pub=document.getElementById('sharePublicToggle').checked;
+  document.querySelectorAll('#privLocList input[type=checkbox]').forEach(cb=>{
+    const personal=cb.dataset.personal==='1';
+    cb.checked=pub?false:!personal;
+    cb.disabled=pub&&personal;
+    cb.closest('.priv-toggle')?.setAttribute('title',pub&&personal?'Personal places are never shared publicly':'Toggle off to exclude from share');
+  });
+}
 function closePrivacyModal(){ closeShareModal(); }
 function closeShareModal(e){
   if(!e||e.target===document.getElementById('shareModalOverlay'))
@@ -2357,9 +2478,11 @@ async function confirmShare(){
   // Collect which custom locs are included
   const locs=getAllCustomLocs().filter(l=>l.lat&&l.lon);
   const excluded=new Set();
+  const isPublic=publicPacksOn()&&document.getElementById('sharePublicToggle')?.checked;
   locs.forEach(loc=>{
     const cb=document.getElementById('priv_'+loc.id);
-    if(cb&&!cb.checked) excluded.add(loc.id);
+    const personal=PERSONAL_BIOME_IDS.has(loc.id)||PERSONAL_BIOME_IDS.has(loc.id.replace(/^preset_/,''));
+    if((cb&&!cb.checked)||(isPublic&&personal)) excluded.add(loc.id);
   });
 
   const allLocs=getAllCustomLocs().map(loc=>{
@@ -2376,6 +2499,7 @@ async function confirmShare(){
     _biomeOverrides:biomeOverrides,
     _locTracks:locTracks,
     _customLocs:allLocs.filter(l=>!PERSONAL_BIOME_IDS.has(l.id)),
+    ...(isPublic?{_public:true}:{}),
   };
 
   // Switch to result view BEFORE async work — keep modal open
@@ -2388,7 +2512,11 @@ async function confirmShare(){
   document.getElementById('copyFlash').textContent='';
 
   let code;
-  if(API_URL){
+  if(isPublic){
+    // a public pack has to be on the server: no quiet fallback to a private local code
+    try{ code=await ShareBackend.saveToServer(shareable); }
+    catch(e){ document.getElementById('shareCodeDisplay').textContent='Couldn’t make it public: '+(e.message||'please try again.'); return; }
+  } else if(API_URL){
     try{ code=await ShareBackend.saveToServer(shareable); }
     catch(e){ code=ShareBackend.encode(shareable); }
   } else {
@@ -2423,6 +2551,7 @@ async function confirmShare(){
   disp.dataset.plain=richText;
   disp.dataset.md=markdown;
   setShareMarkdown(gs('shareMarkdown',false));
+  if(isPublic){ document.getElementById('copyFlash').textContent='✓ Listed in Public Packs'; }
 }
 
 // ── Share message as Markdown ── for Discord, Reddit and other apps that format it.
@@ -6614,10 +6743,22 @@ function cleanSavedSong(s){
     lat:Number.isFinite(s.lat)&&Math.abs(s.lat)<=90?+(+s.lat).toFixed(4):undefined,
     lon:Number.isFinite(s.lon)&&Math.abs(s.lon)<=180?+(+s.lon).toFixed(4):undefined};
 }
+// Homegrown artists you hearted. Only checked ids and Commons photos are kept.
+function cleanSavedArtist(a){
+  if(!a||typeof a.name!=='string'||!a.name.trim()) return null;
+  return {name:a.name.slice(0,120), genre:String(a.genre||'').slice(0,40), place:String(a.place||'').slice(0,80),
+    youtube:/^UC[A-Za-z0-9_-]{22}$/.test(a.youtube||'')?a.youtube:'', spotify:/^[A-Za-z0-9]{22}$/.test(a.spotify||'')?a.spotify:'',
+    wikidata:/^Q\d{1,12}$/.test(a.wikidata||'')?a.wikidata:'', image:COMMONS_OK.test(a.image||'')?a.image:'',
+    where:String(a.where||'').slice(0,80),
+    lat:Number.isFinite(a.lat)&&Math.abs(a.lat)<=90?+(+a.lat).toFixed(4):undefined,
+    lon:Number.isFinite(a.lon)&&Math.abs(a.lon)<=180?+(+a.lon).toFixed(4):undefined};
+}
+const artistKey=a=>(a.wikidata||'n:'+String(a.name||'').toLowerCase());
 function getSaved(){
   const d=gs(SAVED_KEY,{})||{};
   return {
     songs:(Array.isArray(d.songs)?d.songs:[]).filter(validSavedSong).map(cleanSavedSong),
+    artists:(Array.isArray(d.artists)?d.artists:[]).map(cleanSavedArtist).filter(Boolean),
     stations:(Array.isArray(d.stations)?d.stations:[]).filter(validSavedStation),
     spots:(Array.isArray(d.spots)?d.spots:[]).filter(validSavedSpot)
   };
@@ -6643,6 +6784,37 @@ function toggleSongSaved(s){
   updateSaveStationBtn();
   if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
 }
+function isArtistSaved(a){ return !!a&&getSaved().artists.some(x=>artistKey(x)===artistKey(a)); }
+function toggleArtistSaved(it){
+  const a=cleanSavedArtist({...it, where:it.where||placeLabel(localPoint?.place), lat:it.lat??localPoint?.lat, lon:it.lon??localPoint?.lon});
+  if(!a) return;
+  const d=getSaved(), had=d.artists.some(x=>artistKey(x)===artistKey(a));
+  d.artists=had?d.artists.filter(x=>artistKey(x)!==artistKey(a)):[a,...d.artists].slice(0,300);
+  putSaved(d);
+  spotifyShowSnack(had?'Removed from Saved':'Saved artist: '+a.name);
+  updateSaveStationBtn();
+  if(isLocalMode()&&localChannel!=='radio') renderChanList();
+  if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
+}
+function artistHeartButton(it){
+  const on=isArtistSaved(it);
+  const h=document.createElement('button');
+  h.type='button'; h.className='heart-btn'+(on?' on':'');
+  h.setAttribute('aria-pressed',on); h.setAttribute('aria-label',(on?'Remove ':'Save ')+it.name);
+  h.innerHTML=SAVE_BTN_HTML;
+  h.onclick=()=>toggleArtistSaved(it);
+  return h;
+}
+// Saved artists play as their own list, like saved songs
+function playSavedArtists(start){
+  const artists=getSaved().artists; if(!artists.length) return;
+  localChannel='savedArtists'; chanGenre=null; chanOverview=false; chanData=null; // not persisted, like saved songs
+  chanItems=artists.map(a=>({kind:'artist',...a}));
+  chanIdx=-1; buildChanOrder(); renderChannelTabs(); renderShuffleBtn();
+  document.getElementById('localListTitle').textContent='SAVED ARTISTS';
+  renderChanList(); switchTab('player');
+  playChanItem(Number.isInteger(start)?start:(chanOrder[0]??0));
+}
 // Saved songs play as their own list in the Channels tab (not a channel tab of its own)
 function playSavedSongs(start){
   const songs=getSaved().songs; if(!songs.length) return;
@@ -6667,7 +6839,14 @@ function toggleStationSaved(st){
   renderLocalList(); updateSaveStationBtn();
   if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
 }
+// the heart in the player saves the artist while an artist plays (Homegrown, Saved artists)
+const heartsArtist=()=>localChannel==='made'||localChannel==='savedArtists'||chanItems[chanIdx]?.kind==='artist';
 function toggleSaveCurrentStation(){
+  if(localChannel!=='radio'&&heartsArtist()){
+    const it=chanItems[chanIdx];
+    if(!it||it.kind!=='artist'){ spotifyShowSnack('Pick an artist first, or tap the heart next to one.'); return; }
+    return toggleArtistSaved(it);
+  }
   if(localChannel!=='radio'){
     const s=currentSongForSave();
     if(!s){ spotifyShowSnack(chanItems[chanIdx]?.kind==='artist'?'Save works once the song name shows.':'Play a song first, then save it.'); return; }
@@ -6690,6 +6869,13 @@ function updateSaveStationBtn(){
   updateDislikeBtn();
   const vb=document.getElementById('npHeartBtn');
   if(!vb||!isLocalMode()) return;
+  if(localChannel!=='radio'&&heartsArtist()){
+    const it=chanItems[chanIdx]?.kind==='artist'?chanItems[chanIdx]:null, on=!!it&&isArtistSaved(it);
+    vb.disabled=!it; vb.classList.toggle('saved',on); vb.setAttribute('aria-pressed',on);
+    const label=!it?'Save artist':(on?'Remove '+it.name+' from Saved':'Save '+it.name+' to Saved');
+    vb.setAttribute('aria-label',label); vb.title=label;
+    return;
+  }
   if(localChannel!=='radio'){
     const s=currentSongForSave(), on=!!s&&isSongSaved(s);
     vb.disabled=!s; vb.classList.toggle('saved',on); vb.setAttribute('aria-pressed',on);
@@ -6750,6 +6936,28 @@ function renderSavedList(){
       del.setAttribute('aria-pressed','true'); del.setAttribute('aria-label','Remove '+s.title+' from Saved'); del.innerHTML=SAVE_BTN_HTML;
       del.onclick=()=>toggleSongSaved(s);
       row.append(b, shareButton(songShareParams(s), s.title+' — '+s.artist), del); soEl.appendChild(row);
+    });
+  }
+  const arEl=document.getElementById('savedArtists');
+  if(arEl){
+    arEl.innerHTML='';
+    if(!d.artists.length) arEl.innerHTML='<div class="local-note">No saved artists yet. In Homegrown, tap the heart next to an artist.</div>';
+    const nowA=localChannel==='savedArtists'&&chanPlaying&&chanItems[chanIdx]?artistKey(chanItems[chanIdx]):'';
+    d.artists.forEach((a,i)=>{
+      const row=document.createElement('div'); row.className='local-row-wrap';
+      const b=document.createElement('button'); b.type='button'; b.className='local-item'+(nowA===artistKey(a)?' active':'');
+      const icon=document.createElement('span'); icon.className='local-item-ic'; icon.textContent=a.name[0];
+      if(a.image){ const img=document.createElement('img'); img.className='local-item-art artist-photo'; img.alt=''; img.loading='lazy'; img.referrerPolicy='no-referrer'; img.src=a.image; img.onerror=()=>img.replaceWith(icon); b.append(img); }
+      else b.append(icon);
+      const main=document.createElement('span'); main.className='local-item-main';
+      const name=document.createElement('span'); name.className='local-item-name'; name.style.display='block'; name.textContent=a.name;
+      const sub=document.createElement('span'); sub.className='local-item-sub'; sub.style.display='block';
+      sub.textContent=[a.genre,a.place||a.where].filter(Boolean).join(' · ');
+      main.append(name,sub); b.append(main);
+      b.onclick=()=>playSavedArtists(i);
+      const geo=Number.isFinite(a.lat)&&Number.isFinite(a.lon);
+      row.append(b, shareButton({ch:'made', a:a.name, lat:geo?a.lat:undefined, lon:geo?a.lon:undefined, where:a.where}, a.name), artistHeartButton(a));
+      arEl.appendChild(row);
     });
   }
   if(!d.stations.length) stEl.innerHTML='<div class="local-note">No saved stations yet. Tap the heart next to a station, or the heart in the player.</div>';
@@ -7149,8 +7357,8 @@ function genreMixes(songs){
   return Object.entries(by).filter(([,l])=>l.length>=3).sort((a,b)=>b[1].length-a[1].length).map(([genre,list])=>({genre,list}));
 }
 // Song lists that aren't channels: your saved songs, or a song someone shared with you
-const isSongList=c=>c==='saved'||c==='shared';
-const SONG_LIST_LABEL={saved:'Saved songs',shared:'Shared with you'};
+const isSongList=c=>c==='saved'||c==='shared'||c==='savedArtists';
+const SONG_LIST_LABEL={saved:'Saved songs',shared:'Shared with you',savedArtists:'Saved artists'};
 function chanLabel(){ return isSongList(localChannel)?SONG_LIST_LABEL[localChannel]:(LOCAL_CHANNELS.find(c=>c.id===localChannel)||{}).label||''; }
 
 async function loadSongChannel(opts){
@@ -7229,7 +7437,7 @@ function setLocalIdle(){
   setPlayerBusy(false);
   const pl=localPoint?.place;
   const n=chanItems.length;
-  const what=localChannel==='shared'?'Shared with you':localChannel==='saved'?n+' saved song'+(n===1?'':'s'):localChannel==='made'?n+' artists from '+(chanItems.every(x=>x.wide)?'across '+(pl?.country||'the country'):'around '+(placeLabel(pl)||'the pin')+(chanItems.some(x=>x.wide)?' and across '+(pl?.country||'the country'):''))
+  const what=localChannel==='shared'?'Shared with you':localChannel==='saved'?n+' saved song'+(n===1?'':'s'):localChannel==='savedArtists'?n+' saved artist'+(n===1?'':'s'):localChannel==='made'?n+' artists from '+(chanItems.every(x=>x.wide)?'across '+(pl?.country||'the country'):'around '+(placeLabel(pl)||'the pin')+(chanItems.some(x=>x.wide)?' and across '+(pl?.country||'the country'):''))
     :n?(chanGenre&&chanGenre!==CHART_TOP?chanGenre+' mix · '+(pl?.country||''):'Top '+n+' in '+(pl?.country||'this country'))
     :'Top songs and genre mixes for '+(pl?.country||'this country');
   setChanNowPlaying(null,what,localChannel==='made'?'Tap play or pick an artist':n?'Tap play or pick a song':'Pick the top songs or a genre: it shuffles and plays');
@@ -7298,6 +7506,7 @@ function renderChanList(){
       x.onclick=()=>playChanItem(i,p);
       row.append(x);
     });
+    if(it.kind==='artist') row.append(artistHeartButton(it));
     row.append(shareButton(it.kind==='artist'?{ch:'made',a:it.name}
       :isSongList(localChannel)?songShareParams(it)
       :{ch:localChannel,t:it.title,a:it.artist,g:chanGenre&&chanGenre!==CHART_TOP?chanGenre:''}, itemTitle(it)));

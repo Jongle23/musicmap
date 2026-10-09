@@ -34,6 +34,7 @@ class MusicMap_Settings {
 			'youtube_daily_units' => 9000,
 			'delete_on_uninstall' => 0,
 			'report_email'        => 1,
+			'public_packs'        => 1,
 		);
 	}
 
@@ -149,6 +150,7 @@ class MusicMap_Settings {
 		$out['youtube_daily_units'] = self::int_between( $in, 'youtube_daily_units', 100, 1000000 );
 		$out['delete_on_uninstall'] = empty( $in['delete_on_uninstall'] ) ? 0 : 1;
 		$out['report_email']        = empty( $in['report_email'] ) ? 0 : 1;
+		$out['public_packs']        = empty( $in['public_packs'] ) ? 0 : 1;
 
 		return $out;
 	}
@@ -288,6 +290,19 @@ class MusicMap_Settings {
 								<option value="HTTP_X_REAL_IP" <?php selected( $s['trusted_ip_header'], 'HTTP_X_REAL_IP' ); ?>><?php esc_html_e( 'Reverse proxy (X-Real-IP)', 'musicmap' ); ?></option>
 							</select>
 							<p class="description"><?php esc_html_e( 'Only change this if your site really sits behind that proxy; otherwise visitors could fake their IP and dodge the rate limit.', 'musicmap' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Public Packs', 'musicmap' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Sharing to everyone', 'musicmap' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="<?php echo esc_attr( self::OPTION ); ?>[public_packs]" value="1" <?php checked( $s['public_packs'], 1 ); ?>>
+							<?php esc_html_e( 'Let people make a shared pack public, so anyone can find it in the app\'s Public Packs', 'musicmap' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Public packs don\'t expire. Unlist or delete one under MusicMap → Data → Share codes. Turning this off hides the whole list; packs already shared keep their codes.', 'musicmap' ); ?></p>
 						</td>
 					</tr>
 				</table>

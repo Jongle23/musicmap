@@ -33,6 +33,7 @@ class MusicMap_Packs_Table extends WP_List_Table {
 			'size_bytes'  => __( 'Size', 'musicmap' ),
 			'views'       => __( 'Views', 'musicmap' ),
 			'created_gmt' => __( 'Created', 'musicmap' ),
+			'public'      => __( 'Public Packs', 'musicmap' ),
 		);
 	}
 
@@ -44,11 +45,16 @@ class MusicMap_Packs_Table extends WP_List_Table {
 			'size_bytes'  => array( 'size_bytes', false ),
 			'views'       => array( 'views', false ),
 			'created_gmt' => array( 'created_gmt', true ),
+			'public'      => array( 'public', true ),
 		);
 	}
 
 	protected function get_bulk_actions() {
-		return array( 'delete' => __( 'Delete', 'musicmap' ) );
+		return array(
+			'delete' => __( 'Delete', 'musicmap' ),
+			'unlist' => __( 'Remove from Public Packs', 'musicmap' ),
+			'list'   => __( 'Add to Public Packs', 'musicmap' ),
+		);
 	}
 
 	protected function column_cb( $item ) {
@@ -84,10 +90,12 @@ class MusicMap_Packs_Table extends WP_List_Table {
 		switch ( $col ) {
 			case 'size_bytes':
 				return esc_html( size_format( (int) $item['size_bytes'], 1 ) );
+			case 'public':
+				return empty( $item['public'] ) ? '—' : '<strong>' . esc_html__( 'Listed', 'musicmap' ) . '</strong>';
 			case 'created_gmt':
 				$ts = strtotime( $item['created_gmt'] . ' UTC' );
 				$s  = esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $ts ) );
-				return MusicMap_Store::is_expired( $item['created_gmt'] ) ? $s . ' <span style="color:#b32d2e">(' . esc_html__( 'expired', 'musicmap' ) . ')</span>' : $s;
+				return empty( $item['public'] ) && MusicMap_Store::is_expired( $item['created_gmt'] ) ? $s . ' <span style="color:#b32d2e">(' . esc_html__( 'expired', 'musicmap' ) . ')</span>' : $s;
 			default:
 				return esc_html( (string) $item[ $col ] );
 		}
@@ -150,14 +158,21 @@ class MusicMap_Admin_Data {
 
 	public static function handle_delete_packs() {
 		self::guard( 'musicmap_delete_packs' );
-		// Bulk form: only act when "Delete" was chosen in either bulk-action dropdown
+		$codes = isset( $_REQUEST['codes'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_REQUEST['codes'] ) ) : array();
+		// Bulk form: act on what was chosen in either bulk-action dropdown
 		if ( isset( $_POST['bulk_action'] ) || isset( $_POST['bulk_action2'] ) ) {
 			$bulk = array( sanitize_key( wp_unslash( $_POST['bulk_action'] ?? '' ) ), sanitize_key( wp_unslash( $_POST['bulk_action2'] ?? '' ) ) );
+			foreach ( array( 'unlist', 'list' ) as $b ) {
+				if ( in_array( $b, $bulk, true ) ) {
+					$n = MusicMap_Store::set_public( $codes, 'list' === $b );
+					/* translators: %d: number of share codes */
+					self::done( 'packs', sprintf( 'list' === $b ? _n( 'Added %d pack to Public Packs.', 'Added %d packs to Public Packs.', $n, 'musicmap' ) : _n( 'Removed %d pack from Public Packs.', 'Removed %d packs from Public Packs.', $n, 'musicmap' ), $n ) );
+				}
+			}
 			if ( ! in_array( 'delete', $bulk, true ) ) {
-				self::done( 'packs', __( 'Choose "Delete" in Bulk actions first.', 'musicmap' ) );
+				self::done( 'packs', __( 'Choose an action in Bulk actions first.', 'musicmap' ) );
 			}
 		}
-		$codes = isset( $_REQUEST['codes'] ) ? array_map( 'sanitize_text_field', (array) wp_unslash( $_REQUEST['codes'] ) ) : array();
 		$n     = MusicMap_Store::delete_packs( $codes );
 		/* translators: %d: number of share codes */
 		self::done( 'packs', sprintf( _n( 'Deleted %d share code.', 'Deleted %d share codes.', $n, 'musicmap' ), $n ) );
@@ -257,14 +272,14 @@ class MusicMap_Admin_Data {
 		$table = new MusicMap_Packs_Table();
 		$table->prepare_items();
 		?>
-		<p><?php echo esc_html( sprintf( /* translators: %d: days */ __( 'Packs people shared with a 6-character code. Codes older than %d days expire (change this in Settings).', 'musicmap' ), (int) MusicMap_Settings::get( 'pack_expiry_days' ) ) ); ?></p>
+		<p><?php echo esc_html( sprintf( /* translators: %d: days */ __( 'Packs people shared with a 6-character code. Codes older than %d days expire (change this in Settings); packs listed in Public Packs don\'t.', 'musicmap' ), (int) MusicMap_Settings::get( 'pack_expiry_days' ) ) ); ?></p>
 		<?php self::post_button( 'purge_packs', __( 'Delete all expired codes', 'musicmap' ), array(), __( 'Delete every expired share code?', 'musicmap' ) ); ?>
 		<form method="get">
 			<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE ); ?>">
 			<input type="hidden" name="tab" value="packs">
 			<?php $table->search_box( __( 'Search codes', 'musicmap' ), 'musicmap-pack' ); ?>
 		</form>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Delete the selected share codes?', 'musicmap' ) ); ?>');">
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return ![].some.call(this.querySelectorAll('select[name^=bulk_]'),function(s){return s.value==='delete';})||confirm('<?php echo esc_js( __( 'Delete the selected share codes?', 'musicmap' ) ); ?>');">
 			<input type="hidden" name="action" value="musicmap_delete_packs">
 			<?php $table->display(); ?>
 			<?php wp_nonce_field( 'musicmap_delete_packs' ); // after the table: its own _wpnonce field would otherwise win ?>

@@ -3,7 +3,7 @@
  * MusicMap database storage.
  *
  * Tables (prefix + ):
- *   musicmap_packs  shared packs, one row per share code
+ *   musicmap_packs  shared packs, one row per share code (public = listed in the app's Public Packs)
  *   musicmap_cache  cached third-party lookups (charts, now playing, YouTube matches…)
  *   musicmap_rate   per-visitor rate-limit counters (hashed IPs only)
  *
@@ -14,7 +14,7 @@ defined( 'ABSPATH' ) || exit;
 
 class MusicMap_Store {
 
-	const DB_VERSION = '2'; // 2: problem reports
+	const DB_VERSION = '3'; // 2: problem reports; 3: public packs
 	const CODE_RE    = '/^[A-Z0-9]{4,12}$/';
 	const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -52,8 +52,12 @@ class MusicMap_Store {
   ip_hash char(64) NOT NULL DEFAULT '',
   created_gmt datetime NOT NULL,
   pack longtext NOT NULL,
+  public tinyint(1) unsigned NOT NULL DEFAULT 0,
+  icon varchar(16) NOT NULL DEFAULT '',
+  subtitle varchar(80) NOT NULL DEFAULT '',
   PRIMARY KEY  (code),
-  KEY created_gmt (created_gmt)
+  KEY created_gmt (created_gmt),
+  KEY public (public)
 ) $c;"
 		);
 		dbDelta(
@@ -203,8 +207,11 @@ class MusicMap_Store {
 		return $code;
 	}
 
-	/** Store a (sanitised) pack and return its new code, or '' if no free code was found. */
-	public static function save_pack( array $pack, $ip_hash ) {
+	/**
+	 * Store a (sanitised) pack and return its new code, or '' if no free code was found.
+	 * A public pack is listed in Public Packs, with its icon and subtitle kept for the list.
+	 */
+	public static function save_pack( array $pack, $ip_hash, $public = false ) {
 		global $wpdb;
 		$json = wp_json_encode( $pack );
 		for ( $tries = 0; $tries < 20; $tries++ ) {
@@ -212,14 +219,17 @@ class MusicMap_Store {
 			// INSERT IGNORE + primary key = atomic claim; a taken code simply inserts 0 rows
 			$ok = $wpdb->query(
 				$wpdb->prepare(
-					'INSERT IGNORE INTO ' . self::table( 'packs' ) . ' (code,name,track_count,size_bytes,views,ip_hash,created_gmt,pack) VALUES (%s,%s,%d,%d,0,%s,%s,%s)',
+					'INSERT IGNORE INTO ' . self::table( 'packs' ) . ' (code,name,track_count,size_bytes,views,ip_hash,created_gmt,pack,public,icon,subtitle) VALUES (%s,%s,%d,%d,0,%s,%s,%s,%d,%s,%s)',
 					$code,
 					self::pack_name( $pack ),
 					self::track_count( $pack ),
 					strlen( $json ),
 					$ip_hash,
 					gmdate( 'Y-m-d H:i:s' ),
-					$json
+					$json,
+					$public ? 1 : 0,
+					mb_substr( is_string( $pack['icon'] ?? null ) ? $pack['icon'] : '', 0, 8 ),
+					mb_substr( is_string( $pack['subtitle'] ?? null ) && '' !== $pack['subtitle'] ? $pack['subtitle'] : ( is_string( $pack['source'] ?? null ) ? $pack['source'] : '' ), 0, 80 )
 				)
 			);
 			if ( $ok ) {
@@ -240,7 +250,7 @@ class MusicMap_Store {
 		if ( ! $row ) {
 			return null;
 		}
-		if ( self::is_expired( $row['created_gmt'] ) ) {
+		if ( empty( $row['public'] ) && self::is_expired( $row['created_gmt'] ) ) { // public packs stay until an admin removes them
 			self::delete_packs( array( $code ) );
 			return null;
 		}
@@ -268,7 +278,7 @@ class MusicMap_Store {
 	public static function list_packs( $search, $orderby, $order, $per_page, $page ) {
 		global $wpdb;
 		$t       = self::table( 'packs' );
-		$cols    = array( 'code', 'name', 'track_count', 'size_bytes', 'views', 'created_gmt' );
+		$cols    = array( 'code', 'name', 'track_count', 'size_bytes', 'views', 'created_gmt', 'public' );
 		$orderby = in_array( $orderby, $cols, true ) ? $orderby : 'created_gmt';
 		$order   = 'ASC' === strtoupper( (string) $order ) ? 'ASC' : 'DESC';
 		$where   = '';
@@ -280,9 +290,41 @@ class MusicMap_Store {
 		}
 		$total_sql = "SELECT COUNT(*) FROM $t $where";
 		$total     = (int) ( $args ? $wpdb->get_var( $wpdb->prepare( $total_sql, $args ) ) : $wpdb->get_var( $total_sql ) ); // phpcs:ignore WordPress.DB.PreparedSQL
-		$rows_sql  = "SELECT code,name,track_count,size_bytes,views,created_gmt FROM $t $where ORDER BY $orderby $order LIMIT %d OFFSET %d";
+		$rows_sql  = "SELECT code,name,track_count,size_bytes,views,created_gmt,public FROM $t $where ORDER BY $orderby $order LIMIT %d OFFSET %d";
 		$rows      = $wpdb->get_results( $wpdb->prepare( $rows_sql, array_merge( $args, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL
 		return array( $rows, $total );
+	}
+
+	/**
+	 * Public Packs for the app: name search, most imported or newest first. Only list fields, never the pack itself.
+	 *
+	 * @return array{0: array, 1: int} rows and the total
+	 */
+	public static function list_public( $search, $sort, $per_page, $page ) {
+		global $wpdb;
+		$t     = self::table( 'packs' );
+		$where = 'WHERE public = 1';
+		$args  = array();
+		if ( '' !== $search ) {
+			$where .= ' AND name LIKE %s';
+			$args[] = '%' . $wpdb->esc_like( $search ) . '%';
+		}
+		$order = 'new' === $sort ? 'created_gmt DESC' : 'views DESC, created_gmt DESC';
+		$total = (int) ( $args ? $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t $where", $args ) ) : $wpdb->get_var( "SELECT COUNT(*) FROM $t $where" ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT code,name,icon,subtitle,track_count,views,created_gmt FROM $t $where ORDER BY $order LIMIT %d OFFSET %d", array_merge( $args, array( $per_page, ( $page - 1 ) * $per_page ) ) ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL
+		return array( is_array( $rows ) ? $rows : array(), $total );
+	}
+
+	/** Admin: list or unlist packs in Public Packs. */
+	public static function set_public( array $codes, $public ) {
+		global $wpdb;
+		$n = 0;
+		foreach ( $codes as $code ) {
+			if ( preg_match( self::CODE_RE, (string) $code ) ) {
+				$n += (int) $wpdb->update( self::table( 'packs' ), array( 'public' => $public ? 1 : 0 ), array( 'code' => $code ), array( '%d' ), array( '%s' ) );
+			}
+		}
+		return $n;
 	}
 
 	public static function delete_packs( array $codes ) {
@@ -301,7 +343,7 @@ class MusicMap_Store {
 		$days   = (int) MusicMap_Settings::get( 'pack_expiry_days' );
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS );
 		$t      = self::table( 'packs' );
-		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE created_gmt < %s", $cutoff ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE created_gmt < %s AND public = 0", $cutoff ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	public static function count( $table ) {

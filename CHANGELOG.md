@@ -1,6 +1,27 @@
 # MusicMap Changelog
 
-## v1.20.5 — Current
+## v1.21 — Current
+**Release date:** 2026-10-09
+
+### New
+- **Public Packs:** a new button at the top of the Packs tab opens packs other people shared with everyone. You can search them, sort by Popular or New, and tap **Add** to get one.
+  - When sharing, tick **Make public** to list a pack.
+  - Home, Work, School and Gym pins can't be included in a public pack, and your other pins start switched off. You can switch those back on.
+  - The server removes personal places' coordinates from public packs too, whatever the app sends.
+  - A public pack needs the server. If saving fails, you get an error instead of a private code.
+- **Remove default packs:** default packs now have **Remove**. Removed ones appear in Public Packs under "Default packs you removed", with **Add back**. Their biome edits are kept.
+- **Favourite packs:** tap ☆ on a pack to star it. Starred packs are listed first, under ★ Favourites.
+- **Heart artists in Homegrown:** each artist has a heart, and the player's heart saves the artist that's playing. Saved artists get their own section in the Saved tab, where tapping one plays your saved artists as a list.
+
+### Plugin
+- The share codes table gets `public`, `icon` and `subtitle` columns (database version 3, added automatically).
+- New endpoint `GET /wp-json/musicmap/v1/public?q=&sort=popular|new&page=N`. It returns only the list fields, 24 per page, and is limited to 300 requests per visitor per hour.
+- Each visitor can make 10 packs public a day.
+- Public packs don't expire.
+- New setting: *Public Packs → Sharing to everyone* (on by default). Turning it off hides the list and the Make public option.
+- In MusicMap → Data → Share codes, a new "Public Packs" column and bulk actions to add packs to Public Packs or remove them.
+
+## v1.20.5
 **Release date:** 2026-10-09
 
 ### Fixes
