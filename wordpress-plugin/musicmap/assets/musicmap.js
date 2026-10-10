@@ -2402,7 +2402,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.5';
+const MM_VERSION = '1.23.6';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -7919,12 +7919,12 @@ function watchYtStart(stillWaiting){
     if(b==='safari'){
       // Safari: iCloud Private Relay often sets it off; YouTube's sign-in can't reach other sites here
       msg=intro+'In Safari, iCloud Private Relay often sets it off: in the address bar, choose Reload Reveal IP Address for this site, then try again. A VPN or a private window can too.'
-        +(other||' Or connect Apple Music or Spotify in Settings to play from there.');
-      if(!other) actions=[{label:'Connections',fn:go('amConnectBtn')},...actions];
+        +(other||(APPLE_MUSIC_ON?' Or connect Apple Music or Spotify in Settings to play from there.':' Or connect Spotify in Settings to play from there.'));
+      if(!other) actions=[{label:'Connections',fn:go(APPLE_MUSIC_ON?'amConnectBtn':'spotifyConnectBtn')},...actions];
     } else if(b==='ios'){
       msg=intro+'On iPhone and iPad, a VPN or a private tab can set it off, and YouTube’s sign-in can’t reach other sites. Try without those.'
-        +(other||' Or connect Apple Music or Spotify in Settings to play from there.');
-      if(!other) actions=[{label:'Connections',fn:go('amConnectBtn')},...actions];
+        +(other||(APPLE_MUSIC_ON?' Or connect Apple Music or Spotify in Settings to play from there.':' Or connect Spotify in Settings to play from there.'));
+      if(!other) actions=[{label:'Connections',fn:go(APPLE_MUSIC_ON?'amConnectBtn':'spotifyConnectBtn')},...actions];
     } else if(b==='firefox'){
       msg=intro+'In Firefox, a VPN, a private window or tracking protection can set it off. Try turning off tracking protection for this site (the shield in the address bar)'
         +(ytUseSignIn()?'.':', then turn on Use my YouTube sign-in in Settings → Connections.')

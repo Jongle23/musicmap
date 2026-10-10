@@ -1,6 +1,13 @@
 # MusicMap Changelog
 
-## v1.23.5 — Current
+## v1.23.6 — Current
+**Release date:** 2026-10-10
+
+### Changes
+- Settings → Connections lists SoundCloud above Apple Music, since Apple Music isn't available yet. The order is now YouTube, Spotify, SoundCloud, Apple Music.
+- While Apple Music isn't available, the Safari and iPhone tips for a blocked YouTube song suggest Spotify only.
+
+## v1.23.5
 **Release date:** 2026-10-10
 
 ### Improvements
