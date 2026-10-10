@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.23.6 — Current
+## v1.23.7 — Current
+**Release date:** 2026-10-10
+
+### Changes
+- The dropdown in Settings → Connections now has a title: **Preferred player**, with "Where songs play when you tap them" underneath. It used to say "Play songs on".
+
+## v1.23.6
 **Release date:** 2026-10-10
 
 ### Changes

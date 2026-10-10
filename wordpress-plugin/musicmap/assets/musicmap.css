@@ -233,6 +233,8 @@
 .musicmap-root:not(#mm-scope) .packs-filter{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:8px 11px;color:var(--text);font-size:14px;outline:none;margin-bottom:8px}
 .musicmap-root:not(#mm-scope) .packs-filter[hidden]{display:none}
 .musicmap-root:not(#mm-scope) .dislike-menu button.danger{color:#fca5a5}
+.musicmap-root:not(#mm-scope) .conn-pref b{font-weight:600}
+.musicmap-root:not(#mm-scope) .conn-pref-sub{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
 .musicmap-root:not(#mm-scope) .pack-info{flex:1;min-width:0}
 .musicmap-root:not(#mm-scope) .pack-name{font-family:var(--pixel);font-size:9px;color:#fff;letter-spacing:.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .musicmap-root:not(#mm-scope) .pack-name-row{display:flex;align-items:center;gap:7px;margin-bottom:4px;min-width:0}

@@ -2402,7 +2402,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.6';
+const MM_VERSION = '1.23.7';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3196,7 +3196,7 @@ function setPlayerBusy(on){
 }
 // A status line that is waiting on something: spinner + text (text is escaped)
 function busyText(el,text){ if(el) el.innerHTML='<span class="mm-busy-text"><span class="mm-spinner" aria-hidden="true"></span><span>'+esc(text)+'</span></span>'; }
-// Video (or Spotify album art) above the song name: a setting (Settings > Play songs), the same in both modes.
+// Video (or Spotify album art) above the song name: a setting (Settings > Connections), the same in both modes.
 // On by default: YouTube's terms ask for its player to stay visible while it plays.
 function setShowVideo(on){
   videoVisible=!!on; ss('showVideo',videoVisible);
