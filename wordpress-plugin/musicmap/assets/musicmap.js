@@ -2402,7 +2402,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.3';
+const MM_VERSION = '1.23.4';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -3031,7 +3031,7 @@ function updateNowPlaying(){
 }
 function getTrackSrc(pack, t, autoplay){
   const vid = t.videoId || pack.videoId;
-  return `https://www.youtube-nocookie.com/embed/${vid}?autoplay=${autoplay?1:0}&start=${t.start}&controls=1&modestbranding=1&rel=0`;
+  return (ytUseSignIn()?'https://www.youtube.com':'https://www.youtube-nocookie.com')+`/embed/${vid}?autoplay=${autoplay?1:0}&start=${t.start}&controls=1&modestbranding=1&rel=0`;
 }
 async function playCurrentTrack(useFade){
   const packId=getPackId();
@@ -6105,6 +6105,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!document.getEleme
 function renderConnectionsUI(){
   updateSpotifySettingsUI(); renderCastBtn();
   const logoYt=document.getElementById('connLogoYoutube'); if(logoYt&&!logoYt.innerHTML) logoYt.innerHTML=SOURCE_ICONS.youtube;
+  syncYtSignInUI();
   const logoSp=document.getElementById('connLogoSpotify'); if(logoSp&&!logoSp.innerHTML) logoSp.innerHTML=SOURCE_ICONS.spotify;
   const logoAm=document.getElementById('connLogoApple'); if(logoAm&&!logoAm.innerHTML) logoAm.innerHTML=SOURCE_ICONS.apple;
   const logoSc=document.getElementById('connLogoSoundcloud'); if(logoSc&&!logoSc.innerHTML) logoSc.innerHTML=SOURCE_ICONS.soundcloud;
@@ -7774,12 +7775,39 @@ function ytReady(){
   });
   return ytReadyPromise;
 }
+// YouTube sign-in (Settings → Connections): off = privacy-enhanced player (youtube-nocookie.com, no YouTube cookies);
+// on = YouTube's standard player, which can use the visitor's own YouTube sign-in in this browser. That can get
+// past YouTube's "confirm you're not a bot" check, at the cost of YouTube seeing what they play.
+const ytUseSignIn=()=>gs('ytSignIn',false)===true;
+function setYtSignIn(on){
+  ss('ytSignIn',!!on);
+  syncYtSignInUI();
+  // the player's address is fixed when it's made: make a new one next time something plays
+  if(ytPlayer){
+    const wasPlaying=appMode==='local'?chanPlaying&&chanVia==='youtube':isPlaying&&!spotifyActive&&!scActive;
+    try{ ytPlayer.destroy(); }catch(e){}
+    ytPlayer=null; packsYtTrack=null;
+    if(wasPlaying){
+      if(appMode==='local'){ chanPlaying=false; } else { isPlaying=false; }
+      setPlayIcon(false); setPlayerBusy(false); document.getElementById('playingBars').style.display='none';
+    }
+  }
+  ytBlockedHinted=false;
+  spotifyShowSnack(on?'Using your YouTube sign-in. Press play to continue.':'Back to privacy-enhanced YouTube.');
+}
+function syncYtSignInUI(){
+  const on=ytUseSignIn(), t=document.getElementById('ytSignInToggle'), sub=document.getElementById('ytConnSub');
+  if(t) t.checked=on;
+  const st=document.getElementById('ytStatus'); if(st) st.textContent=on?'● Using your YouTube sign-in':'● No sign-in needed';
+  if(sub) sub.textContent=on?'Using your YouTube sign-in in this browser (standard player). Plays pack videos and Local Listening songs.'
+    :'The default player, in privacy-enhanced mode. Plays pack videos and Local Listening songs; YouTube may show ads.';
+}
 async function ensureYtPlayer(){
   await ytReady();
   if(ytPlayer) return ytPlayer;
   return new Promise(resolve=>{
     ytPlayer=new YT.Player('localYtPlayer',{
-      host:'https://www.youtube-nocookie.com',
+      host:ytUseSignIn()?'https://www.youtube.com':'https://www.youtube-nocookie.com',
       playerVars:{playsinline:1,rel:0,modestbranding:1,origin:location.origin},
       events:{
         onReady:()=>resolve(ytPlayer),
@@ -7874,10 +7902,12 @@ function watchYtStart(stillWaiting){
     document.getElementById('geovibes-app')?.classList.remove('mm-novideo');
     const yc=document.getElementById('ytContainer'); if(yc&&appMode!=='local') yc.style.display='block';
     window.mmLogNote?.('YouTube did not start within 10 s');
+    const signInTip=!ytUseSignIn();
     showLocalAlert('YouTube isn’t starting',
       'If the video asks you to sign in to confirm you’re not a bot, that’s YouTube checking your connection. A VPN, a private window or strict tracking protection can set it off. Try pausing those for this site'
+      +(signInTip?', or turn on Use my YouTube sign-in (Settings → Connections) after signing in to YouTube':'')
       +(isSpotifyConnected()?', or play on Spotify instead.':', or connect Spotify in Settings to play from there.')+' Otherwise, try again in a little while.',
-      [{label:'OK',primary:true}]);
+      signInTip?[{label:'YouTube settings',fn:()=>{ switchTab('settings'); setTimeout(()=>document.getElementById('ytSignInToggle')?.closest('.conn-card')?.scrollIntoView({block:'center',behavior:'smooth'}),100); }},{label:'OK',primary:true}]:[{label:'OK',primary:true}]);
   },10000);
 }
 function ytLooksLikeSong(){

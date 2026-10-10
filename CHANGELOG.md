@@ -1,6 +1,16 @@
 # MusicMap Changelog
 
-## v1.23.3 — Current
+## v1.23.4 — Current
+**Release date:** 2026-10-10
+
+### New
+- **Use my YouTube sign-in** (Settings → Connections → YouTube): an opt-in switch for when songs keep failing with YouTube's "confirm you're not a bot".
+  - It swaps the privacy-enhanced player (youtube-nocookie.com) for YouTube's standard one, which can use the sign-in from youtube.com in the same browser. A link to sign in to YouTube is beside it.
+  - It's off by default. The note explains the trade-off (YouTube then sees what you play), and that some browsers (Safari, Firefox strict mode) block YouTube's sign-in inside other sites.
+  - Switching it rebuilds the player, so press play to carry on.
+- The "YouTube isn't starting" message now suggests this setting and has a button that goes straight to it.
+
+## v1.23.3
 **Release date:** 2026-10-10
 
 ### Changes
