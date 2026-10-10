@@ -1,6 +1,20 @@
 # MusicMap Changelog
 
-## v1.23.7 — Current
+## v1.23.8 — Current
+**Release date:** 2026-10-10
+
+### Fixes
+- **Pack ratings are back where you can see them.** Rating only appeared for packs added with a share code after v1.22, so most lists had nothing to rate. Now:
+  - **Default packs can be rated.** Each one is rated under a fixed code the server knows (MMDEF…). These codes can't be loaded or imported as packs, don't appear in Public Packs, and never expire.
+  - **The packs list shows each pack's average rating** (e.g. "★ 4.5"), fetched in one request when the list opens.
+  - **Rate this pack** is in each pack's ⋯ menu. Once you've rated, it shows "Your rating: ★★★☆☆".
+- Packs you imported before v1.22 still can't be rated: the app didn't keep their share code back then. Adding them again from Public Packs or with their code makes them ratable.
+
+### Plugin
+- New `GET /wp-json/musicmap/v1/ratings?codes=A,B,…` returns averages for up to 40 packs (no counts).
+- Default packs show in MusicMap → Data → Share codes, as "Hoenn Pack (default)" and so on, once someone rates them, with their rating and count.
+
+## v1.23.7
 **Release date:** 2026-10-10
 
 ### Changes

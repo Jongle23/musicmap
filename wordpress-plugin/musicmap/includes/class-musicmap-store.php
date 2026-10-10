@@ -19,6 +19,59 @@ class MusicMap_Store {
 	const DB_VERSION = '4'; // 2: problem reports; 3: public packs; 4: pack ratings and installs
 	const CODE_RE    = '/^[A-Z0-9]{4,12}$/';
 	const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+	/**
+	 * The packs built into the app have no share code, so each gets a fixed one just for ratings (and the admin
+	 * tally). Shared codes are 6 characters, so these 9–10 character ones can never clash with them.
+	 */
+	const BUILTIN_CODES = array(
+		'MMDEFHOENN' => 'Hoenn Pack',
+		'MMDEFKANTO' => 'Kanto Pack',
+		'MMDEFSMB3'  => 'Super Mario Bros. 3',
+		'MMDEFHALO'  => 'Halo Reach',
+		'MMDEFTERRA' => 'Terraria',
+		'MMDEFPACHI' => 'PachiPatch',
+	);
+
+	public static function is_builtin_code( $code ) {
+		return isset( self::BUILTIN_CODES[ $code ] );
+	}
+
+	/** The row a default pack's ratings hang on (made the first time someone rates it). Never importable. */
+	public static function ensure_builtin_row( $code ) {
+		global $wpdb;
+		if ( ! self::is_builtin_code( $code ) ) {
+			return;
+		}
+		$wpdb->query(
+			$wpdb->prepare(
+				'INSERT IGNORE INTO ' . self::table( 'packs' ) . ' (code,name,track_count,size_bytes,views,ip_hash,created_gmt,pack,public,icon,subtitle) VALUES (%s,%s,0,0,0,%s,%s,%s,0,%s,%s)',
+				$code,
+				self::BUILTIN_CODES[ $code ] . ' (default)',
+				'',
+				gmdate( 'Y-m-d H:i:s' ),
+				'{"builtin":true}',
+				'',
+				'Built into MusicMap'
+			)
+		);
+	}
+
+	/** Average ratings for several packs at once (one decimal, null when unrated). Counts stay private. */
+	public static function ratings_for( array $codes ) {
+		global $wpdb;
+		$codes = array_values( array_unique( array_filter( $codes, function ( $c ) { return preg_match( self::CODE_RE, (string) $c ); } ) ) );
+		if ( ! $codes ) {
+			return array();
+		}
+		$t    = self::table( 'packs' );
+		$in   = implode( ',', array_fill( 0, count( $codes ), '%s' ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT code, rating_sum, rating_count FROM $t WHERE code IN ($in)", $codes ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$out  = array();
+		foreach ( (array) $rows as $r ) {
+			$out[ $r['code'] ] = self::average( $r );
+		}
+		return $out;
+	}
 
 	public static function table( $name ) {
 		global $wpdb;
@@ -265,8 +318,8 @@ class MusicMap_Store {
 	/** Fetch a pack by code and count the view. Returns null if missing or expired. */
 	public static function load_pack( $code ) {
 		global $wpdb;
-		if ( ! preg_match( self::CODE_RE, $code ) ) {
-			return null;
+		if ( ! preg_match( self::CODE_RE, $code ) || self::is_builtin_code( $code ) ) {
+			return null; // a default pack's rating code isn't a share code
 		}
 		$t   = self::table( 'packs' );
 		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE code = %s", $code ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name
@@ -413,7 +466,9 @@ class MusicMap_Store {
 		$days   = (int) MusicMap_Settings::get( 'pack_expiry_days' );
 		$cutoff = gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS );
 		$t      = self::table( 'packs' );
-		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE created_gmt < %s AND public = 0", $cutoff ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$keep   = array_keys( self::BUILTIN_CODES ); // default packs' rating rows never expire
+		$in     = implode( ',', array_fill( 0, count( $keep ), '%s' ) );
+		return (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE created_gmt < %s AND public = 0 AND code NOT IN ($in)", array_merge( array( $cutoff ), $keep ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
 	}
 
 	public static function count( $table ) {

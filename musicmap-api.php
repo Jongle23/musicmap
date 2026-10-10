@@ -1,6 +1,6 @@
 <?php
 /**
- * MusicMap Share API — v1.23.7
+ * MusicMap Share API — v1.23.8
  * ===========================
  * Add via PHP Snippets / WPCode using the "Run Everywhere" or "Auto Run" option.
  * Requires PHP 7.4+.
@@ -22,7 +22,7 @@ if ( empty($mm_action) ) {
 }
 
 // ── CONFIG ────────────────────────────────────────────────────────────────
-$MM_API_VERSION = '1.23.7';
+$MM_API_VERSION = '1.23.8';
 $DATA_DIR  = WP_CONTENT_DIR . '/uploads/musicmap_packs/';
 $CODE_LEN  = 6;
 $MAX_BYTES = 400 * 1024;   // 400 KB

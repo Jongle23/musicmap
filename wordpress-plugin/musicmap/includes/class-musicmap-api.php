@@ -13,6 +13,9 @@
  *     GET  /wp-json/musicmap/v1/public?q=&sort=popular|rating|new|title&page=N   → packs shared to everyone (list fields only)
  *     POST /wp-json/musicmap/v1/packs/CODE/rate     body {"device":"<32 hex>","stars":0-5}  → {"ok":true,"rating":4.3|null}
  *     POST /wp-json/musicmap/v1/packs/CODE/install  body {"device":"<32 hex>","on":true|false}
+ *     GET  /wp-json/musicmap/v1/ratings?codes=A,B,C   → {"ok":true,"ratings":{"A":4.3,"B":null}}  (up to 40 codes)
+ *
+ * Default packs are rated under fixed codes (MusicMap_Store::BUILTIN_CODES); those can't be loaded as packs.
  *
  * Ratings are averaged; how many there are is only shown to admins. Device ids are random ids made by the
  * app, stored only as an HMAC, and every write is also rate-limited per (hashed) IP.
@@ -195,6 +198,9 @@ class MusicMap_Api {
 		if ( '' === $device ) {
 			return array( null, self::err( 400, 'Bad request' ) );
 		}
+		if ( MusicMap_Store::is_builtin_code( $code ) ) {
+			MusicMap_Store::ensure_builtin_row( $code );
+		}
 		$row = MusicMap_Store::get_pack_row( $code );
 		if ( ! $row ) {
 			return array( null, self::err( 404, 'Pack not found' ) );
@@ -223,6 +229,20 @@ class MusicMap_Api {
 			array(
 				'ok'     => true,
 				'rating' => MusicMap_Store::rate_pack( $code, $device, $stars ),
+			),
+		);
+	}
+
+	public static function do_ratings( $raw_codes ) {
+		if ( ! MusicMap_Store::rate_hit( self::ip_hash(), 'public_list', 300, HOUR_IN_SECONDS ) ) {
+			return self::err( 429, 'Too many requests — try again later' );
+		}
+		$codes = array_slice( array_map( 'strtoupper', explode( ',', preg_replace( '/[^A-Za-z0-9,]/', '', (string) $raw_codes ) ) ), 0, 40 );
+		return array(
+			200,
+			array(
+				'ok'      => true,
+				'ratings' => (object) MusicMap_Store::ratings_for( $codes ),
 			),
 		);
 	}
@@ -328,6 +348,17 @@ class MusicMap_Api {
 				'permission_callback' => '__return_true',
 				'callback'            => function ( WP_REST_Request $req ) {
 					return self::rest( self::do_save( (string) $req->get_body() ) );
+				},
+			)
+		);
+		register_rest_route(
+			'musicmap/v1',
+			'/ratings',
+			array(
+				'methods'             => 'GET',
+				'permission_callback' => '__return_true',
+				'callback'            => function ( WP_REST_Request $req ) {
+					return self::rest( self::do_ratings( (string) $req['codes'] ) );
 				},
 			)
 		);

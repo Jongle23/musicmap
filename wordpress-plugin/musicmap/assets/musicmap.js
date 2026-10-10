@@ -2127,8 +2127,8 @@ function renderPacksList(){
     card.onclick=(e)=>{ if(!e.target.closest('button')) activatePack(pack.id); };
     const allTracks=getAllPackTracks(pack);
     const packSubtitle=pack.subtitle||pack.source||'';
-    const mine=packCode(pack)?myRating(pack._code):0;
-    const metaText=[packSubtitle, allTracks.length+' track'+(allTracks.length!==1?'s':''), mine?'★ '+mine:''].filter(Boolean).join(' · ');
+    const avg=packAvg[rateCode(pack)];
+    const metaText=[packSubtitle, allTracks.length+' track'+(allTracks.length!==1?'s':''), typeof avg==='number'?'★ '+avg.toFixed(1):''].filter(Boolean).join(' · ');
     const topRow=document.createElement('div');
     topRow.className='pack-card-top';
     topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
@@ -2149,6 +2149,7 @@ function renderPacksList(){
     el.appendChild(card);
   });
   if(q&&!packsToRender.length) el.insertAdjacentHTML('beforeend','<div class="pub-note">No packs match that.</div>');
+  loadPackAverages();
   document.getElementById('packEyebrowName').textContent=(getActivePack()?.name||'').toUpperCase();
   const iconEl=document.getElementById('packEyebrowIcon');
   if(iconEl) iconEl.textContent=getActivePack()?.icon||'🎵';
@@ -2210,7 +2211,7 @@ function openPackMenu(pack,anchor){
   opt('Edit biomes','Choose which tracks play in each biome',()=>editPackBiomes(pack.id));
   opt('Edit pack','Name, icon, videos and tracks',()=>openPackEdit(pack.id));
   opt('Share','A code or a public listing',()=>sharePackById(pack.id));
-  if(packCode(pack)&&MM_CONFIG.restBase){ const mine=myRating(pack._code); opt(mine?'Your rating: '+'★'.repeat(mine):'Rate','',()=>openRatePack(pack)); }
+  if(rateCode(pack)&&MM_CONFIG.restBase){ const mine=myRating(rateCode(pack)); opt(mine?'Your rating: '+'★'.repeat(mine)+'☆'.repeat(5-mine):'Rate this pack',mine?'Tap to change it':'1 to 5 stars',()=>openRatePack(pack)); }
   opt('Make a copy','',()=>duplicatePack(pack.id));
   opt(pack.builtin?'Remove':'Delete',pack.builtin?'You can add it back from Public Packs':'',()=>deletePack(pack.id),true);
   (document.getElementById('geovibes-app')?.parentElement||document.body).append(menu);
@@ -2236,6 +2237,17 @@ function deviceId(){
   return id;
 }
 const packCode=p=>/^[A-Z0-9]{4,12}$/.test(p?._code||'')?p._code:'';
+// What a pack is rated under: its share code, or a fixed code for each default pack (the server knows these)
+const BUILTIN_RATE_CODES={hoenn:'MMDEFHOENN',kanto:'MMDEFKANTO',smb3:'MMDEFSMB3',halo_reach:'MMDEFHALO',terraria:'MMDEFTERRA',pachipatch:'MMDEFPACHI'};
+const rateCode=p=>p?.builtin?(BUILTIN_RATE_CODES[p.id]||''):packCode(p);
+// Average ratings for the packs you have, fetched once per visit (and updated when you rate)
+const packAvg={}; let packAvgFetched=false;
+async function loadPackAverages(){
+  if(packAvgFetched||!MM_CONFIG.restBase) return; packAvgFetched=true;
+  const codes=[...new Set(getAllPacks().map(rateCode).filter(Boolean))].slice(0,40);
+  if(!codes.length) return;
+  try{ const d=await mmApi('ratings?codes='+codes.join(',')); Object.assign(packAvg,d.ratings||{}); renderPacksList(); }catch(e){ packAvgFetched=false; } // try again next time the list draws
+}
 async function packServerAction(code,act,body){
   const base=typeof MM_CONFIG.restBase==='string'&&/^https?:\/\//.test(MM_CONFIG.restBase)?MM_CONFIG.restBase:'';
   if(!base||!/^[A-Z0-9]{4,12}$/.test(code)) throw new Error('This needs the MusicMap server.');
@@ -2248,7 +2260,7 @@ const myRating=code=>{ const v=(gs('packRatings',{})||{})[code]; return Number.i
 const starsText=n=>'★'.repeat(n)+'☆'.repeat(5-n);
 let ratingCode='', ratingName='';
 function openRatePack(pack){
-  ratingCode=packCode(pack); ratingName=pack.name; if(!ratingCode) return;
+  ratingCode=rateCode(pack); ratingName=pack.name; if(!ratingCode) return;
   document.getElementById('rateTitle').textContent='RATE: '+String(pack.name).toUpperCase();
   document.getElementById('rateFlash').textContent='';
   renderRateStars(myRating(ratingCode));
@@ -2272,7 +2284,8 @@ async function sendRating(stars){
   try{
     const d=await packServerAction(ratingCode,'rate',{stars});
     const all=gs('packRatings',{})||{}; if(stars) all[ratingCode]=stars; else delete all[ratingCode]; ss('packRatings',all);
-    renderRateStars(stars); renderPacksList();
+    packAvg[ratingCode]=d.rating;
+    renderPacksList(); renderRateStars(stars);
     flash.textContent=stars?'✓ Thanks! '+(d.rating!=null?'Average: ★ '+Number(d.rating).toFixed(1):''):'Your rating was removed.';
   }catch(e){ flash.textContent=e.message||'Couldn’t save your rating.'; }
 }
@@ -2402,7 +2415,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.7';
+const MM_VERSION = '1.23.8';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
