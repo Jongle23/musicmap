@@ -1,6 +1,18 @@
 # MusicMap Changelog
 
-## v1.23.4 — Current
+## v1.23.5 — Current
+**Release date:** 2026-10-10
+
+### Improvements
+- **"YouTube isn't starting" gives tips for your browser:**
+  - **Safari:** iCloud Private Relay is a common cause. Reload Reveal IP Address for the site, or play on Apple Music or Spotify.
+  - **Other iPhone and iPad browsers:** VPNs and private tabs, or play on Apple Music or Spotify.
+  - **Firefox:** turn off tracking protection for the site, then Use my YouTube sign-in, or play on Spotify.
+  - **Chrome, Edge and the rest:** Use my YouTube sign-in.
+  - Each comes with a button to the right part of Settings.
+- The note under **Use my YouTube sign-in** now says where it works: Chrome and Edge, and Firefox once tracking protection is off for the site. Safari keeps YouTube's sign-in out of other sites. (It used to say "Firefox strict mode", but Firefox's default setting has the same effect.)
+
+## v1.23.4
 **Release date:** 2026-10-10
 
 ### New

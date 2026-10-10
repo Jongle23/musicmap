@@ -2402,7 +2402,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.4';
+const MM_VERSION = '1.23.5';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -7893,6 +7893,16 @@ function chanNextYtReady(from){
 // hasn't started ~10 s after it was asked for (page open), show the video so YouTube's message is visible, and say
 // what helps. Once per visit.
 let ytBlockedHinted=false;
+// Which browser's privacy rules apply: Safari, other iPhone/iPad browsers (Safari's engine and rules, not its
+// menus), Firefox, or others (Chrome, Edge…). Only used to choose which tips to show.
+function browserKind(){
+  const ua=navigator.userAgent||'';
+  const ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  if(ios) return /crios|fxios|edgios|opios|gsa\//i.test(ua)?'ios':'safari'; // other iPhone/iPad browsers: Safari's rules, not its menus
+  if(/firefox/i.test(ua)) return 'firefox';
+  if(/safari/i.test(ua)&&!/chrome|chromium|edg|opr|android/i.test(ua)) return 'safari';
+  return 'other';
+}
 function watchYtStart(stillWaiting){
   setTimeout(()=>{
     if(ytBlockedHinted||document.visibilityState!=='visible'||!stillWaiting()) return;
@@ -7902,12 +7912,31 @@ function watchYtStart(stillWaiting){
     document.getElementById('geovibes-app')?.classList.remove('mm-novideo');
     const yc=document.getElementById('ytContainer'); if(yc&&appMode!=='local') yc.style.display='block';
     window.mmLogNote?.('YouTube did not start within 10 s');
-    const signInTip=!ytUseSignIn();
-    showLocalAlert('YouTube isn’t starting',
-      'If the video asks you to sign in to confirm you’re not a bot, that’s YouTube checking your connection. A VPN, a private window or strict tracking protection can set it off. Try pausing those for this site'
-      +(signInTip?', or turn on Use my YouTube sign-in (Settings → Connections) after signing in to YouTube':'')
-      +(isSpotifyConnected()?', or play on Spotify instead.':', or connect Spotify in Settings to play from there.')+' Otherwise, try again in a little while.',
-      signInTip?[{label:'YouTube settings',fn:()=>{ switchTab('settings'); setTimeout(()=>document.getElementById('ytSignInToggle')?.closest('.conn-card')?.scrollIntoView({block:'center',behavior:'smooth'}),100); }},{label:'OK',primary:true}]:[{label:'OK',primary:true}]);
+    const b=browserKind(), go=(id)=>()=>{ switchTab('settings'); setTimeout(()=>document.getElementById(id)?.closest('.conn-card')?.scrollIntoView({block:'center',behavior:'smooth'}),100); };
+    const intro='If the video asks you to sign in to confirm you’re not a bot, that’s YouTube checking your connection. ';
+    const other=isSpotifyConnected()?' You can also play on Spotify instead.':isAppleConnected()?' You can also play on Apple Music instead.':'';
+    let msg, actions=[{label:'OK',primary:true}];
+    if(b==='safari'){
+      // Safari: iCloud Private Relay often sets it off; YouTube's sign-in can't reach other sites here
+      msg=intro+'In Safari, iCloud Private Relay often sets it off: in the address bar, choose Reload Reveal IP Address for this site, then try again. A VPN or a private window can too.'
+        +(other||' Or connect Apple Music or Spotify in Settings to play from there.');
+      if(!other) actions=[{label:'Connections',fn:go('amConnectBtn')},...actions];
+    } else if(b==='ios'){
+      msg=intro+'On iPhone and iPad, a VPN or a private tab can set it off, and YouTube’s sign-in can’t reach other sites. Try without those.'
+        +(other||' Or connect Apple Music or Spotify in Settings to play from there.');
+      if(!other) actions=[{label:'Connections',fn:go('amConnectBtn')},...actions];
+    } else if(b==='firefox'){
+      msg=intro+'In Firefox, a VPN, a private window or tracking protection can set it off. Try turning off tracking protection for this site (the shield in the address bar)'
+        +(ytUseSignIn()?'.':', then turn on Use my YouTube sign-in in Settings → Connections.')
+        +(other||' Or connect Spotify in Settings to play from there.');
+      actions=[{label:'Connections',fn:go('ytSignInToggle')},...actions];
+    } else {
+      msg=intro+'A VPN, a private window or strict tracking protection can set it off. Try pausing those for this site'
+        +(ytUseSignIn()?'.':', or sign in to YouTube and turn on Use my YouTube sign-in in Settings → Connections.')
+        +(other||' Or connect Spotify in Settings to play from there.');
+      if(!ytUseSignIn()) actions=[{label:'YouTube settings',fn:go('ytSignInToggle')},...actions];
+    }
+    showLocalAlert('YouTube isn’t starting', msg+' Otherwise, try again in a little while.', actions);
   },10000);
 }
 function ytLooksLikeSong(){
