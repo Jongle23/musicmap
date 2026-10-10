@@ -432,7 +432,15 @@
 @keyframes mmSweep{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
 @keyframes mmShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .musicmap-root:not(#mm-scope) #geovibes-app.player-busy #playBtn{position:relative}
-.musicmap-root:not(#mm-scope) #geovibes-app.player-busy #playBtn::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:3px solid rgba(255,255,255,.22);border-top-color:#fff;animation:mmSpin .8s linear infinite;pointer-events:none}
+.musicmap-root:not(#mm-scope) #geovibes-app.player-busy #playBtn svg{opacity:0;transition:opacity .15s}
+.musicmap-root:not(#mm-scope) #geovibes-app.player-busy #playBtn::after{content:'';position:absolute;inset:-6px;border-radius:50%;pointer-events:none;
+  background:
+    conic-gradient(from 0deg,transparent 0 30deg,rgba(255,255,255,.22) 48deg,transparent 66deg,transparent 210deg,rgba(255,255,255,.14) 228deg,transparent 246deg),
+    radial-gradient(circle,#0b0b10 0 5%,rgba(255,255,255,.55) 5.5% 6.5%,var(--accent,#7c3aed) 7% 29%,rgba(0,0,0,.5) 30%,transparent 31.5%),
+    repeating-radial-gradient(circle,#121218 0 1.6px,#24242c 2px 2.8px);
+  box-shadow:0 3px 12px rgba(0,0,0,.5),inset 0 0 0 1px rgba(255,255,255,.1),inset 0 0 0 3px #0d0d12;
+  animation:mmVinylIn .25s ease-out,mmSpin 1.8s linear infinite}
+@keyframes mmVinylIn{from{transform:scale(.6);opacity:0}}
 .musicmap-root:not(#mm-scope) #geovibes-app.player-busy .hero-progress-bg{position:relative}
 .musicmap-root:not(#mm-scope) #geovibes-app.player-busy .hero-progress-bg::after{content:'';position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);animation:mmSweep 1.1s ease-in-out infinite}
 .musicmap-root:not(#mm-scope) .mm-spinner{display:inline-block;width:13px;height:13px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:mmSpin .8s linear infinite;vertical-align:-2px;opacity:.85;flex:0 0 auto;box-sizing:border-box}

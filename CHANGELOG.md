@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.23 — Current
+## v1.23.1 — Current
+**Release date:** 2026-10-10
+
+### Improvements
+- **Vinyl loading animation:** while a song loads, the play button turns into a spinning vinyl record. It has a grooved disc, a label in the biome's colour with a spindle hole, and a light sheen so the spin is easy to see. It replaces the plain spinning ring. With reduced motion turned on, it spins slowly.
+
+## v1.23
 **Release date:** 2026-10-10
 
 ### New
