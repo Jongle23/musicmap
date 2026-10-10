@@ -1,6 +1,19 @@
 # MusicMap Changelog
 
-## v1.23.1 — Current
+## v1.23.2 — Current
+**Release date:** 2026-10-10
+
+### Improvements
+- **YouTube in Connections:** Settings → Connections has a YouTube card, the default player, next to Spotify, Apple Music and SoundCloud. A "How YouTube works in MusicMap" section explains:
+  - how packs play from timestamps;
+  - how Popular and Homegrown find videos;
+  - the daily lookup limit;
+  - privacy-enhanced mode with no sign-in (and so YouTube's ads, and no Premium);
+  - keeping the video visible;
+  - what to do when a song won't start;
+  - why the screen turning off can pause it.
+
+## v1.23.1
 **Release date:** 2026-10-10
 
 ### Improvements
