@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.23.2 — Current
+## v1.23.3 — Current
+**Release date:** 2026-10-10
+
+### Changes
+- The YouTube card in Connections is now short, like the other services: one line on what it plays and how. The long explainer is gone.
+
+## v1.23.2
 **Release date:** 2026-10-10
 
 ### Improvements
