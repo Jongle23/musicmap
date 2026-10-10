@@ -717,6 +717,15 @@ class MusicMap_Channels {
 			if ( preg_match( '/official (audio|video|music video)|\(audio\)/i', $t ) ) {
 				$s += 2;
 			}
+			// looking up an artist (no song title): a video that doesn't name them in its title or channel is
+			// probably someone else's song that only mentions them, so it ranks below one that does
+			if ( '' === $title && '' !== $artist && false === mb_stripos( $t . ' ' . $ch, $artist ) ) {
+				$parts = preg_split( '/\s+/', trim( $artist ) );
+				$last  = (string) end( $parts );
+				if ( mb_strlen( $last ) < 4 || false === mb_stripos( $t . ' ' . $ch, $last ) ) {
+					$s -= 6;
+				}
+			}
 			foreach ( array( 'live', 'cover', 'remix', 'sped up', 'slowed', 'nightcore', '8d' ) as $w ) {
 				if ( preg_match( '/\b' . preg_quote( $w, '/' ) . '\b/', $lt ) && false === strpos( $asked, $w ) ) {
 					$s -= 3;

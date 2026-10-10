@@ -1459,10 +1459,10 @@ const TOUR=[
     text:'Live radio stations near the pin.',
     enter:async()=>{ await tourLocal('radio'); }},
   {title:'Move the pin', target:'#mapSection',
-    text:'Drag the pin, tap the map or search for a place to listen somewhere else. Save spots you like.',
+    text:'Drag the pin, tap the map or search for a place to listen somewhere else. To save a spot you like, use the ♡ in the player.',
     enter:async()=>{ if(appMode!=='local') await setAppMode('local'); switchTab('player'); }},
   {title:'Keep or skip', target:'.hero-controls',
-    text:'♡ saves what’s playing. 👎 stops it playing again (you can undo that in Settings). These work in both modes.'},
+    text:'♡ saves things to Saved. In Local Listening it asks what to save: the song, the artist, the station or this spot. 👎 stops something playing again (undo that in Settings).'},
   {title:'Report a problem', target:'#tabReportBtn',
     text:'Something not working? Tap Report on the screen where it happens. It sends a screenshot of that moment.'},
   {title:'That’s it!', target:'#tourHelpBtn',
@@ -2413,7 +2413,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.22.1';
+const MM_VERSION = '1.22.2';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6419,7 +6419,9 @@ function applyModeUI(){
 // The heart in the player: Saved (Local Listening) or favourites (Biome Beats)
 const SAVE_BTN_HTML='<svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
 function syncVideoBtnForMode(){ if(appMode==='local') updateSaveStationBtn(); else updateFavBtn(); }
-function onHeartBtn(){ if(isLocalMode()) toggleSaveCurrentStation(); else toggleFavCurrent(); }
+// Biome Beats: the heart saves the track (biomes can be switched any time, so no spot to save).
+// Local Listening: it opens a menu of what can be saved right now (song, artist, station, this spot).
+function onHeartBtn(e){ if(isLocalMode()) openSaveMenu(e); else toggleFavCurrent(); }
 async function setAppMode(mode){
   mode=mode==='local'?'local':'packs';
   if(mode===appMode) return;
@@ -6933,23 +6935,48 @@ function toggleStationSaved(st){
   renderLocalList(); updateSaveStationBtn();
   if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
 }
-// the heart in the player saves the artist while an artist plays (Homegrown, Saved artists)
-const heartsArtist=()=>localChannel==='made'||localChannel==='savedArtists'||chanItems[chanIdx]?.kind==='artist';
-function toggleSaveCurrentStation(){
-  if(localChannel!=='radio'&&heartsArtist()){
-    const it=chanItems[chanIdx];
-    if(!it||it.kind!=='artist'){ spotifyShowSnack('Pick an artist first, or tap the heart next to one.'); return; }
-    return toggleArtistSaved(it);
-  }
-  if(localChannel!=='radio'){
+// What the heart can save right now in Local Listening, in menu order
+function saveOptions(){
+  const out=[];
+  if(localChannel==='radio'){
+    const st=localStations[localIdx];
+    if(st) out.push({kind:'Station', name:st.name, on:isStationSaved(st.uuid), toggle:()=>toggleStationSaved(st)});
+  } else {
     const s=currentSongForSave();
-    if(!s){ spotifyShowSnack(chanItems[chanIdx]?.kind==='artist'?'Save works once the song name shows.':'Play a song first, then save it.'); return; }
-    return toggleSongSaved(s);
+    if(s) out.push({kind:'Song', name:s.title+' — '+s.artist, on:isSongSaved(s), toggle:()=>toggleSongSaved(s)});
+    const it=chanItems[chanIdx];
+    const a=it?.kind==='artist'?it:it?.kind==='song'&&it.artist?{name:it.artist}:null;
+    if(a) out.push({kind:'Artist', name:a.name, on:isArtistSaved(a), toggle:()=>toggleArtistSaved(a)});
   }
-  const st=localStations[localIdx];
-  if(!st){ spotifyShowSnack('Pick a station first, then save it.'); return; }
-  toggleStationSaved(st);
+  if(localPoint) out.push({kind:'This spot', name:placeLabel(localPoint.place)||'The listening pin', on:!!nearbySavedSpot(), toggle:()=>toggleSaveSpot()});
+  return out;
 }
+function closeSaveMenu(){ document.getElementById('saveMenu')?.remove(); }
+function openSaveMenu(e){
+  if(e) e.stopPropagation();
+  if(document.getElementById('saveMenu')){ closeSaveMenu(); return; }
+  const opts=saveOptions();
+  if(!opts.length){ spotifyShowSnack('Play something or choose a spot first, then save it.'); return; }
+  const menu=document.createElement('div'); menu.className='dislike-menu save-menu'; menu.id='saveMenu'; menu.setAttribute('role','menu');
+  const head=document.createElement('div'); head.className='t'; head.textContent='Save to Saved…'; menu.append(head);
+  opts.forEach(o=>{
+    const b=document.createElement('button'); b.type='button'; b.setAttribute('role','menuitemcheckbox'); b.setAttribute('aria-checked',o.on);
+    const h=document.createElement('span'); h.className='save-menu-heart'+(o.on?' on':''); h.innerHTML=SAVE_BTN_HTML;
+    const txt=document.createElement('span'); txt.className='save-menu-text';
+    txt.append(document.createTextNode(o.kind+(o.on?' · saved':'')));
+    const sm=document.createElement('small'); sm.textContent=o.name+(o.on?' (tap to remove)':''); txt.append(sm);
+    b.append(h,txt);
+    b.onclick=()=>{ closeSaveMenu(); o.toggle(); };
+    menu.append(b);
+  });
+  (document.getElementById('geovibes-app')?.parentElement||document.body).append(menu);
+  const r=document.getElementById('npHeartBtn').getBoundingClientRect(), m=menu.getBoundingClientRect();
+  menu.style.left=Math.max(16,Math.min(innerWidth-m.width-16,r.left+r.width/2-m.width/2))+'px';
+  menu.style.top=(r.bottom+8+m.height<innerHeight?r.bottom+8:Math.max(8,r.top-m.height-8))+'px';
+  menu.querySelector('button')?.focus();
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#saveMenu,#npHeartBtn')) closeSaveMenu(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('saveMenu')){ closeSaveMenu(); document.getElementById('npHeartBtn')?.focus(); } });
 function heartButton(st){
   const on=isStationSaved(st.uuid);
   const h=document.createElement('button');
@@ -6963,26 +6990,11 @@ function updateSaveStationBtn(){
   updateDislikeBtn();
   const vb=document.getElementById('npHeartBtn');
   if(!vb||!isLocalMode()) return;
-  if(localChannel!=='radio'&&heartsArtist()){
-    const it=chanItems[chanIdx]?.kind==='artist'?chanItems[chanIdx]:null, on=!!it&&isArtistSaved(it);
-    vb.disabled=!it; vb.classList.toggle('saved',on); vb.setAttribute('aria-pressed',on);
-    const label=!it?'Save artist':(on?'Remove '+it.name+' from Saved':'Save '+it.name+' to Saved');
-    vb.setAttribute('aria-label',label); vb.title=label;
-    return;
-  }
-  if(localChannel!=='radio'){
-    const s=currentSongForSave(), on=!!s&&isSongSaved(s);
-    vb.disabled=!s; vb.classList.toggle('saved',on); vb.setAttribute('aria-pressed',on);
-    const label=!s?'Save song':(on?'Remove song from Saved':'Save song to Saved');
-    vb.setAttribute('aria-label',label); vb.title=label;
-    return;
-  }
-  const st=localStations[localIdx];
-  const on=!!st&&isStationSaved(st.uuid);
-  vb.disabled=!st;
-  vb.classList.toggle('saved',on);
-  vb.setAttribute('aria-pressed',on);
-  const label=!st?'Save station':(on?'Remove station from Saved':'Save station');
+  // filled when anything that's playing (or this spot) is already saved; tapping opens the save menu
+  const opts=saveOptions(), on=opts.some(o=>o.on);
+  vb.disabled=!opts.length; vb.classList.toggle('saved',on);
+  vb.setAttribute('aria-haspopup','menu'); vb.removeAttribute('aria-pressed');
+  const label='Save: '+(opts.map(o=>o.kind.toLowerCase()).join(', ')||'nothing yet');
   vb.setAttribute('aria-label',label); vb.title=label;
 }
 function nearbySavedSpot(){
@@ -6997,7 +7009,7 @@ function toggleSaveSpot(){
     d.spots=[{lat:localPoint.lat,lon:localPoint.lon,place:localPoint.place||null,channel:localChannel},...d.spots].slice(0,50);
     spotifyShowSnack('Saved spot: '+(placeLabel(localPoint.place)||'this pin'));
   }
-  putSaved(d); updateSaveSpotBtn();
+  putSaved(d); updateSaveSpotBtn(); updateSaveStationBtn();
   if(document.getElementById('tab-saved')?.classList.contains('active')) renderSavedList();
 }
 function updateSaveSpotBtn(){
@@ -7745,9 +7757,18 @@ async function ensureYtPlayer(){
           if(e.data===YT.PlayerState.PLAYING&&curIt?.kind==='artist'&&curIt._yt?.list){
             const pi=ytPlayer.getPlaylistIndex?.();
             if(curIt._ytStart!=null){ if(pi!==curIt._ytStart&&chanStartedToken===chanPlayToken){ chanStep(1); return; } } // one song per artist, then shuffle on
-            // an artist's uploads also hold interviews, trailers and vlogs: skip on to one that looks like a song
-            else if(!ytLooksLikeSong()&&(curIt._ytSkips=(curIt._ytSkips||0)+1)<=8){ ytPlayer.nextVideo(); return; }
-            else curIt._ytStart=pi;
+            // an artist's uploads also hold interviews, trailers, vlogs and other people's songs: skip on to one of theirs
+            else {
+              const vt=ytPlayer.getVideoData?.()?.title||'';
+              if(!uploadIsArtistSong(vt,curIt.name)){
+                window.mmLogNote?.('Homegrown '+curIt.name+': skipped an upload that isn’t their song: "'+vt.slice(0,80)+'"');
+                if((curIt._ytSkips=(curIt._ytSkips||0)+1)<=8){ ytPlayer.nextVideo(); return; }
+                // nothing on their channel looks like their music: search for it instead of playing something else
+                curIt._ytEmpty=true; playChanItem(chanIdx,'youtube',{fallback:true}); return;
+              }
+              curIt._ytStart=pi;
+              window.mmLogNote?.('Homegrown '+curIt.name+': playing "'+vt.slice(0,80)+'" from their YouTube channel');
+            }
             if(curIt._ytStart===pi) showArtistSong(cleanVideoTitle(ytPlayer.getVideoData?.()?.title,curIt.name));
           }
           if(e.data===YT.PlayerState.PLAYING){ chanStartedToken=chanPlayToken; chanSkips=0; playedOk(); chanPlaying=true; setPlayIcon(true); document.getElementById('playingBars').style.display='flex'; renderChanList(); startChanProgress(); }
@@ -7823,6 +7844,25 @@ function ytLooksLikeSong(){
   const title=ytPlayer?.getVideoData?.()?.title||'', dur=ytPlayer?.getDuration?.()||0;
   return !YT_NOT_MUSIC.test(title) && (!dur || (dur>=70 && dur<=900));
 }
+// An artist's channel (from Wikidata) can be a shop, label or side project whose uploads aren't their songs.
+// e.g. a guitarist's guitar-shop channel uploading "Lynyrd Skynyrd - Free Bird" played by customers.
+// Only a video that looks like *this artist's* song is played and credited to them.
+const UPLOAD_NOT_THEIRS=/\b(covers?|covered|review|demo|shop|store|clinic|masterclass|workshop|rig rundown|gear|giveaway|anniversary|sponsored|lesson|how to play|tutorial|jam session|guest)\b/i;
+const foldName=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function mentionsArtist(text,artist){
+  const t=foldName(text), a=foldName(artist).trim(); if(!a) return true;
+  if(t.includes(a)) return true;
+  const last=a.split(/\s+/).pop(); // "Jabs" for "Matthias Jabs"
+  return last.length>=4&&new RegExp('\\b'+last.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b').test(t);
+}
+function uploadIsArtistSong(title,artist){
+  if(!ytLooksLikeSong()||UPLOAD_NOT_THEIRS.test(title)) return false;
+  // "Other Artist - Song": credited to someone else on both sides
+  const m=String(title).match(/^(.+?)\s+[-–—|]\s+(.+)$/);
+  if(m&&!mentionsArtist(m[1],artist)&&!mentionsArtist(m[2],artist)
+     &&!/^(live|official|acoustic|remaster|lyric|audio|video|\(|\[|\d{4})/i.test(m[2].trim())) return false;
+  return true;
+}
 async function chanPlayYouTube(it,token){
   const p=await ensureYtPlayer();
   if(token!==chanPlayToken) return;
@@ -7860,7 +7900,10 @@ async function chanPlayYouTube(it,token){
   if(token!==chanPlayToken) return;
   if(!YT_ID.test(r.videoId||'')) throw Object.assign(new Error('No playable video found.'),{code:'not_found'});
   it._yt={id:r.videoId};
-  if(it.kind==='artist'&&r.title) it._song=cleanVideoTitle(r.title,it.name); // shown once playback starts
+  if(it.kind==='artist'&&r.title){
+    it._song=cleanVideoTitle(r.title,it.name); // shown once playback starts
+    window.mmLogNote?.('Homegrown '+it.name+': YouTube search picked "'+String(r.title).slice(0,80)+'"'+(r.channel?' ('+String(r.channel).slice(0,40)+')':''));
+  }
   if(rn&&YT_ID.test(rn.videoId||'')){
     nextIt._yt={id:rn.videoId};
     chanYtNext={idx:nextIdx,id:rn.videoId,token};

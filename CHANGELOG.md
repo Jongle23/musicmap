@@ -1,6 +1,20 @@
 # MusicMap Changelog
 
-## v1.22.1 — Current
+## v1.22.2 — Current
+**Release date:** 2026-10-10
+
+### Changes
+- **One heart for saving:** in Local Listening, the player's heart opens a short menu of what can be saved right now: the **Song**, the **Artist**, the **Station** (on Radio) or **This spot**. Each item shows whether it's already saved, and tapping a saved one removes it. The heart is filled when anything in the menu is saved. The separate "Save spot" button is gone.
+- In Biome Beats, the heart still saves the track with a single tap. Biomes can be switched any time, so there's no spot to save there.
+
+### Fixes
+- **Homegrown no longer credits other people's songs to an artist.** Example: "Free Bird" showed as by Matthias Jabs. His Wikidata entry links to his guitar shop's YouTube channel, which also uploads other people's songs. The app played that channel's uploads, skipping only obvious non-songs, and after 8 skips it played whatever came next anyway.
+  - It now also skips uploads credited to someone else (e.g. "Lynyrd Skynyrd - Free Bird"), covers, reviews, demos, lessons and shop or anniversary videos.
+  - If nothing on the channel looks like the artist's own music, it searches for the artist instead of playing something else.
+- When the server searches YouTube for an artist, a video that doesn't name the artist in its title or channel now ranks lower.
+- **Easier to trace:** the log in a problem report now records which video Homegrown played for an artist, and where it came from (their channel or a search). It also records uploads it skipped.
+
+## v1.22.1
 **Release date:** 2026-10-09
 
 ### Improvements
