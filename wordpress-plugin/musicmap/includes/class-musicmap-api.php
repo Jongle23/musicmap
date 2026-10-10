@@ -126,8 +126,9 @@ class MusicMap_Api {
 			200,
 			array(
 				'ok'    => true,
-				'pack'  => $row['pack'],
-				'views' => (int) $row['views'],
+				'pack'   => $row['pack'],
+				'views'  => (int) $row['views'],
+				'public' => ! empty( $row['public'] ),
 			),
 		);
 	}

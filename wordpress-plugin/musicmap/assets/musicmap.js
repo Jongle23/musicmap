@@ -1892,7 +1892,9 @@ function importSharedPack(pack, silent, code){
   // Assign a fresh id to avoid collision with existing packs
   const freshId='imported_'+Date.now();
   code=String(code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-  const toSave={...pack, id:freshId, builtin:false, _code:/^[A-Z0-9]{4,12}$/.test(code)?code:undefined};
+  const hasCode=/^[A-Z0-9]{4,12}$/.test(code);
+  const toSave={...pack, id:freshId, builtin:false, _code:hasCode?code:undefined, _origin:hasCode?(pack.__isPublic?'public':'shared'):undefined};
+  ['__isPublic','_myCode','_myPublic','_mySig','_sig','_forkedFrom'].forEach(k=>delete toSave[k]); // the sharer's own bookkeeping isn't ours
   if(toSave._code) packServerAction(toSave._code,'install',{on:true}).catch(()=>{});
   // Restore any bundled overrides into the store
   if(pack._biomeOverrides){
@@ -1903,6 +1905,7 @@ function importSharedPack(pack, silent, code){
   }
   delete toSave._biomeOverrides;
   delete toSave._locTracks;
+  if(hasCode) toSave._sig=packSig(toSave); // as it arrived: changing it later counts as "edited"
   existing.push(toSave);
   saveUserPacks(existing);
   if(!silent){
@@ -2128,11 +2131,12 @@ function renderPacksList(){
     const allTracks=getAllPackTracks(pack);
     const packSubtitle=pack.subtitle||pack.source||'';
     const avg=packAvg[rateCode(pack)];
-    const metaText=[packSubtitle, allTracks.length+' track'+(allTracks.length!==1?'s':''), typeof avg==='number'?'★ '+avg.toFixed(1):''].filter(Boolean).join(' · ');
+    const metaText=[packSubtitle, allTracks.length+' track'+(allTracks.length!==1?'s':'')].filter(Boolean).join(' · ');
+    const ratingHtml=typeof avg==='number'?' · <span class="pack-rating" aria-label="Rated '+avg.toFixed(1)+' out of 5">★ '+avg.toFixed(1)+'</span>':'';
     const topRow=document.createElement('div');
     topRow.className='pack-card-top';
     topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
-      +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+(isActive?'<span class="pack-active">▶ Playing</span> · ':'')+esc(metaText)+'</div></div>';
+      +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+packBadgeHtml(pack)+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+(isActive?'<span class="pack-active">▶ Playing</span> · ':'')+esc(metaText)+ratingHtml+'</div></div>';
     const starOn=starred.includes(pack.id);
     const star=document.createElement('button'); // a bookmark, so it isn't mistaken for the star rating
     star.type='button'; star.className='pack-star'+(starOn?' on':'');
@@ -2290,6 +2294,57 @@ async function sendRating(stars){
   }catch(e){ flash.textContent=e.message||'Couldn’t save your rating.'; }
 }
 
+// ── Where a pack came from ── Default (built in), Public (listed in Public Packs), Shared (has a share code) or
+// Private (yours, never shared). A pack that has a code and has been changed since is marked "edited".
+// Fingerprint of what sharing sends: the pack itself plus its biome names and track lists
+function packSig(p){
+  const canon=v=>Array.isArray(v)?'['+v.map(canon).join(',')+']':v&&typeof v==='object'?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}':JSON.stringify(v===undefined?null:v);
+  const str=canon({n:p.name||'',s:p.subtitle||'',i:p.icon||'',v:p.videos||p.videoId||'',t:p.videos?null:(p.tracks||[]),b:p.biomes||[],
+    o:gs(packKey(p.id,'biomeOverrides'),{}),l:gs(packKey(p.id,'locTracks'),{})});
+  let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193); } // FNV-1a
+  return (h>>>0).toString(36)+':'+str.length;
+}
+const builtinBase=p=>p?.builtin?p.id:(p?._forkedFrom&&BUILTIN_PACKS.some(b=>b.id===p._forkedFrom)?p._forkedFrom:'');
+function packOrigin(p){
+  if(builtinBase(p)) return 'default';
+  if(p._myPublic||p._origin==='public') return 'public';
+  if(p._code||p._myCode) return 'shared';
+  return 'private';
+}
+// changed since it arrived (or since you last shared it, or from the default)
+function packEdited(p){
+  const base=builtinBase(p);
+  if(base){
+    if(!p.builtin) return true; // a renamed or re-videoed copy of a default pack
+    const pristine={...BUILTIN_PACKS.find(b=>b.id===base)};
+    return !!(Object.keys(gs(packKey(p.id,'biomeOverrides'),{})).length||Object.keys(gs(packKey(p.id,'locTracks'),{})).length)&&packSig(p)!==packSig({...pristine,id:'__pristine__'});
+  }
+  if(p._code) return !!p._sig&&packSig(p)!==p._sig;   // vs the pack it came from
+  return !!p._mySig&&packSig(p)!==p._mySig;          // your own: vs when you last shared it
+}
+// the code to hand out for the pack as it was: a default pack's code, the code it came with, or the one you made
+function originalShare(p){
+  const base=builtinBase(p);
+  if(base) return {code:BUILTIN_RATE_CODES[base], what:'the default '+(BUILTIN_PACKS.find(b=>b.id===base)?.name||'pack')};
+  if(p._code) return {code:p._code, what:'the original '+(p._origin==='public'?'public ':'')+'pack'};
+  if(p._myCode) return {code:p._myCode, what:'the version you shared before'};
+  return null;
+}
+function builtinFromCode(raw){
+  const c=String(raw||'').trim().toUpperCase();
+  const id=Object.keys(BUILTIN_RATE_CODES).find(k=>BUILTIN_RATE_CODES[k]===c);
+  return id?BUILTIN_PACKS.find(b=>b.id===id):null;
+}
+function useDefaultPack(id){
+  if(getRemovedDefaults().includes(id)) ss(REMOVED_DEFAULTS_KEY,getRemovedDefaults().filter(x=>x!==id));
+  activatePack(id);
+}
+const ORIGIN_LABEL={default:'Default',public:'Public',shared:'Shared',private:'Private'};
+function packBadgeHtml(p){
+  const o=packOrigin(p);
+  return '<span class="pack-badge b-'+o+'">'+ORIGIN_LABEL[o]+'</span>'+(o!=='private'&&packEdited(p)?'<span class="pack-edited">edited</span>':'');
+}
+
 // ── Public Packs ── packs shared with everyone (from the server), plus default packs you removed
 const publicPacksOn=()=>!!(API_URL&&MM_CONFIG.restBase&&MM_CONFIG.publicPacks);
 let pubSort='popular', pubPage=0, pubSeq=0, pubSearchTimer=null;
@@ -2368,6 +2423,7 @@ async function addPublicPack(code,btn){
   btn.disabled=true; btn.textContent='Adding…';
   try{
     const pack=await ShareBackend.loadFromServer(code);
+    pack.__isPublic=true;
     if(!importSharedPack(pack,false,code)) throw new Error('That pack couldn’t be added.');
     btn.textContent='Added ✓';
     spotifyShowSnack('Added '+(pack.name||'the pack')+' and switched to it.');
@@ -2415,7 +2471,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.8';
+const MM_VERSION = '1.23.9';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2460,6 +2516,7 @@ const ShareBackend = {
     const r = await fetch(API_URL + 'load&code=' + encodeURIComponent(code));
     const d = await r.json();
     if (!r.ok || !d.pack) throw new Error(d.error || 'Not found');
+    if (d.pack && typeof d.pack === 'object') d.pack.__isPublic = d.public === true;
     return d.pack;
   },
 };
@@ -2470,10 +2527,20 @@ const PERSONAL_BIOME_IDS=new Set(['home','work','school','gym']);
 let sharingPackId = null;
 
 function sharePack(){ sharePackById(getActivePackId()); }
-function sharePackById(packId){
+function sharePackById(packId,fresh){
   sharingPackId = packId;
   const pack = getAllPacks().find(p=>p.id===packId);
   if(!pack) return;
+  const orig=fresh?null:originalShare(pack);
+  // your own version, unchanged since you last shared it: the same code again
+  if(!fresh&&pack._myCode&&pack._mySig&&packSig(pack)===pack._mySig) return showOriginalShare(pack,pack._myCode);
+  if(orig&&!packEdited(pack)) return showOriginalShare(pack,orig.code); // nothing changed: same code, no new copy
+  if(orig){
+    showLocalAlert('You’ve changed this pack',
+      'Share your edited version (it gets a new code), or share '+orig.what+' as it was ('+orig.code+')?',
+      [{label:'My edited version',primary:true,fn:()=>sharePackById(packId,true)},{label:'The original',fn:()=>showOriginalShare(pack,orig.code)},{label:'Cancel'}]);
+    return;
+  }
   // Reset state
   document.getElementById('shareResultBox').style.display='none';
   document.getElementById('sharePrivacyBox').style.display='block';
@@ -2537,6 +2604,19 @@ function onSharePublicChange(){
     cb.closest('.priv-toggle')?.setAttribute('title',pub&&personal?'Personal places are never shared publicly':'Toggle off to exclude from share');
   });
 }
+// The share window, straight to its result, with a code that already exists
+function showOriginalShare(pack,code){
+  sharingPackId=pack.id;
+  document.getElementById('shareModalTitle').textContent='SHARE: '+pack.name.toUpperCase();
+  document.getElementById('sharePrivacyBox').style.display='none';
+  document.getElementById('shareResultBox').style.display='block';
+  document.getElementById('copyFlash').textContent='';
+  document.getElementById('shareMdToggle').checked=!!gs('shareMarkdown',false);
+  const base=builtinBase(pack), shown=base?BUILTIN_PACKS.find(b=>b.id===base):pack;
+  renderShareResult(shown,code);
+  document.getElementById('copyFlash').textContent=base?'Default pack: anyone can use this code to switch to it.':code===pack._myCode?'Same code as your last share: nothing changed.':'The original code: you haven’t changed it.';
+  document.getElementById('shareModalOverlay').classList.add('open');
+}
 function closePrivacyModal(){ closeShareModal(); }
 function closeShareModal(e){
   if(!e||e.target===document.getElementById('shareModalOverlay'))
@@ -2574,6 +2654,7 @@ async function confirmShare(){
     _locTracks:locTracks,
     _customLocs:allLocs.filter(l=>!PERSONAL_BIOME_IDS.has(l.id)),
     _code:undefined, // the code this copy was imported from belongs to the original
+    _origin:undefined, _sig:undefined, _myCode:undefined, _myPublic:undefined, _mySig:undefined, _forkedFrom:undefined,
     ...(isPublic?{_public:true}:{}),
   };
 
@@ -2602,7 +2683,16 @@ async function confirmShare(){
     document.getElementById('shareCodeDisplay').textContent='Failed to generate code.';
     return;
   }
-
+  // your own pack (or your edited copy) now has a code: sharing it again unchanged reuses it
+  if(!pack.builtin&&!/^MM-/.test(code)){
+    const ups=getUserPacks(), i=ups.findIndex(p=>p.id===pack.id);
+    if(i>=0){ ups[i]={...ups[i], _myCode:code, _myPublic:!!isPublic||!!ups[i]._myPublic, _mySig:packSig(ups[i])}; saveUserPacks(ups); renderPacksList(); }
+  }
+  renderShareResult(pack,code);
+  if(isPublic){ document.getElementById('copyFlash').textContent='✓ Listed in Public Packs'; }
+}
+// The finished message for a code: plain text and Markdown versions
+function renderShareResult(pack,code){
   // Build rich share text: code + link + instructions, plain and as Markdown
   const pageUrl=location.href.split('?')[0];
   const trackCount=getAllPackTracks(pack).length;
@@ -2626,7 +2716,6 @@ async function confirmShare(){
   disp.dataset.plain=richText;
   disp.dataset.md=markdown;
   setShareMarkdown(gs('shareMarkdown',false));
-  if(isPublic){ document.getElementById('copyFlash').textContent='✓ Listed in Public Packs'; }
 }
 
 // ── Share message as Markdown ── for Discord, Reddit and other apps that format it.
@@ -2727,6 +2816,8 @@ async function importFromCode(){
       pack=normaliseAiJson(j);
       if(!pack){flash.textContent='❌ JSON missing required fields (name, videoId, tracks)';return;}
     }catch(e){flash.textContent='❌ Invalid JSON — check formatting';return;}
+  } else if(builtinFromCode(raw)){
+    const d=builtinFromCode(raw); useDefaultPack(d.id); flash.textContent='✓ '+d.name+' is a default pack: switched to it.'; return;
   } else if(!raw.startsWith('MM-')&&API_URL){
     try{
       pack=await ShareBackend.loadFromServer(raw);
@@ -5225,6 +5316,9 @@ async function miDoImport(){
     }
     pack=miNormaliseAiJson(j);
     if(!pack){flash.textContent='❌ Missing required fields';return;}
+  } else if(builtinFromCode(raw)){
+    const d=builtinFromCode(raw); useDefaultPack(d.id); flash.textContent='✓ '+d.name+' is a default pack: switched to it.';
+    document.getElementById('makeImportOverlay').classList.remove('open'); return;
   } else if(!raw.startsWith('MM-')&&API_URL){
     try{pack=await ShareBackend.loadFromServer(raw);}
     catch(e){flash.textContent='❌ '+(e.message||'Not found');return;}

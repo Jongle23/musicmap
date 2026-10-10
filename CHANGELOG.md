@@ -1,6 +1,23 @@
 # MusicMap Changelog
 
-## v1.23.8 — Current
+## v1.23.9 — Current
+**Release date:** 2026-10-10
+
+### New
+- **Pack badges:** each pack in the list is labelled **Default** (built in), **Public** (from Public Packs, or one you made public), **Shared** (added with a code, or one you shared with a code) or **Private** (yours, never shared).
+  - A pack you've changed since it arrived, or since you last shared it, is marked *edited*.
+- **Sharing reuses codes when nothing changed:**
+  - **An unedited pack shares its original code:** the public or shared code it came with, or a default pack's own code. Your own packs reuse the code from your last share instead of making a new one each time.
+  - **An edited pack asks first:** share *My edited version* (it gets a new code) or *The original* (its original code).
+- **Default packs can be shared by code** (e.g. `MMDEFHOENN`). Importing one switches to that default pack, and adds it back if it had been removed.
+
+### Changes
+- The average star rating on each pack is now gold.
+
+### Plugin
+- Loading a share code now also says whether that pack is public, so imported packs get the right badge.
+
+## v1.23.8
 **Release date:** 2026-10-10
 
 ### Fixes
