@@ -448,6 +448,7 @@
         onclick="this.focus();document.execCommand('selectAll')"></div>
       <div style="display:flex;gap:8px;margin-bottom:6px;margin-top:10px">
         <button class="btn-primary" style="flex:1;padding:9px" onclick="copyShareCode(true)"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg> Copy message</button>
+        <button class="btn-secondary" id="copyPackLinkBtn" style="padding:9px" onclick="copyShareLink()" hidden><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Link</button>
         <button class="btn-secondary" style="padding:9px" onclick="copyShareCode(false)"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="4"/><line x1="10.5" y1="13.5" x2="20" y2="4"/><line x1="16.5" y1="7.5" x2="19" y2="10"/><line x1="13" y1="11" x2="15.5" y2="13.5"/></svg> Code only</button>
         <button class="btn-secondary" style="padding:9px 12px" onclick="closeShareModal()"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
@@ -795,7 +796,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.23.9</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.23.10</div>
   <div style="font-size:11px;color:rgba(255,255,255,.55);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.75)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.75)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.75)">Report a problem</a></span></div>
 </div>
 </div><!-- #geovibes-app -->

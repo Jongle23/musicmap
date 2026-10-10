@@ -1,6 +1,17 @@
 # MusicMap Changelog
 
-## v1.23.9 — Current
+## v1.23.10 — Current
+**Release date:** 2026-10-10
+
+### New
+- **Pack links:** sharing a pack now gives a link with the code built in (`…/musicmap/?mm_pack=CODE`), as well as the code itself.
+  - The share window has a **Link** button, and the share message (plain and Markdown) leads with "Add it in one tap".
+  - Opening a link shows the pack (name, subtitle, track count, and whether it's from Public Packs) and asks **Add this pack?**. Nothing is added without that tap.
+  - If you already have the pack, the link just switches to it. A default pack's link switches to that default pack (and adds it back if it was removed). A link whose pack has expired says so.
+  - The code is removed from the address bar once read, and the first-visit tour doesn't pop up over it.
+- Long offline codes (`MM-…`) are too long for a link, so they're still shared as codes only.
+
+## v1.23.9
 **Release date:** 2026-10-10
 
 ### New

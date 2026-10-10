@@ -1830,7 +1830,8 @@ async function init(){
   // the last known location, shared by both modes (a week at most)
   const lf=gs('lastFix',null);
   if(lf&&Number.isFinite(lf.lat)&&Number.isFinite(lf.lon)&&Math.abs(lf.lat)<=90&&Math.abs(lf.lon)<=180&&Date.now()-(Number(lf.t)||0)<7*864e5){ lastLat=lf.lat; lastLon=lf.lon; }
-  const fromShare=readShareLink();
+  const packLinkCode=readPackLink();
+  const fromShare=readShareLink()||!!packLinkCode;
   if(fromShare){ appMode='local'; ss('appMode','local'); applyModeUI(); }
   if(appMode==='local'){
     // opening in Local Listening: start on the channel list (the default Packs tab doesn't apply)
@@ -1842,6 +1843,7 @@ async function init(){
   // on page load), and not when a shared link chose the spot
   // Live location starts only from a tap on Listen to World (never by itself when the page opens)
   if(!fromShare&&!gs('tourSeen',false)) setTimeout(()=>{ if(tourAt<0) openTour(); },900);
+  if(packLinkCode) setTimeout(()=>openPackLink(packLinkCode),300);
 }
 
 // Back from the lock screen / another app: if Spotify stopped while the screen was off, carry on
@@ -2471,7 +2473,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.23.9';
+const MM_VERSION = '1.23.10';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2662,7 +2664,7 @@ async function confirmShare(){
   document.getElementById('sharePrivacyBox').style.display='none';
   document.getElementById('shareResultBox').style.display='block';
   const shareDisp=document.getElementById('shareCodeDisplay');
-  delete shareDisp.dataset.plain; delete shareDisp.dataset.md; delete shareDisp.dataset.rich; delete shareDisp.dataset.code;
+  delete shareDisp.dataset.plain; delete shareDisp.dataset.md; delete shareDisp.dataset.rich; delete shareDisp.dataset.code; delete shareDisp.dataset.link; document.getElementById('copyPackLinkBtn').hidden=true;
   document.getElementById('shareMdToggle').checked=!!gs('shareMarkdown',false);
   busyText(shareDisp,'Generating…');
   document.getElementById('copyFlash').textContent='';
@@ -2696,12 +2698,14 @@ function renderShareResult(pack,code){
   // Build rich share text: code + link + instructions, plain and as Markdown
   const pageUrl=location.href.split('?')[0];
   const trackCount=getAllPackTracks(pack).length;
-  const markdown=shareMarkdownText(pack,code,pageUrl,trackCount);
+  const link=packLink(code);
+  const markdown=shareMarkdownText(pack,code,pageUrl,trackCount,link);
   const richText=
     'MusicMap Pack: '+pack.name+'\n'
     +(pack.subtitle?pack.subtitle+'\n':'')
     +trackCount+' tracks · '+pack.biomes.length+' biomes\n'
     +'\n'
+    +(link?'Add it in one tap: '+link+'\n\n':'')
     +'Import code: '+code+'\n'
     +'\n'
     +'How to play:\n'
@@ -2713,6 +2717,8 @@ function renderShareResult(pack,code){
   // Store just the code for the copy button, both full messages for the Markdown toggle
   const disp=document.getElementById('shareCodeDisplay');
   disp.dataset.code=code;
+  disp.dataset.link=link;
+  document.getElementById('copyPackLinkBtn').hidden=!link;
   disp.dataset.plain=richText;
   disp.dataset.md=markdown;
   setShareMarkdown(gs('shareMarkdown',false));
@@ -2721,13 +2727,15 @@ function renderShareResult(pack,code){
 // ── Share message as Markdown ── for Discord, Reddit and other apps that format it.
 // Pack names and subtitles are the sharer's own text, so Markdown characters in them are escaped.
 const mdEscape=t=>String(t||'').replace(/[\\`*_~|<>\[\]()#]/g,'\\$&').replace(/[\r\n]+/g,' ');
-function shareMarkdownText(pack,code,pageUrl,trackCount){
-  const url=pageUrl.replace(/[()\s<>]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0'));
+function shareMarkdownText(pack,code,pageUrl,trackCount,link){
+  const safe=u=>u.replace(/[()\s<>]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0'));
+  const url=safe(pageUrl);
   const lines=[
     '**MusicMap Pack: '+mdEscape(pack.name)+'**',
     ...(pack.subtitle?[(pack.icon?pack.icon+' ':'')+'*'+mdEscape(pack.subtitle)+'*']:[]),
     '🎵 **'+trackCount+' tracks** · 🗺️ **'+pack.biomes.length+' biomes**',
     '',
+    ...(link?['🔗 **[Add it in one tap]('+safe(link)+')**','']:[]),
     '**Import Code**',
     '`'+String(code).replace(/`/g,'')+'`',
     '',
@@ -2748,6 +2756,13 @@ function setShareMarkdown(on){
   disp.textContent=disp.dataset.rich;
 }
 
+function copyShareLink(){
+  const link=document.getElementById('shareCodeDisplay').dataset.link; if(!link) return;
+  navigator.clipboard.writeText(link).then(()=>{
+    const flash=document.getElementById('copyFlash'); flash.textContent='✓ Link copied! Opening it offers to add the pack.';
+    setTimeout(()=>flash.textContent='',3000);
+  }).catch(()=>{ document.getElementById('copyFlash').textContent=link; });
+}
 function copyShareCode(richOnly){
   const el=document.getElementById('shareCodeDisplay');
   const text=richOnly?el.dataset.rich:el.dataset.code||el.textContent;
@@ -8281,6 +8296,43 @@ async function shareListen(params,label){
   }catch(e){ if(e&&e.name==='AbortError') return; }
   try{ await navigator.clipboard.writeText(url); spotifyShowSnack('Link copied'); }
   catch(e){ showLocalAlert('Share link', url, [{label:'OK',primary:true}]); }
+}
+// ── Pack links ── ?mm_pack=CODE opens MusicMap and offers to add that pack (it's never added without a tap).
+// Server codes and default packs' codes only; long MM- codes don't fit in a link.
+function packLink(code){
+  if(!/^[A-Z0-9]{4,12}$/.test(code||'')) return '';
+  const u=new URL(location.href.split('#')[0]);
+  [...u.searchParams.keys()].forEach(k=>{ if(/^(mm_|ml_)/.test(k)||['code','state','error','ubi'].includes(k)) u.searchParams.delete(k); });
+  u.searchParams.set('mm_pack',code);
+  return u.toString();
+}
+function readPackLink(){
+  const q=new URLSearchParams(location.search);
+  if(!q.has('mm_pack')) return '';
+  const code=String(q.get('mm_pack')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  q.delete('mm_pack'); history.replaceState({},'',location.pathname+(q.toString()?'?'+q:'')+location.hash); // tidy the address
+  return /^[A-Z0-9]{4,12}$/.test(code)?code:'';
+}
+async function openPackLink(code){
+  if(appMode!=='packs') await setAppMode('packs');
+  const def=builtinFromCode(code);
+  if(def){ useDefaultPack(def.id); spotifyShowSnack(def.name+' is a default pack: switched to it.'); return; }
+  const have=getUserPacks().find(p=>p._code===code||p._myCode===code);
+  if(have){ activatePack(have.id); spotifyShowSnack('You already have '+have.name+': switched to it.'); return; }
+  if(!API_URL){ showLocalAlert('Can’t open this pack','Pack links need the MusicMap server, which this copy of the app doesn’t have.',[{label:'OK',primary:true}]); return; }
+  let pack;
+  try{ pack=await ShareBackend.loadFromServer(code); }
+  catch(e){ showLocalAlert('Pack not found','That pack link doesn’t work any more: '+(e.message||'it may have expired.'),[{label:'OK',primary:true}]); return; }
+  const n=getAllPackTracks(pack).length;
+  showLocalAlert('Add this pack?',
+    (pack.icon?String(pack.icon).slice(0,8)+' ':'')+String(pack.name||'A pack').slice(0,80)
+      +(pack.subtitle?' · '+String(pack.subtitle).slice(0,80):'')+' · '+n+' track'+(n===1?'':'s')
+      +(pack.__isPublic?' · from Public Packs':'')+'. Someone shared it with you.',
+    [{label:'Add pack',primary:true,fn:()=>{
+        if(importSharedPack(pack,false,code)){ switchTab('player'); spotifyShowSnack('Added '+(pack.name||'the pack')+' and switched to it.'); }
+        else spotifyShowSnack('That pack couldn’t be added.');
+      }},
+     {label:'Not now'}]);
 }
 // Opening a shared link: validate everything, then set the pin and channel. Playback still
 // waits for a tap (browsers block autoplay), but the shared item is highlighted and ready.
