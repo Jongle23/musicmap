@@ -25,6 +25,7 @@ window.mmLog=[];
 // Emoji are reserved for pack + biome identity, not used here.
 // ═══════════════════════════════════════════
 const ICONS = {
+  more:       '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   plus:       '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   x:          '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   check:      '<polyline points="20 6 9 17 4 12"/>',
@@ -1242,6 +1243,12 @@ function noticeBiome(id){
   const n=biomeDisplayName(id);
   if(trackingActive&&n) setTrackingUI(true,'Near '+n+' · switching after this track','pending');
 }
+// Biome Beats plays shuffled unless the player's shuffle button is turned off (then: list order, wrapping round)
+const packShuffleOn=()=>gs('packShuffle',true)!==false;
+function packQueue(len,currentIdx){
+  if(packShuffleOn()) return buildShuffleQueue(len,currentIdx);
+  const out=[]; for(let k=1;k<len;k++) out.push((currentIdx+k)%len); return out;
+}
 function buildShuffleQueue(len, currentIdx){
   // Fisher-Yates shuffle of all indices except current
   const pool=[];
@@ -1767,8 +1774,13 @@ function biomeUsesWholePack(id){
   id=id||currentLocId;
   return !getLocTracks(getPackId(),id).length && !!getActivePack()?.biomes?.some(b=>b.id===id);
 }
+// "All tracks": a fixed, read-only biome at the start of the list that plays every track in the pack
+const ALL_TRACKS_ID='__all';
+const isAllTracks=id=>(id||currentLocId)===ALL_TRACKS_ID;
+function allTracksLoc(){ return {id:ALL_TRACKS_ID, name:'All tracks', emoji:'🎶', cssClass:'biome-custom'}; }
 function playIdxs(id){
   id=id||currentLocId;
+  if(id===ALL_TRACKS_ID){ const gone=packDisliked(getPackId()); return getAllPackTracks(getActivePack()).map((_,i)=>i).filter(i=>!gone.has(i)); }
   const own=getLocTracks(getPackId(),id);
   if(own.length||!biomeUsesWholePack(id)) return own;
   const gone=packDisliked(getPackId());
@@ -1782,8 +1794,8 @@ function playTrackList(){
   if(!n){ spotifyShowSnack('Add some tracks first.'); return; }
   spotifyUnlockAudio();
   favPlaying=null; favQueue=[];
-  currentTrackPlayIdx=Math.floor(Math.random()*n);
-  shuffleQueue=buildShuffleQueue(n,currentTrackPlayIdx);
+  currentTrackPlayIdx=packShuffleOn()?Math.floor(Math.random()*n):0;
+  shuffleQueue=packQueue(n,currentTrackPlayIdx);
   isPlaying=true; renderTrackList(); updateNowPlaying(); playCurrentTrack(false);
 }
 function currentTracks(){return playIdxs();}
@@ -2076,24 +2088,22 @@ function isLocalMode(){ try{ return appMode==='local'; }catch(e){ return false; 
 // ═══════════════════════════════════════════
 // PACKS
 // ═══════════════════════════════════════════
+let packsFilterQ='';
 function renderPacksList(){
   const el=document.getElementById('packsList');
   if(!el)return;
   el.innerHTML='';
-  const all=getAllPacks();
   const activeId=getActivePackId();
+  // with lots of packs, a search box filters the list (by name or subtitle)
+  const box=document.getElementById('packsFilter'), total=getAllPacks().length;
+  if(box){ box.hidden=total<=6; if(box.hidden) packsFilterQ=''; }
+  const q=packsFilterQ.trim().toLowerCase();
+  const all=getAllPacks().filter(p=>!q||(p.name+' '+(p.subtitle||p.source||'')).toLowerCase().includes(q));
 
   // Active pack first, then rest
   const activePack=all.find(p=>p.id===activeId);
   const otherPacks=all.filter(p=>p.id!==activeId);
 
-  // Section label + active pack
-  if(activePack){
-    const activeLabel=document.createElement('div');
-    activeLabel.style.cssText='font-family:var(--pixel);font-size:7px;color:var(--green);letter-spacing:1.5px;margin-bottom:7px;opacity:.8';
-    activeLabel.innerHTML=ic('play','ic-sm')+' NOW PLAYING';
-    el.appendChild(activeLabel);
-  }
 
   // ★ favourites come first, then the rest, each under its own label
   const starred=getStarredPacks();
@@ -2114,17 +2124,15 @@ function renderPacksList(){
     const card=document.createElement('div');
     const isActive=pack.id===activeId;
     card.className='pack-card'+(isActive?' active':'');
-    // Clicking the card body (not buttons) activates the pack
-    card.onclick=(e)=>{ if(!e.target.closest('.pack-actions')) activatePack(pack.id); };
+    card.onclick=(e)=>{ if(!e.target.closest('button')) activatePack(pack.id); };
     const allTracks=getAllPackTracks(pack);
-    const videoCount=pack.videos?pack.videos.length:1;
-    const packSubtitle=pack.subtitle||pack.source||pack.videoId||'';
-    const metaText=packSubtitle+' · '+allTracks.length+' track'+(allTracks.length!==1?'s':'')+(videoCount>1?' · '+videoCount+' videos':'');
-    // Top row: icon + name + active badge
+    const packSubtitle=pack.subtitle||pack.source||'';
+    const mine=packCode(pack)?myRating(pack._code):0;
+    const metaText=[packSubtitle, allTracks.length+' track'+(allTracks.length!==1?'s':''), mine?'★ '+mine:''].filter(Boolean).join(' · ');
     const topRow=document.createElement('div');
     topRow.className='pack-card-top';
     topRow.innerHTML='<div class="pack-icon">'+esc(pack.icon||'🎵')+'</div>'
-      +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+esc(metaText)+'</div></div>';
+      +'<div class="pack-info"><div class="pack-name-row"><div class="pack-name">'+esc(pack.name)+'</div>'+sourceIconsHtml(packSources(pack))+'</div><div class="pack-meta">'+(isActive?'<span class="pack-active">▶ Playing</span> · ':'')+esc(metaText)+'</div></div>';
     const starOn=starred.includes(pack.id);
     const star=document.createElement('button'); // a bookmark, so it isn't mistaken for the star rating
     star.type='button'; star.className='pack-star'+(starOn?' on':'');
@@ -2132,59 +2140,15 @@ function renderPacksList(){
     star.setAttribute('aria-pressed',starOn); star.setAttribute('aria-label',(starOn?'Remove ':'Bookmark ')+pack.name+(starOn?' from favourites':' as a favourite'));
     star.title=starOn?'Favourite: listed first':'Bookmark as a favourite';
     star.onclick=(e)=>{ e.stopPropagation(); togglePackStar(pack.id); };
-    if(isActive){
-      const badge=document.createElement('span');
-      badge.style.cssText='font-size:10px;color:var(--green);font-family:var(--pixel);letter-spacing:.5px;flex-shrink:0';
-      badge.textContent='✓ ACTIVE';
-      topRow.appendChild(badge);
-    }
-    topRow.appendChild(star);
+    const more=document.createElement('button');
+    more.type='button'; more.className='pack-more'; more.innerHTML=ic('more','ic-md');
+    more.setAttribute('aria-label','More for '+pack.name); more.setAttribute('aria-haspopup','menu'); more.title='Edit, share and more';
+    more.onclick=(e)=>{ e.stopPropagation(); openPackMenu(pack,more); };
+    topRow.append(star,more);
     card.appendChild(topRow);
-    // Button row (separate line)
-    const actionsDiv=document.createElement('div');
-    actionsDiv.className='pack-actions';
-    const biomesBtn=document.createElement('button');
-    biomesBtn.className='pack-action-btn';
-    biomesBtn.innerHTML=ic('mapPin','ic-sm')+' Edit biomes';
-    biomesBtn.title='Choose which tracks play in each biome';
-    biomesBtn.onclick=(e)=>{ e.stopPropagation(); editPackBiomes(pack.id); };
-    actionsDiv.appendChild(biomesBtn);
-    const editBtn=document.createElement('button');
-    editBtn.className='pack-action-btn';
-    editBtn.innerHTML=ic('edit','ic-sm')+' Edit';
-    editBtn.onclick=(e)=>{ e.stopPropagation(); openPackEdit(pack.id); };
-    actionsDiv.appendChild(editBtn);
-    const shareBtn=document.createElement('button');
-    shareBtn.className='pack-action-btn';
-    shareBtn.innerHTML=ic('share','ic-sm')+' Share';
-    shareBtn.onclick=(e)=>{ e.stopPropagation(); sharePackById(pack.id); };
-    actionsDiv.appendChild(shareBtn);
-    if(packCode(pack)&&MM_CONFIG.restBase){
-      const mine=myRating(pack._code);
-      const rateBtn=document.createElement('button');
-      rateBtn.className='pack-action-btn'+(mine?' rated':'');
-      rateBtn.textContent=mine?'★ '+mine:'☆ Rate';
-      rateBtn.title=mine?'Your rating: '+mine+' of 5. Tap to change it.':'Rate this pack';
-      rateBtn.setAttribute('aria-label',mine?'Your rating for '+pack.name+': '+mine+' of 5 stars. Change it':'Rate '+pack.name);
-      rateBtn.onclick=(e)=>{ e.stopPropagation(); openRatePack(pack); };
-      actionsDiv.appendChild(rateBtn);
-    }
-    const dupBtn=document.createElement('button');
-    dupBtn.className='pack-action-btn';
-    dupBtn.innerHTML=ic('copy','ic-sm')+' Copy';
-    dupBtn.onclick=(e)=>{ e.stopPropagation(); duplicatePack(pack.id); };
-    actionsDiv.appendChild(dupBtn);
-    {
-      const delBtn=document.createElement('button');
-      delBtn.className='pack-action-btn danger';
-      delBtn.innerHTML=ic('trash','ic-sm')+(pack.builtin?' Remove':' Delete');
-      if(pack.builtin) delBtn.title='Remove this default pack. You can add it back from Public Packs.';
-      delBtn.onclick=(e)=>{ e.stopPropagation(); deletePack(pack.id); };
-      actionsDiv.appendChild(delBtn);
-    }
-    card.appendChild(actionsDiv);
     el.appendChild(card);
   });
+  if(q&&!packsToRender.length) el.insertAdjacentHTML('beforeend','<div class="pub-note">No packs match that.</div>');
   document.getElementById('packEyebrowName').textContent=(getActivePack()?.name||'').toUpperCase();
   const iconEl=document.getElementById('packEyebrowIcon');
   if(iconEl) iconEl.textContent=getActivePack()?.icon||'🎵';
@@ -2233,6 +2197,31 @@ function deletePack(id){
   if(getActivePackId()===id){ setActivePackId(getAllPacks()[0].id); renderLocGrid(); loadLocation('beach',false,false); }
   renderPacksList();
 }
+// ⋯ on a pack: everything you can do with it, in one menu (keeps the list tidy)
+function closePackMenu(){ document.getElementById('packMenu')?.remove(); }
+function openPackMenu(pack,anchor){
+  if(document.getElementById('packMenu')){ const same=document.getElementById('packMenu').dataset.pack===pack.id; closePackMenu(); if(same) return; }
+  const menu=document.createElement('div'); menu.className='dislike-menu'; menu.id='packMenu'; menu.dataset.pack=pack.id; menu.setAttribute('role','menu');
+  const head=document.createElement('div'); head.className='t'; head.textContent=pack.name; menu.append(head);
+  const opt=(label,sub,fn,danger)=>{ const b=document.createElement('button'); b.type='button'; b.setAttribute('role','menuitem'); b.textContent=label;
+    if(danger) b.className='danger';
+    if(sub){ const sm=document.createElement('small'); sm.textContent=sub; b.append(sm); }
+    b.onclick=()=>{ closePackMenu(); fn(); }; menu.append(b); };
+  opt('Edit biomes','Choose which tracks play in each biome',()=>editPackBiomes(pack.id));
+  opt('Edit pack','Name, icon, videos and tracks',()=>openPackEdit(pack.id));
+  opt('Share','A code or a public listing',()=>sharePackById(pack.id));
+  if(packCode(pack)&&MM_CONFIG.restBase){ const mine=myRating(pack._code); opt(mine?'Your rating: '+'★'.repeat(mine):'Rate','',()=>openRatePack(pack)); }
+  opt('Make a copy','',()=>duplicatePack(pack.id));
+  opt(pack.builtin?'Remove':'Delete',pack.builtin?'You can add it back from Public Packs':'',()=>deletePack(pack.id),true);
+  (document.getElementById('geovibes-app')?.parentElement||document.body).append(menu);
+  const r=anchor.getBoundingClientRect(), m=menu.getBoundingClientRect();
+  menu.style.left=Math.max(16,Math.min(innerWidth-m.width-16,r.right-m.width))+'px';
+  menu.style.top=(r.bottom+6+m.height<innerHeight?r.bottom+6:Math.max(8,r.top-m.height-6))+'px';
+  menu.querySelector('button')?.focus();
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#packMenu,.pack-more')) closePackMenu(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePackMenu(); });
+window.addEventListener('scroll',closePackMenu,{passive:true});
 function restoreDefaultPack(id){
   ss(REMOVED_DEFAULTS_KEY,getRemovedDefaults().filter(x=>x!==id));
   renderPacksList(); renderPublicRemoved();
@@ -2413,7 +2402,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.22.4';
+const MM_VERSION = '1.23';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -2806,6 +2795,16 @@ function renderLocGrid(){
     ...customLocs.map(cl=>({...cl,isCustom:true}))
   ];
 
+  // first tile: every track in the pack (read-only)
+  {
+    const all=document.createElement('button');
+    all.className='loc-btn all-tracks-loc'+(isAllTracks()?' active':'');
+    all.innerHTML='<span class="loc-btn-emoji">🎶</span><span class="loc-btn-name">All tracks</span>';
+    const n=document.createElement('span'); n.className='loc-btn-subtext'; n.textContent=getAllPackTracks(pack).length+' tracks'; all.append(n);
+    all.title='Play every track in this pack';
+    all.onclick=()=>loadLocation(ALL_TRACKS_ID,true);
+    g.appendChild(all);
+  }
   allLocs.forEach(loc=>{
     const btn=document.createElement('button');
     btn.className='loc-btn'+(loc.isCustom?' custom-loc':'')+(loc.id===currentLocId?' active':'');
@@ -2860,7 +2859,8 @@ function loadLocation(id,manual,showToast){
   const packId=getPackId();
   const pack=getActivePack();
   let loc=pack?.biomes.find(b=>b.id===id);
-  if(loc){
+  if(id===ALL_TRACKS_ID) loc=allTracksLoc();
+  else if(loc){
     const ov=getBiomeOverride(packId,id);
     loc={...loc,...ov};
   } else {
@@ -2917,14 +2917,17 @@ function renderTrackList(){
   const packId=getPackId();
   const pack=getActivePack();
   let loc=pack?.biomes.find(b=>b.id===currentLocId);
-  if(loc){const ov=getBiomeOverride(packId,currentLocId);loc={...loc,...ov};}
+  if(isAllTracks()) loc=allTracksLoc();
+  else if(loc){const ov=getBiomeOverride(packId,currentLocId);loc={...loc,...ov};}
   else loc=getAllCustomLocs().find(l=>l.id===currentLocId);
   const label=document.getElementById('trackListLabel');
-  if(loc)label.textContent=(loc.name).toUpperCase()+' TRACKS';
+  if(loc)label.textContent=isAllTracks()?'ALL TRACKS IN THIS PACK':(loc.name).toUpperCase()+' TRACKS';
+  const readOnly=isAllTracks();
+  document.getElementById('addTracksBtn').hidden=readOnly;
 
   const list=document.getElementById('trackList');
   list.innerHTML='';
-  const trackIdxs=getLocTracks(packId,currentLocId);
+  const trackIdxs=readOnly?playIdxs():getLocTracks(packId,currentLocId);
   const packTracks=getAllPackTracks(pack);
   const playBtn=document.getElementById('trackListPlayBtn');
   if(playBtn){ const whole=biomeUsesWholePack(); playBtn.title=whole?'Shuffle-play the whole pack':'Shuffle-play this list'; playBtn.querySelector('span').textContent=whole?'Play all':'Play'; playBtn.disabled=!playIdxs().length; }
@@ -2950,6 +2953,7 @@ function renderTrackList(){
     infoEl.className='track-info';
     infoEl.innerHTML='<div class="track-title">'+esc(t.title)+'</div><div class="track-game">'+fmt(t.dur)+'</div>';
     item.appendChild(infoEl);
+    if(readOnly){ list.appendChild(item); return; } // All tracks: nothing to pin or remove
     const actEl=document.createElement('div');
     actEl.className='track-actions';
     const pinBtn=document.createElement('button');
@@ -3168,7 +3172,7 @@ function nextTrack(){
   const t=currentTracks();
   if(t.length<=1){currentTrackPlayIdx=0;}
   else{
-    if(shuffleQueue.length===0) shuffleQueue=buildShuffleQueue(t.length,currentTrackPlayIdx);
+    if(shuffleQueue.length===0) shuffleQueue=packQueue(t.length,currentTrackPlayIdx);
     currentTrackPlayIdx=shuffleQueue.shift();
   }
   renderTrackList();updateNowPlaying();if(isPlaying)playCurrentTrack(true);
@@ -6418,7 +6422,7 @@ function applyModeUI(){
 }
 // The heart in the player: Saved (Local Listening) or favourites (Biome Beats)
 const SAVE_BTN_HTML='<svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
-function syncVideoBtnForMode(){ if(appMode==='local') updateSaveStationBtn(); else updateFavBtn(); }
+function syncVideoBtnForMode(){ if(appMode==='local') updateSaveStationBtn(); else updateFavBtn(); renderShuffleBtn(); }
 // Biome Beats: the heart saves the track (biomes can be switched any time, so no spot to save).
 // Local Listening: it opens a menu of what can be saved right now (song, artist, station, this spot).
 function onHeartBtn(e){ if(isLocalMode()) openSaveMenu(e); else toggleFavCurrent(); }
@@ -7324,7 +7328,7 @@ function packsSpotifyQueue(){
   const pack=getActivePack(); const idxs=playIdxs(); const all=getAllPackTracks(pack);
   const fav=favPlaying!=null;
   // the shuffle order is normally made at the first "next": make it now, so Spotify gets the whole list
-  if(!fav&&!shuffleQueue.length&&idxs.length>1) shuffleQueue=buildShuffleQueue(idxs.length,currentTrackPlayIdx);
+  if(!fav&&!shuffleQueue.length&&idxs.length>1) shuffleQueue=packQueue(idxs.length,currentTrackPlayIdx);
   const order=fav?[favPlaying,...favQueue]:[currentTrackPlayIdx,...shuffleQueue];
   const out=[];
   for(const k of order){
@@ -7444,8 +7448,20 @@ function chanNextIdx(from){
   return (from+1)%chanItems.length;
 }
 function renderShuffleBtn(){
-  const b=document.getElementById('chanShuffleBtn'); if(!b) return;
-  const on=shuffleOn(); b.setAttribute('aria-pressed',on); b.title=on?'Shuffle is on (tap to play in order)':'Shuffle play';
+  const b=document.getElementById('chanShuffleBtn');
+  if(b){ const on=shuffleOn(); b.setAttribute('aria-pressed',on); b.title=on?'Shuffle is on (tap to play in order)':'Shuffle play'; }
+  // the player's shuffle button: this channel in Local Listening, the biome's tracks in Biome Beats
+  const p=document.getElementById('npShuffleBtn'); if(!p) return;
+  const on=isLocalMode()?shuffleOn():packShuffleOn();
+  p.classList.toggle('active',on); p.setAttribute('aria-pressed',on);
+  p.title=on?'Shuffle is on (tap to play in order)':'Shuffle is off (tap to shuffle)'; p.setAttribute('aria-label',p.title);
+}
+function onShuffleBtn(){
+  if(isLocalMode()) return toggleChanShuffle();
+  const on=!packShuffleOn(); ss('packShuffle',on);
+  shuffleQueue=[]; // the next track follows the new order
+  renderShuffleBtn();
+  spotifyShowSnack(on?'Shuffle on':'Shuffle off: playing in list order');
 }
 // Off → on: shuffle and start a random one now. On → off: carry on in list order.
 function toggleChanShuffle(){

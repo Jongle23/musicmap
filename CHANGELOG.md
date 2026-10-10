@@ -1,6 +1,22 @@
 # MusicMap Changelog
 
-## v1.22.4 — Current
+## v1.23 — Current
+**Release date:** 2026-10-10
+
+### New
+- **All tracks:** the first tile in the biome list plays every track in the pack. It's read-only: you can't add, remove or pin tracks in it. Tracks you've removed from the whole pack stay out.
+- **Shuffle on the player:** a shuffle button sits to the right of skip forward, and the open-link button moves to the far right.
+  - In Biome Beats it switches between shuffled and list order (shuffle is on by default, as before).
+  - In Local Listening it's the same setting as each channel's own Shuffle button.
+
+### Changes
+- **Tidier Packs list:** each pack is now one compact row with its icon, name, sources, subtitle, track count and your rating. The bookmark (favourite) and a **⋯** menu sit at the end.
+  - The ⋯ menu holds everything you can do with the pack: Edit biomes, Edit pack, Share, Rate, Make a copy, and Remove/Delete.
+  - The playing pack says "▶ Playing".
+  - With more than 6 packs, a search box appears above the list.
+- Pop-up menus (save, don't-play, pack) now use the app's font everywhere.
+
+## v1.22.4
 **Release date:** 2026-10-10
 
 ### Improvements

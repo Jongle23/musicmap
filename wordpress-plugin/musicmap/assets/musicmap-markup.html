@@ -91,6 +91,7 @@
       <button class="hero-ctrl-btn" onclick="prevTrack()" aria-label="Previous track" title="Previous"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg></button>
       <button class="hero-ctrl-btn primary" id="playBtn" onclick="togglePlay()" aria-label="Play / pause" title="Play / pause"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
       <button class="hero-ctrl-btn" onclick="nextTrack()" aria-label="Next track" title="Next"><svg class="ic ic-md" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg></button>
+      <button class="hero-ctrl-btn ghost" id="npShuffleBtn" type="button" onclick="onShuffleBtn()" aria-pressed="false" aria-label="Shuffle" title="Shuffle"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg></button>
       <button class="hero-ctrl-btn ghost" id="npYtBtn" aria-label="Open on YouTube" title="Open on YouTube"><svg class="ic ic-md" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
     </div>
   </div>
@@ -150,7 +151,7 @@
         <div class="pin-status" id="pinStatus"></div>
       </div>
       <div class="track-list" id="trackList"></div>
-      <button class="add-track-btn" onclick="openTrackPicker()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add tracks</button>
+      <button class="add-track-btn" id="addTracksBtn" onclick="openTrackPicker()"><svg class="ic ic-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add tracks</button>
     </div>
 
   </div>
@@ -188,6 +189,7 @@
           <span>Public Packs</span>
         </button>
       </div>
+      <input id="packsFilter" class="packs-filter" type="search" placeholder="Search your packs…" maxlength="60" aria-label="Search your packs" hidden oninput="packsFilterQ=this.value;renderPacksList()">
       <div id="packsList" style="margin-top:4px"></div>
     </div>
     <div class="section" style="margin-top:20px">
@@ -782,7 +784,7 @@ Rules:
 </div>
 <div class="app-footer" style="width:100%;max-width:520px;padding:24px 16px 40px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">
   <div class="support-link" id="supportLink" hidden>☕ If you're enjoying it, please consider <a data-support href="#" target="_blank" rel="noopener">buying me a coffee</a></div>
-  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.22.4</div>
+  <div style="font-size:10px;color:var(--muted);font-family:var(--pixel);letter-spacing:.5px" id="footerVersion">Version 1.23</div>
   <div style="font-size:11px;color:rgba(255,255,255,.55);font-family:var(--sans);line-height:1.6">Built by <a href="https://jongle.me" target="_blank" rel="noopener" style="color:rgba(255,255,255,.75)">Jongle</a> · <a href="#creditsSection" onclick="openCredits(event)" style="color:rgba(255,255,255,.75)">Credits</a><span id="footerReport" hidden> · <a href="#" onclick="openReport(event)" style="color:rgba(255,255,255,.75)">Report a problem</a></span></div>
 </div>
 </div><!-- #geovibes-app -->
