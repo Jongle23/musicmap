@@ -2413,7 +2413,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.22.3';
+const MM_VERSION = '1.22.4';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -7018,6 +7018,29 @@ function updateSaveSpotBtn(){
   b.classList.toggle('on',on); b.setAttribute('aria-pressed',on);
   b.querySelector('span').textContent=on?'Saved spot':'Save spot';
 }
+// Open a saved song or artist in YouTube / Spotify: its own page when the id is known, otherwise a search there.
+// Only checked ids and app-built URLs are used.
+function openLinkBtn(service,url,label){
+  const a=document.createElement('a'); a.className='row-btn'; a.href=url; a.target='_blank'; a.rel='noopener noreferrer';
+  a.innerHTML=SOURCE_ICONS[service]; a.title='Open in '+SOURCE_LABELS[service];
+  a.setAttribute('aria-label','Open '+label+' in '+SOURCE_LABELS[service]);
+  return a;
+}
+function savedSongLinks(s){
+  const q=encodeURIComponent((s.artist+' '+s.title).trim());
+  const sp=/^spotify:track:([A-Za-z0-9]{22})$/.exec(s.sp||'');
+  return [
+    openLinkBtn('youtube', YT_ID.test(s.yt||'')?'https://www.youtube.com/watch?v='+s.yt:'https://www.youtube.com/results?search_query='+q, s.title),
+    openLinkBtn('spotify', sp?'https://open.spotify.com/track/'+sp[1]:'https://open.spotify.com/search/'+q, s.title)
+  ];
+}
+function savedArtistLinks(a){
+  const q=encodeURIComponent(a.name);
+  return [
+    openLinkBtn('youtube', /^UC[A-Za-z0-9_-]{22}$/.test(a.youtube||'')?'https://www.youtube.com/channel/'+a.youtube:'https://www.youtube.com/results?search_query='+q, a.name),
+    openLinkBtn('spotify', /^[A-Za-z0-9]{22}$/.test(a.spotify||'')?'https://open.spotify.com/artist/'+a.spotify:'https://open.spotify.com/search/'+q, a.name)
+  ];
+}
 function renderSavedList(){
   const d=getSaved();
   const stEl=document.getElementById('savedStations'), spEl=document.getElementById('savedSpots'), soEl=document.getElementById('savedSongs');
@@ -7041,7 +7064,7 @@ function renderSavedList(){
       const del=document.createElement('button'); del.type='button'; del.className='heart-btn on';
       del.setAttribute('aria-pressed','true'); del.setAttribute('aria-label','Remove '+s.title+' from Saved'); del.innerHTML=SAVE_BTN_HTML;
       del.onclick=()=>toggleSongSaved(s);
-      row.append(b, shareButton(songShareParams(s), s.title+' — '+s.artist), del); soEl.appendChild(row);
+      row.append(b, ...savedSongLinks(s), shareButton(songShareParams(s), s.title+' — '+s.artist), del); soEl.appendChild(row);
     });
   }
   const arEl=document.getElementById('savedArtists');
@@ -7062,7 +7085,7 @@ function renderSavedList(){
       main.append(name,sub); b.append(main);
       b.onclick=()=>playSavedArtists(i);
       const geo=Number.isFinite(a.lat)&&Number.isFinite(a.lon);
-      row.append(b, shareButton({ch:'made', a:a.name, lat:geo?a.lat:undefined, lon:geo?a.lon:undefined, where:a.where}, a.name), artistHeartButton(a));
+      row.append(b, ...savedArtistLinks(a), shareButton({ch:'made', a:a.name, lat:geo?a.lat:undefined, lon:geo?a.lon:undefined, where:a.where}, a.name), artistHeartButton(a));
       arEl.appendChild(row);
     });
   }

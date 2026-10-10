@@ -1,6 +1,14 @@
 # MusicMap Changelog
 
-## v1.22.3 — Current
+## v1.22.4 — Current
+**Release date:** 2026-10-10
+
+### Improvements
+- **Open saved songs and artists in YouTube or Spotify:** every saved song and artist in the Saved tab has YouTube and Spotify buttons.
+  - They go straight to the song, the artist's channel or the artist's page when MusicMap knows it, and to a search there otherwise.
+  - Saved spots don't get these buttons. Stations keep their own controls.
+
+## v1.22.3
 **Release date:** 2026-10-10
 
 ### Fixes

@@ -607,6 +607,7 @@
 .musicmap-root:not(#mm-scope) .row-btn{flex-shrink:0;width:34px;height:34px;border-radius:8px;border:1px solid transparent;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .15s}
 .musicmap-root:not(#mm-scope) .row-btn:hover{border-color:var(--border);background:rgba(255,255,255,.06);color:#fff}
 .musicmap-root:not(#mm-scope) .row-btn .ic,.musicmap-root:not(#mm-scope) .row-btn .src-ic{width:16px;height:16px}
+@media (max-width:420px){.musicmap-root:not(#mm-scope) #savedSongs .row-btn,.musicmap-root:not(#mm-scope) #savedArtists .row-btn{width:28px}}
 .musicmap-root:not(#mm-scope) .row-btn:focus-visible,.musicmap-root:not(#mm-scope) .heart-btn:focus-visible{outline:2px solid var(--accent2);outline-offset:1px}
 .musicmap-root:not(#mm-scope) .local-item-art{flex-shrink:0;width:40px;height:40px;border-radius:6px;object-fit:cover;background:rgba(255,255,255,.08)}
 .musicmap-root:not(#mm-scope) .local-item-rank{flex-shrink:0;width:22px;text-align:center;font-size:12px;font-weight:700;color:var(--muted)}
