@@ -1,6 +1,12 @@
 # MusicMap Changelog
 
-## v1.22.2 — Current
+## v1.22.3 — Current
+**Release date:** 2026-10-10
+
+### Fixes
+- The save menu's heading now reads "Save…" instead of "Save to Saved…".
+
+## v1.22.2
 **Release date:** 2026-10-10
 
 ### Changes

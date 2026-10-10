@@ -2413,7 +2413,7 @@ function renderPackEmojiPicker(){
 // ═══════════════════════════════════════════
 // VERSION + SHARE BACKEND
 // ═══════════════════════════════════════════
-const MM_VERSION = '1.22.2';
+const MM_VERSION = '1.22.3';
 // Settings injected by the WordPress plugin's [musicmap] shortcode (absent when this file runs standalone)
 const MM_CONFIG = (typeof window!=='undefined' && window.MUSICMAP_CONFIG && typeof window.MUSICMAP_CONFIG==='object') ? window.MUSICMAP_CONFIG : {};
 // Share-code API endpoint. The plugin sets it automatically; standalone, set your own (see README "API Setup")
@@ -6958,7 +6958,7 @@ function openSaveMenu(e){
   const opts=saveOptions();
   if(!opts.length){ spotifyShowSnack('Play something or choose a spot first, then save it.'); return; }
   const menu=document.createElement('div'); menu.className='dislike-menu save-menu'; menu.id='saveMenu'; menu.setAttribute('role','menu');
-  const head=document.createElement('div'); head.className='t'; head.textContent='Save to Saved…'; menu.append(head);
+  const head=document.createElement('div'); head.className='t'; head.textContent='Save…'; menu.append(head);
   opts.forEach(o=>{
     const b=document.createElement('button'); b.type='button'; b.setAttribute('role','menuitemcheckbox'); b.setAttribute('aria-checked',o.on);
     const h=document.createElement('span'); h.className='save-menu-heart'+(o.on?' on':''); h.innerHTML=SAVE_BTN_HTML;
